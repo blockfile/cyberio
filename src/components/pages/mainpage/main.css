@@ -1,0 +1,214 @@
+/* ============================================================
+   HERO BACKGROUND + PARALLAX
+   ============================================================ */
+.main-container {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Dark fade over hero */
+.overlay {
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 1) 100%
+  );
+}
+
+/* ============================================================
+   FALLING LEAVES
+   ============================================================ */
+.falling-leaf {
+  animation: fall 10s linear infinite;
+  top: -50px;
+}
+
+@keyframes fall {
+  0% {
+    transform: translateY(-100px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   HERO CARD FLOAT / FLIP
+   ============================================================ */
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes glowPulse {
+  0% {
+    box-shadow: 0 0 10px rgba(0, 255, 128, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 255, 128, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(0, 255, 128, 0.4);
+  }
+}
+
+.card-wrapper {
+  width: 250px;
+  height: 350px;
+  perspective: 1000px;
+}
+
+.card-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transition: transform 1s;
+  transform-style: preserve-3d;
+  animation: float 4s ease-in-out infinite, glowPulse 2.5s ease-in-out infinite;
+}
+
+.card-wrapper:hover .card-inner {
+  transform: rotateY(180deg);
+}
+
+.card-face {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  border-radius: 12px;
+  backface-visibility: hidden;
+}
+
+.card-back {
+  transform: rotateY(180deg);
+}
+
+/* ============================================================
+   ENEMY IMAGE GLOW (ABOUT SECTION)
+   ============================================================ */
+
+@keyframes pulseGlowPurple {
+  0% {
+    filter: drop-shadow(0 0 16px rgba(168, 85, 247, 0.4));
+    opacity: 0.85;
+  }
+  50% {
+    filter: drop-shadow(0 0 32px rgba(168, 85, 247, 1));
+    opacity: 1;
+  }
+  100% {
+    filter: drop-shadow(0 0 16px rgba(168, 85, 247, 0.4));
+    opacity: 0.85;
+  }
+}
+
+@keyframes pulseGlowGreen {
+  0% {
+    filter: drop-shadow(0 0 16px rgba(52, 211, 153, 0.4));
+    opacity: 0.85;
+  }
+  50% {
+    filter: drop-shadow(0 0 32px rgba(52, 211, 153, 1));
+    opacity: 1;
+  }
+  100% {
+    filter: drop-shadow(0 0 16px rgba(52, 211, 153, 0.4));
+    opacity: 0.85;
+  }
+}
+
+.enemy-glow-purple {
+  animation: pulseGlowPurple 2.5s ease-in-out infinite;
+}
+.enemy-glow-green {
+  animation: pulseGlowGreen 2.5s ease-in-out infinite;
+}
+
+/* ============================================================
+   ROADMAP ORB (GREEN / TEAL)
+   ============================================================ */
+
+.roadmap-orb {
+  width: 140px;
+  height: 140px;
+  border-radius: 999px;
+  background:
+    radial-gradient(
+      circle at 30% 0,
+      #bbf7d0 0,
+      rgba(187, 247, 208, 0.1) 35%,
+      transparent 45%
+    ),
+    radial-gradient(circle at 50% 60%, #22c55e 0, #064e3b 45%, #020617 70%);
+  box-shadow:
+    0 0 40px rgba(34, 197, 94, 0.9),
+    0 0 80px rgba(52, 211, 153, 0.6);
+  animation: roadmapOrbPulse 4s ease-in-out infinite;
+}
+
+@keyframes roadmapOrbPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+    box-shadow:
+      0 0 35px rgba(34, 197, 94, 0.85),
+      0 0 70px rgba(52, 211, 153, 0.55);
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+    box-shadow:
+      0 0 55px rgba(34, 197, 94, 1),
+      0 0 90px rgba(52, 211, 153, 0.8);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+    box-shadow:
+      0 0 35px rgba(34, 197, 94, 0.85),
+      0 0 70px rgba(52, 211, 153, 0.55);
+  }
+}
+
+/* Base for roadmap cards (both main & preview same size) */
+.roadmap-card-glass {
+  position: relative;
+  border-radius: 32px;
+}
+
+/* ============================================================
+   TITLE SHIMMER (HERO)
+   ============================================================ */
+
+@keyframes shimmer {
+  0% {
+    text-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    text-shadow: 0 0 24px rgba(255, 255, 255, 0.7);
+  }
+  100% {
+    text-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
+  }
+}
+
+.rpg-title-animate {
+  animation: shimmer 2.5s ease-in-out infinite;
+}
