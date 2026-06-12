@@ -17,9 +17,10 @@ import { useNavigate } from "react-router-dom";
 
 import Navbar from "../navbar/navbar";
 import { WalletContext } from "../../context/WalletConnect";
+import { API_BASE_URL } from "../../config/endpoints";
 import "./dapp-hud.css";
 
-// background
+// ✅ background
 import bg2 from "../assets/images/bg4.jpg";
 
 // icons
@@ -84,10 +85,7 @@ export default function Dapp() {
     powerThreshold: 5,
   });
 
-  const API_BASE =
-    (process.env.REACT_APP_API_URL || "").trim() ||
-    (process.env.REACT_APP_API_BASE || "").trim() ||
-    "http://localhost:3001";
+  const API_BASE = API_BASE_URL;
 
   const formatDateTime = (d) => {
     if (!d) return "-";
@@ -125,7 +123,9 @@ export default function Dapp() {
 
     // 2) fallback: /api/store/pass/active/:wallet
     try {
-      const { data } = await axios.get(`${API_BASE}/api/store/pass/active/${wallet}`);
+      const { data } = await axios.get(
+        `${API_BASE}/api/store/pass/active/${wallet}`
+      );
       if (data?.success) {
         setPassInfo((p) => ({
           ...p,
@@ -201,7 +201,8 @@ export default function Dapp() {
 
     if (!earnEligibility.hasActivePass) return goToStorePage();
 
-    if (earnEligibility.lowPowerCount < earnEligibility.requiredLowPower) return goToInventory();
+    if (earnEligibility.lowPowerCount < earnEligibility.requiredLowPower)
+      return goToInventory();
 
     navigate("/earn");
   }, [
@@ -220,7 +221,9 @@ export default function Dapp() {
   // ===============================
   const earnLocked = !earnEligibility.eligible;
 
-  const earnLockTitle = !earnEligibility.hasActivePass ? "PASS REQUIRED" : "NFT REQUIREMENT";
+  const earnLockTitle = !earnEligibility.hasActivePass
+    ? "PASS REQUIRED"
+    : "NFT REQUIREMENT";
 
   const earnLockDesc = !earnEligibility.hasActivePass
     ? "Go to Store and purchase Dimensional Pass to unlock Earn (P2E)."
@@ -382,14 +385,23 @@ export default function Dapp() {
 
   const scrambleQS = React.useCallback(
     (key, finalText, ms = 520) => {
-      scrambleTo((out) => setQsLabelMap((prev) => ({ ...prev, [key]: out })), finalText, ms, true);
+      scrambleTo(
+        (out) => setQsLabelMap((prev) => ({ ...prev, [key]: out })),
+        finalText,
+        ms,
+        true
+      );
     },
     [scrambleTo]
   );
 
   // Card title/sub
-  const [cardTitle, setCardTitle] = useState(() => String(modes[selected]?.title || "").toUpperCase());
-  const [cardSub, setCardSub] = useState(() => String(modes[selected]?.subtitle || "").toUpperCase());
+  const [cardTitle, setCardTitle] = useState(() =>
+    String(modes[selected]?.title || "").toUpperCase()
+  );
+  const [cardSub, setCardSub] = useState(() =>
+    String(modes[selected]?.subtitle || "").toUpperCase()
+  );
 
   React.useEffect(() => {
     let t;
@@ -447,6 +459,17 @@ export default function Dapp() {
   const showCards = wallet && cardCount != null ? String(cardCount) : wallet ? "..." : "-";
   const showSd = wallet && sdBalance != null ? `$SD ${sdBalance}` : wallet ? "..." : "$SD -";
   const showSol = wallet && solBalance != null ? `${solBalance} SOL` : wallet ? "..." : "-";
+  const earnProgress =
+    earnEligibility.requiredLowPower > 0
+      ? Math.min(
+        100,
+        Math.round(
+          (earnEligibility.lowPowerCount / earnEligibility.requiredLowPower) * 100
+        )
+      )
+      : earnEligibility.eligible
+        ? 100
+        : 0;
 
   return (
     <div className="dapp-hud">
@@ -526,14 +549,7 @@ export default function Dapp() {
                   <button
                     type="button"
                     onClick={connectWallet}
-                    className="mono"
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.2)",
-                      background: "rgba(255,255,255,.06)",
-                      cursor: "pointer",
-                    }}
+                    className="panelAction mono"
                   >
                     CONNECT WALLET
                   </button>
@@ -548,25 +564,20 @@ export default function Dapp() {
                       fetchEarnEligibility();
                     }}
                     disabled={!!loadingStats || earnEligibility.loading}
-                    className="mono"
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,.2)",
-                      background: loadingStats || earnEligibility.loading ? "rgba(255,255,255,.03)" : "rgba(255,255,255,.06)",
-                      cursor: loadingStats || earnEligibility.loading ? "not-allowed" : "pointer",
-                      opacity: loadingStats || earnEligibility.loading ? 0.7 : 1,
-                    }}
+                    className="panelAction mono"
                   >
                     {loadingStats || earnEligibility.loading ? "REFRESHING…" : "REFRESH"}
                   </button>
                 </div>
               )}
 
-              {/* Quick Select */}
-              <div className="panel__smallRow panel__smallRow--tight">
-                <span>Quick Select</span>
-
+              <div className="quickSelectBlock">
+                <div className="quickSelectHeader">
+                  <span>Quick Select</span>
+                  <span className="quickSelectHeader__count mono">
+                    {String(selected + 1).padStart(2, "0")} / {String(modes.length).padStart(2, "0")}
+                  </span>
+                </div>
                 <div className="quickSelect mono" role="tablist" aria-label="Quick Select Modes">
                   {modes.map((m, i) => (
                     <button
@@ -583,6 +594,7 @@ export default function Dapp() {
                       aria-selected={i === selected}
                       title={m.locked ? (m.key === "earn" ? "Requirements not met" : "Locked") : ""}
                     >
+                      <span className="qsIndex">{String(i + 1).padStart(2, "0")}</span>
                       <span className="qsText">{qsLabelMap[m.key] ?? m.title.toUpperCase()}</span>
                       {m.locked ? <Lock size={14} className="qsLock" aria-hidden="true" /> : null}
                     </button>
@@ -590,11 +602,11 @@ export default function Dapp() {
                 </div>
               </div>
 
-              <div className="panel__smallRow">
+              <div className="panel__smallRow panel__smallRow--meta">
                 <span>Controls</span>
                 <span className="mono">← → / SWIPE</span>
               </div>
-              <div className="panel__smallRow">
+              <div className="panel__smallRow panel__smallRow--meta">
                 <span>Hint</span>
                 <span className="mono">Enter to launch</span>
               </div>
@@ -737,8 +749,7 @@ export default function Dapp() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -10, scale: 0.98 }}
                       transition={{ duration: 0.22 }}
-                      className={`modeCard__frame accent--${active.accent} modeCard__frame--active ${active.locked ? "isLocked" : ""
-                        }`}
+                      className={`modeCard__frame accent--${active.accent} modeCard__frame--active ${active.locked ? "isLocked" : ""}`}
                     >
                       <div className="modeCard__scan" aria-hidden="true" />
                       <div className="modeCard__sheen" aria-hidden="true" />
@@ -825,20 +836,24 @@ export default function Dapp() {
             </div>
 
             <div className="panel__content">
-              <div className="infoBlock">
-                <div className="infoBlock__label">Selected</div>
-                <div className="infoBlock__value">
-                  {active.title}{" "}
-                  {active.locked ? (
-                    <span className="mono" style={{ opacity: 0.8 }}>
-                      • LOCKED
-                    </span>
-                  ) : null}
+              <div className={`infoHero infoHero--${active.accent}`}>
+                <div className="infoHero__top">
+                  <div>
+                    <div className="infoBlock__label">Selected Mode</div>
+                    <div className="infoHero__value">{active.title}</div>
+                  </div>
+
+                  <span className={`statusChip mono ${active.locked ? "statusChip--locked" : "statusChip--ready"}`}>
+                    {active.locked ? <Lock size={13} /> : <Shield size={13} />}
+                    {active.locked ? "LOCKED" : "READY"}
+                  </span>
                 </div>
-                <div className="infoBlock__hint">
+
+                <div className="infoHero__hint">
                   {active.locked ? (
                     <>
-                      <span className="mono">{active.lockTitle || "LOCKED"}</span> — {active.lockDesc || "Unavailable"}
+                      <span className="mono">{active.lockTitle || "LOCKED"}</span>
+                      <span> - {active.lockDesc || "Unavailable"}</span>
                     </>
                   ) : (
                     active.hint
@@ -846,35 +861,33 @@ export default function Dapp() {
                 </div>
               </div>
 
-              <div className="panel__divider" />
-
               <div className="infoBlock">
-                <div className="infoBlock__label">Dimensional Pass</div>
-                <div className="infoBlock__hint">
-                  <span className="mono" style={{ opacity: 0.9 }}>
+                <div className="infoBlock__head">
+                  <div className="infoBlock__title">
+                    <span className="infoBlock__icon">
+                      <Ticket size={15} />
+                    </span>
+                    <div>
+                      <div className="infoBlock__label">Dimensional Pass</div>
+                      <div className="infoBlock__value">
+                        {passInfo.hasActive ? "Access Online" : "Access Offline"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <span className={`statusChip mono ${passInfo.hasActive ? "statusChip--ready" : "statusChip--idle"}`}>
                     {passInfo.hasActive ? "ACTIVE" : "INACTIVE"}
                   </span>
-                  <span style={{ opacity: 0.85 }}> • Expires: {formatDateTime(passInfo.expiresAt)}</span>
+                </div>
+
+                <div className="infoMetric">
+                  <span>Expires</span>
+                  <span className="mono">{formatDateTime(passInfo.expiresAt)}</span>
                 </div>
 
                 {!passInfo.hasActive ? (
-                  <button
-                    type="button"
-                    onClick={goToStorePage}
-                    className="mono"
-                    style={{
-                      marginTop: 10,
-                      padding: "8px 10px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(255,255,255,.18)",
-                      background: "rgba(255,255,255,.06)",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <Ticket size={16} />
+                  <button type="button" onClick={goToStorePage} className="infoAction mono">
+                    <Ticket size={15} />
                     GO TO STORE
                   </button>
                 ) : (
@@ -884,41 +897,48 @@ export default function Dapp() {
                       fetchPassStatus();
                       fetchEarnEligibility();
                     }}
-                    className="mono"
-                    style={{
-                      marginTop: 10,
-                      padding: "8px 10px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(255,255,255,.18)",
-                      background: "rgba(255,255,255,.06)",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
+                    className="infoAction mono"
                   >
                     REFRESH
                   </button>
                 )}
               </div>
 
-              <div className="panel__divider" />
+              <div className="infoBlock" style={{ "--requirement-progress": `${earnProgress}%` }}>
+                <div className="infoBlock__head">
+                  <div className="infoBlock__title">
+                    <span className="infoBlock__icon">
+                      <Layers size={15} />
+                    </span>
+                    <div>
+                      <div className="infoBlock__label">Earn Requirements</div>
+                      <div className="infoBlock__value">
+                        {earnEligibility.eligible ? "Qualified" : "Needs Setup"}
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="infoBlock">
-                <div className="infoBlock__label">Earn Requirements</div>
+                  <span className={`statusChip mono ${earnEligibility.eligible ? "statusChip--ready" : "statusChip--locked"}`}>
+                    {earnEligibility.eligible ? "ELIGIBLE" : "LOCKED"}
+                  </span>
+                </div>
+
+                <div className="infoMetric">
+                  <span>Low-power NFTs</span>
+                  <span className="mono">
+                    {earnEligibility.lowPowerCount}/{earnEligibility.requiredLowPower}
+                  </span>
+                </div>
+                <div className="requirementMeter" aria-hidden="true">
+                  <span />
+                </div>
                 <div className="infoBlock__hint">
-                  <div className="mono" style={{ opacity: 0.9 }}>
-                    {earnEligibility.eligible ? "ELIGIBLE" : "NOT ELIGIBLE"}
-                  </div>
-                  <div style={{ opacity: 0.85 }}>
-                    Low-power NFTs: {earnEligibility.lowPowerCount}/{earnEligibility.requiredLowPower} (power &lt;{" "}
-                    {earnEligibility.powerThreshold})
-                  </div>
+                  Power below {earnEligibility.powerThreshold} required for Earn access.
                 </div>
               </div>
             </div>
 
-            <div className="panel__small">
+            <div className="panel__small panel__small--right">
               <div className="panel__smallRow">
                 <span>System</span>
                 <span className="mono">ONLINE</span>

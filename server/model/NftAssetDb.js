@@ -21,6 +21,9 @@ const NftAssetDbSchema = new mongoose.Schema(
 
     // gameplay
     power: { type: Number, default: 0, index: true },
+    skill: { type: String, default: "" },
+    skillPower: { type: Number, default: null },
+    powerSource: { type: String, default: "" },
 
     // optional: stored blobs from sync
     attributes: { type: Array, default: [] },

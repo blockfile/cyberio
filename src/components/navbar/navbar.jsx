@@ -1,179 +1,220 @@
-// src/components/layout/Navbar.jsx
-import React, { useContext, useEffect, useState } from "react";
-import { PublicKey, Connection } from "@solana/web3.js";
+// src/components/navbar/navbar.jsx
+import React, { useCallback, useContext, useMemo, useState } from "react";
 import { FiMenu, FiX } from "react-icons/fi";
+import { Wallet, Power, RefreshCcw } from "lucide-react";
 import { WalletContext } from "../../context/WalletConnect";
+import "./navbar.css";
 
-const SD_TOKEN_MINT = "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump";
-const RPC_ENDPOINT =
-  "https://thrilling-convincing-night.solana-mainnet.quiknode.pro/d870e8b8fb9d6c583ad7bc05a2d05aadfcbc2960/";
-
-// If your API runs on a different host/port in dev, change this
-
-const API_BASE_URL =
-  (process.env.REACT_APP_API_URL || "").trim() ||
-  (process.env.REACT_APP_API_BASE || "").trim() ||
-  "http://localhost:3001";
+function shortWallet(addr) {
+  if (!addr) return "-";
+  return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
+}
 
 export default function Navbar() {
-  const { wallet, connectWallet } = useContext(WalletContext);
+  const {
+    wallet,
+    providerName,
+    connectWallet,
+    disconnectWallet,
+    sdBalance,
+    solBalance,
+    cardCount,
+    loadingStats,
+    refreshStats,
+  } = useContext(WalletContext);
 
-  const [balance, setBalance] = useState(null); // $SD
-  const [solBalance, setSolBalance] = useState(null); // SOL
-  const [cardCount, setCardCount] = useState(null); // number of NFTs/cards
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // ─ Fetch SOL + $SD balances ─
-  useEffect(() => {
+  const openWalletPicker = useCallback(
+    () => connectWallet({ forceSelect: true }),
+    [connectWallet]
+  );
+
+  const refreshAll = useCallback(async () => {
+    if (!wallet) return;
+    setRefreshing(true);
+    try {
+      await refreshStats?.();
+    } catch (e) {
+      console.error("Refresh failed:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [wallet, refreshStats]);
+
+  const loading = loadingStats || refreshing;
+  const cardsLabel = wallet ? cardCount ?? "..." : "-";
+  const sdLabel = wallet ? sdBalance ?? "..." : "-";
+  const solLabel = wallet ? solBalance ?? "..." : "-";
+
+  const desktopRight = useMemo(() => {
     if (!wallet) {
-      setBalance(null);
-      setSolBalance(null);
-      return;
+      return (
+        <button type="button" className="cyNav__btn cyNav__btn--primary" onClick={openWalletPicker}>
+          <Wallet size={16} />
+          <span className="cyNav__mono">CONNECT</span>
+        </button>
+      );
     }
 
-    (async () => {
-      try {
-        const conn = new Connection(RPC_ENDPOINT);
+    return (
+      <>
+        <div className="cyNav__pill cyNav__pill--glass" title={`${providerName || "Wallet"}: ${wallet}`}>
+          <span className="cyNav__mono">{providerName || "WALLET"}</span>
+          <b className="cyNav__mono">{shortWallet(wallet)}</b>
+        </div>
 
-        // $SD token balance
-        const resp = await conn.getParsedTokenAccountsByOwner(
-          new PublicKey(wallet),
-          { mint: new PublicKey(SD_TOKEN_MINT) }
-        );
-        const uiAmt =
-          resp.value[0]?.account?.data?.parsed?.info?.tokenAmount?.uiAmount ||
-          0;
-        setBalance(uiAmt.toFixed(2));
+        <div className="cyNav__pill cyNav__pill--purple">
+          <span className="cyNav__mono">CARDS</span>
+          <b className="cyNav__mono">{cardsLabel}</b>
+        </div>
 
-        // SOL balance
-        const lamports = await conn.getBalance(new PublicKey(wallet));
-        setSolBalance((lamports / 1e9).toFixed(4));
-      } catch (err) {
-        console.error("Failed to fetch balances:", err);
-        setBalance("0.00");
-        setSolBalance("0.0000");
-      }
-    })();
-  }, [wallet]);
+        <div className="cyNav__pill cyNav__pill--yellow">
+          <span className="cyNav__mono">$SD</span>
+          <b className="cyNav__mono">{sdLabel}</b>
+        </div>
 
-  // ─ Sync wallet NFTs/cards in DB + get count ─
-  useEffect(() => {
-    if (!wallet) {
-      setCardCount(null);
-      return;
-    }
+        <div className="cyNav__pill cyNav__pill--blue">
+          <span className="cyNav__mono">SOL</span>
+          <b className="cyNav__mono">{solLabel}</b>
+        </div>
 
-    (async () => {
-      try {
-        // 1) Sync from chain → DB
-        await fetch(`${API_BASE_URL}/api/wallet-nfts/sync`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ walletAddress: wallet }),
-        });
+        <button
+          type="button"
+          className="cyNav__btn cyNav__btn--ghost"
+          onClick={refreshAll}
+          disabled={loading}
+          title="Refresh balances"
+        >
+          <RefreshCcw size={16} />
+          <span className="cyNav__mono">{loading ? "REFRESHING..." : "REFRESH"}</span>
+        </button>
 
-        // 2) Immediately fetch cached list for count
-        const res = await fetch(`${API_BASE_URL}/api/wallet-nfts/${wallet}`);
-        const data = await res.json();
+        <button
+          type="button"
+          className="cyNav__btn cyNav__btn--ghost"
+          onClick={openWalletPicker}
+          title="Choose another wallet"
+        >
+          <Wallet size={16} />
+          <span className="cyNav__mono">CHANGE</span>
+        </button>
 
-        if (data.ok && Array.isArray(data.items)) {
-          setCardCount(typeof data.count === "number" ? data.count : data.items.length);
-        } else {
-          setCardCount(0);
-        }
-      } catch (err) {
-        console.error("Failed to sync wallet NFTs:", err);
-        setCardCount(0);
-      }
-    })();
-  }, [wallet]);
-
+        <button
+          type="button"
+          className="cyNav__btn cyNav__btn--danger"
+          onClick={disconnectWallet}
+          title="Disconnect to change wallet"
+        >
+          <Power size={16} />
+          <span className="cyNav__mono">DISCONNECT</span>
+        </button>
+      </>
+    );
+  }, [
+    wallet,
+    providerName,
+    cardsLabel,
+    sdLabel,
+    solLabel,
+    refreshAll,
+    openWalletPicker,
+    disconnectWallet,
+    loading,
+  ]);
 
   return (
-    <div className="w-full bg-black text-white font-play shadow-lg px-4 py-3 relative z-10">
-      <div className="flex justify-between items-center">
-        {/* Brand */}
-        <div className="text-3xl font-cyberway tracking-wider text-yellow-400">
-          CYBERIO
+    <header className="cyNav">
+      <div className="cyNav__bar">
+        <div className="cyNav__scan" aria-hidden="true" />
+        <div className="cyNav__sheen" aria-hidden="true" />
+
+        <div className="cyNav__brand">
+          <div className="cyNav__brandTitle font-cyberway">CYBERIO</div>
+          <div className="cyNav__brandSub cyNav__mono">
+            {wallet ? "CONNECTED" : "DISCONNECTED"}
+          </div>
         </div>
 
-        {/* Wallet Info - Desktop */}
-        <div className="hidden md:flex items-center gap-4">
-          {wallet ? (
-            <>
-              <div className="text-green-300 font-mono text-sm truncate max-w-[150px]">
-                {wallet.slice(0, 4)}…{wallet.slice(-4)}
-              </div>
+        <div className="cyNav__right">{desktopRight}</div>
 
-              {/* Card/NFT count */}
-              {cardCount != null && (
-                <div className="bg-purple-400 text-black px-3 py-1 rounded shadow font-semibold text-sm">
-                  Cards: {cardCount}
-                </div>
-              )}
-
-              <div className="bg-yellow-400 text-black px-3 py-1 rounded shadow font-semibold text-sm">
-                {balance != null ? `$SD ${balance}` : "..."}
-              </div>
-              <div className="bg-blue-400 text-black px-3 py-1 rounded shadow font-semibold text-sm">
-                {solBalance != null ? `${solBalance} SOL` : "..."}
-              </div>
-            </>
-          ) : (
-            <button
-              onClick={connectWallet}
-              className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded font-bold shadow transition"
-            >
-              Connect Wallet
-            </button>
-          )}
-        </div>
-
-        {/* Mobile Hamburger */}
         <button
-          className="md:hidden text-yellow-400 text-2xl"
+          className="cyNav__toggle"
+          type="button"
           onClick={() => setMobileOpen((o) => !o)}
+          aria-label="Toggle menu"
         >
           {mobileOpen ? <FiX /> : <FiMenu />}
         </button>
       </div>
 
-      {/* Mobile Menu (wallet only) */}
       {mobileOpen && (
-        <div className="md:hidden mt-4 space-y-4">
-          <div className="mt-2">
-            {wallet ? (
-              <div className="space-y-2">
-                <div className="text-green-300 font-mono text-sm">
-                  {wallet.slice(0, 4)}…{wallet.slice(-4)}
-                </div>
-                <div className="flex flex-col gap-1">
-                  {cardCount != null && (
-                    <div className="bg-purple-400 text-black px-3 py-1 rounded shadow font-semibold text-sm inline-block">
-                      Cards: {cardCount}
-                    </div>
-                  )}
-                  <div className="bg-yellow-400 text-black px-3 py-1 rounded shadow font-semibold text-sm inline-block">
-                    {balance != null ? `$SD ${balance}` : "..."}
-                  </div>
-                  <div className="bg-blue-400 text-black px-3 py-1 rounded shadow font-semibold text-sm inline-block">
-                    {solBalance != null ? `${solBalance} SOL` : "..."}
-                  </div>
+        <div className="cyNav__mobile">
+          {!wallet ? (
+            <button type="button" className="cyNav__btn cyNav__btn--primary w-full" onClick={openWalletPicker}>
+              <Wallet size={16} />
+              <span className="cyNav__mono">CONNECT WALLET</span>
+            </button>
+          ) : (
+            <>
+              <div className="cyNav__mobileRow">
+                <div className="cyNav__pill cyNav__pill--glass w-full" title={`${providerName || "Wallet"}: ${wallet}`}>
+                  <span className="cyNav__mono">{providerName || "WALLET"}</span>
+                  <b className="cyNav__mono">{shortWallet(wallet)}</b>
                 </div>
               </div>
-            ) : (
-              <button
-                onClick={connectWallet}
-                className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded font-bold shadow transition"
-              >
-                Connect Wallet
-              </button>
-            )}
-          </div>
+
+              <div className="cyNav__mobileGrid">
+                <div className="cyNav__pill cyNav__pill--purple">
+                  <span className="cyNav__mono">CARDS</span>
+                  <b className="cyNav__mono">{cardsLabel}</b>
+                </div>
+
+                <div className="cyNav__pill cyNav__pill--yellow">
+                  <span className="cyNav__mono">$SD</span>
+                  <b className="cyNav__mono">{sdLabel}</b>
+                </div>
+
+                <div className="cyNav__pill cyNav__pill--blue">
+                  <span className="cyNav__mono">SOL</span>
+                  <b className="cyNav__mono">{solLabel}</b>
+                </div>
+              </div>
+
+              <div className="cyNav__mobileActions">
+                <button
+                  type="button"
+                  className="cyNav__btn cyNav__btn--ghost"
+                  onClick={refreshAll}
+                  disabled={loading}
+                >
+                  <RefreshCcw size={16} />
+                  <span className="cyNav__mono">{loading ? "REFRESHING..." : "REFRESH"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="cyNav__btn cyNav__btn--ghost"
+                  onClick={openWalletPicker}
+                >
+                  <Wallet size={16} />
+                  <span className="cyNav__mono">CHANGE</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="cyNav__btn cyNav__btn--danger"
+                  onClick={disconnectWallet}
+                >
+                  <Power size={16} />
+                  <span className="cyNav__mono">DISCONNECT</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
-    </div>
+    </header>
   );
 }

@@ -1,5 +1,11 @@
 // server/server.js
-require("dotenv").config();
+const path = require("path");
+const dotenv = require("dotenv");
+const envName = process.env.NODE_ENV === "production" ? "production" : "development";
+
+dotenv.config({ path: path.resolve(__dirname, `.env.${envName}`) });
+dotenv.config({ path: path.resolve(__dirname, ".env") });
+
 const express = require("express");
 const http = require("http");
 const mongoose = require("mongoose");
@@ -36,9 +42,28 @@ const earnNpcRouter = require("./routes/earnNpc");
 const storeRoutes = require("./routes/store.routes");
 const walletNftsRoutes = require("./routes/walletNfts.routes");
 const earnRoutes = require("./routes/earn");
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "http://localhost:3003",
+  "http://localhost:3004",
+  "http://localhost:3005",
+  "https://cyberio.fun",
+  "https://www.cyberio.fun",
+  "https://dapp.cyberio.io",
+  process.env.FRONTEND_ORIGIN,
+].filter(Boolean);
 const app = express();
 const server = http.createServer(app);
-const io = socketio(server, { cors: { origin: "*" } });
+const io = socketio(server, {
+  cors: {
+    origin: ALLOWED_ORIGINS,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
 const { attachEarnNpcSocket } = require("../server/sockets/earnNpc.socket");
 
 /** ─ SOLANA / TREASURY & ENV ─ */
@@ -59,10 +84,33 @@ const WAGER_DECIMALS = parseInt(process.env.WAGER_DECIMALS || "6", 10);
 const RAKE_BPS = parseInt(process.env.RAKE_BPS || "0", 10);
 const FEE_WALLET = process.env.FEE_WALLET || null; // fee wallet owner pubkey (not ATA)
 
+function isRecoverableNetworkError(err) {
+  const msg = String(err?.message || err || "");
+  return (
+    msg.includes("fetch failed") ||
+    msg.includes("EPROTO") ||
+    msg.includes("ECONNRESET") ||
+    msg.includes("ETIMEDOUT") ||
+    msg.includes("ENOTFOUND") ||
+    msg.includes("TLS")
+  );
+}
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[process] Unhandled rejection:", reason?.stack || reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[process] Uncaught exception:", err?.stack || err);
+  if (!isRecoverableNetworkError(err)) {
+    process.exitCode = 1;
+  }
+});
+
 /** Express middleware */
 app.use(
   cors({
-    origin: ["http://localhost:3000", process.env.FRONTEND_ORIGIN].filter(Boolean),
+    origin: ALLOWED_ORIGINS,
   })
 );
 app.use(express.json());
@@ -75,6 +123,7 @@ app.use("/api/earnNpc", earnNpcRouter);
 app.use("/api/store", storeRoutes);
 app.use("/api/wallet-nfts", walletNftsRoutes);
 app.use("/api/earn", earnRoutes);
+
 /** ─ Mongo connection ─ */
 mongoose
   .connect(process.env.MONGO_URI)
@@ -488,6 +537,34 @@ function consumePlayedCard(sock, uid) {
   sock.hand = sock.hand.filter((c) => c.uid !== uid);
 }
 
+/**
+ * ✅ ADDITIVE FIX: build a full card payload so client can reveal NFT images.
+ * - looks up by uid from sock.hand
+ * - falls back to {uid,cid} if missing
+ * - includes power for overlay convenience
+ */
+function getFullCardFromSocket(sock, uid, cid, power) {
+  const fromHand = (sock?.hand || []).find((c) => c.uid === uid);
+  if (fromHand) {
+    return {
+      uid: fromHand.uid,
+      cid: fromHand.cid,
+      image: fromHand.image || null,
+      name: fromHand.name || null,
+      skill: fromHand.skill || null,
+      power: power != null ? power : undefined,
+    };
+  }
+  return {
+    uid: uid || null,
+    cid: cid || null,
+    image: null,
+    name: null,
+    skill: null,
+    power: power != null ? power : undefined,
+  };
+}
+
 /** ─ SOCKET.IO ─ */
 io.on("connection", (socket) => {
   console.log("🟢 Player connected:", socket.id);
@@ -881,7 +958,10 @@ io.on("connection", (socket) => {
       return;
     }
 
-    socket.fieldCard = { uid, cid };
+    // ✅ ADDITIVE FIX: store full card for later reveal (image/name)
+    const full = (socket.hand || []).find((c) => c.uid === uid) || { uid, cid };
+    socket.fieldCard = full;
+
     socket.emit("ackPlayed", { uid, cid });
     socket.opponent?.emit("opponentPlayedCard");
   });
@@ -895,7 +975,11 @@ io.on("connection", (socket) => {
     if (!exists) return;
 
     socket.hasEndedTurn = true;
-    socket.fieldCard = { uid, cid };
+
+    // ✅ keep current logic, but store full card too if available
+    const full = (socket.hand || []).find((c) => c.uid === uid) || { uid, cid };
+    socket.fieldCard = full;
+
     socket.opponent?.emit("opponentEndedTurn");
 
     state.pending[socket.id] = { uid, cid, wallet: socket.wallet };
@@ -1032,13 +1116,20 @@ io.on("connection", (socket) => {
           if (!s.fieldCard) {
             const choice = s.hand?.[0];
             if (choice) {
-              s.fieldCard = { uid: choice.uid, cid: choice.cid };
+              // ✅ keep existing behavior, but preserve full card
+              s.fieldCard = {
+                uid: choice.uid,
+                cid: choice.cid,
+                image: choice.image || null,
+                name: choice.name || null,
+                skill: choice.skill || null,
+              };
               s.emit("opponentPlayedCard");
             }
           }
           s.hasEndedTurn = true;
           if (s.fieldCard) {
-            state.pending[s.id] = { ...s.fieldCard, wallet: s.wallet };
+            state.pending[s.id] = { uid: s.fieldCard.uid, cid: s.fieldCard.cid, wallet: s.wallet };
           }
         }
 
@@ -1091,6 +1182,10 @@ io.on("connection", (socket) => {
       winnerWallet = sB.wallet;
     }
 
+    // ✅ ADDITIVE FIX: build full payloads BEFORE consuming from hand
+    const aFull = getFullCardFromSocket(sA, aChoice?.uid, aCard, pA);
+    const bFull = getFullCardFromSocket(sB, bChoice?.uid, bCard, pB);
+
     if (aChoice?.uid) consumePlayedCard(sA, aChoice.uid);
     if (bChoice?.uid) consumePlayedCard(sB, bChoice.uid);
 
@@ -1116,12 +1211,14 @@ io.on("connection", (socket) => {
       });
     }
 
-    sA.emit("revealOpponentCard", bCard);
-    sB.emit("revealOpponentCard", aCard);
+    // ✅ FIX: send full opponent card object (includes image/name) for reveal
+    sA.emit("revealOpponentCard", bFull);
+    sB.emit("revealOpponentCard", aFull);
 
+    // ✅ FIX: roundResolved should include full objects so overlay always shows both cards
     sA.emit("roundResolved", {
-      yourCard: { uid: aChoice?.uid, cid: aCard },
-      oppCard: { uid: bChoice?.uid, cid: bCard },
+      yourCard: aFull,
+      oppCard: bFull,
       winner:
         winnerWallet === "draw"
           ? "draw"
@@ -1131,8 +1228,8 @@ io.on("connection", (socket) => {
     });
 
     sB.emit("roundResolved", {
-      yourCard: { uid: bChoice?.uid, cid: bCard },
-      oppCard: { uid: aChoice?.uid, cid: aCard },
+      yourCard: bFull,
+      oppCard: aFull,
       winner:
         winnerWallet === "draw"
           ? "draw"
@@ -1330,8 +1427,41 @@ io.on("connection", (socket) => {
   });
 });
 
+async function warmupTreasuryAtas() {
+  if (!WAGER_MINT) {
+    console.warn(
+      "WAGER_MINT not set. Quick match token betting will fail verification."
+    );
+    return;
+  }
+
+  try {
+    await ensureAta({ mint: WAGER_MINT, owner: TREASURY_PUBKEY });
+    console.log(`Treasury ATA ensured for mint ${WAGER_MINT}`);
+    if (FEE_WALLET) {
+      await ensureAta({ mint: WAGER_MINT, owner: FEE_WALLET });
+      console.log(`Fee ATA ensured for mint ${WAGER_MINT}`);
+    }
+  } catch (e) {
+    const log = isRecoverableNetworkError(e) ? console.warn : console.error;
+    log(
+      "Startup ATA warmup skipped; server will continue. Token payouts may fail until RPC recovers:",
+      e?.message || e
+    );
+  }
+}
+
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Using Solana RPC: ${SOLANA_RPC}`);
+  console.log(
+    `Rake: ${RAKE_BPS} bps (${(RAKE_BPS / 100).toFixed(2)}%) -> ${
+      FEE_WALLET || "DISABLED"
+    }`
+  );
+  warmupTreasuryAtas();
+  return;
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 Using Solana RPC: ${SOLANA_RPC}`);
   console.log(

@@ -11,6 +11,7 @@ import {
   SystemProgram, // kept (not removed)
 } from "@solana/web3.js";
 import { createMemoInstruction } from "@solana/spl-memo";
+import { SOCKET_URL } from "../../config/endpoints";
 
 // ✅ SPL TOKEN IMPORTS (ADDED + FIXED FOR TOKEN-2022)
 import {
@@ -56,6 +57,8 @@ const cardImageSrc = (cardOrCid) => {
 
   // If raw cid/id
   if (typeof cardOrCid === "string" || typeof cardOrCid === "number") {
+    // IMPORTANT: if you pass "back", show back
+    if (String(cardOrCid).toLowerCase() === "back") return backImage;
     return imgSrc(cardOrCid);
   }
 
@@ -64,7 +67,7 @@ const cardImageSrc = (cardOrCid) => {
   if (c.image && typeof c.image === "string" && c.image.length > 0) {
     return c.image;
   }
-  if (c.cid) {
+  if (c.cid != null) {
     return imgSrc(c.cid);
   }
   return backImage;
@@ -73,7 +76,6 @@ const cardImageSrc = (cardOrCid) => {
 // =========================
 // ✅ ENV (your .env values)
 // =========================
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:3001";
 const RPC_ENDPOINT =
   process.env.REACT_APP_SOLANA_RPC || "https://api.mainnet-beta.solana.com";
 
@@ -147,9 +149,25 @@ async function resolveTokenProgramId(connection, mintPk) {
   throw new Error(`Unsupported token program for mint. Owner=${ownerStr}`);
 }
 
+// ✅ mobile helper (UI only; no game logic changes)
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window === "undefined" ? false : window.innerWidth < breakpoint
+  );
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
 export default function Play() {
   const { wallet } = useContext(WalletContext);
   const navigate = useNavigate();
+  const isMobile = useIsMobile(768);
 
   // connection banner
   const [netDown, setNetDown] = useState(false);
@@ -227,6 +245,20 @@ export default function Play() {
   const [pendingUid, setPendingUid] = useState(null);
   const [pendingCid, setPendingCid] = useState(null);
 
+  // ✅ FIX: pending failsafe so you never get stuck unable to click
+  const pendingTimerRef = useRef(null);
+  const clearPending = () => {
+    setPendingUid(null);
+    setPendingCid(null);
+    if (pendingTimerRef.current) {
+      clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
+    }
+  };
+
+  // ✅ FIX: store last played full card (for reveal if backend only returns uid/cid)
+  const lastPlayedCardRef = useRef(null);
+
   // retry-safe escrow
   const [lastEscrowId, setLastEscrowId] = useState(null);
 
@@ -256,6 +288,7 @@ export default function Play() {
     mono: "font-silkscreen",
   };
 
+  // ✅ FIX: force readable text color even if .rpg-button sets color: #000
   function CyberButton({ className = "", ...props }) {
     return (
       <button
@@ -268,6 +301,7 @@ export default function Play() {
           "shadow-[0_0_26px_rgba(0,255,255,0.18)]",
           "hover:shadow-[0_0_36px_rgba(236,72,153,0.20)]",
           "transition",
+          "text-white", // ✅ force text visible
           "before:content-[''] before:absolute before:inset-0 before:pointer-events-none",
           "before:bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,255,0.18),transparent_35%),radial-gradient(circle_at_80%_60%,rgba(236,72,153,0.14),transparent_45%)]",
           className,
@@ -335,8 +369,8 @@ export default function Play() {
       setRoundSecondsLeft(null);
       setIsSendingTx(false);
       setTxError("");
-      setPendingUid(null);
-      setPendingCid(null);
+      clearPending();
+      lastPlayedCardRef.current = null;
       setRoundModal((m2) => ({ ...m2, open: false }));
       setLastReveal({ yourCard: null, oppCard: null, winner: null });
     });
@@ -373,8 +407,8 @@ export default function Play() {
       setRoundWinner(null);
       setIsSendingTx(false);
       setTxError("");
-      setPendingUid(null);
-      setPendingCid(null);
+      clearPending();
+      lastPlayedCardRef.current = null;
       setRoundModal((m2) => ({ ...m2, open: false }));
       setLastReveal({ yourCard: null, oppCard: null, winner: null });
     });
@@ -408,8 +442,8 @@ export default function Play() {
       setRoundWinner(null);
       setIsSendingTx(false);
       setTxError("");
-      setPendingUid(null);
-      setPendingCid(null);
+      clearPending();
+      lastPlayedCardRef.current = null;
       setRoundModal((m2) => ({ ...m2, open: false }));
       setLastReveal({ yourCard: null, oppCard: null, winner: null });
     });
@@ -417,8 +451,8 @@ export default function Play() {
     // duel start / bonus round hand
     socket.on("startDuel", ({ selfCards, opponentCards, bonusRound }) => {
       // selfCards here are NFTs from DB: [{ uid, cid, image, name, ... }]
-      setSelfCards(selfCards);
-      setOpponentCards(opponentCards);
+      setSelfCards(selfCards || []);
+      setOpponentCards(opponentCards || []);
       setStatus("dueling");
       setReveal(false);
       setFighting(false);
@@ -430,8 +464,8 @@ export default function Play() {
       setRoundSecondsLeft(null);
       setIsSendingTx(false);
       setTxError("");
-      setPendingUid(null);
-      setPendingCid(null);
+      clearPending();
+      lastPlayedCardRef.current = null;
 
       if (bonusRound) setBonusModal(true);
       selfFieldFx.stop();
@@ -459,8 +493,7 @@ export default function Play() {
       setRoundSecondsLeft(snap.roundSecondsLeft ?? null);
       setIsSendingTx(false);
       setTxError("");
-      setPendingUid(null);
-      setPendingCid(null);
+      clearPending();
       selfFieldFx.stop();
       oppFieldFx.stop();
       setRoundModal((m2) => ({ ...m2, open: false }));
@@ -478,24 +511,27 @@ export default function Play() {
         const full = prev.find((c) => c.uid === uid);
         if (full) {
           setSelfFieldCard(full);
+          lastPlayedCardRef.current = full;
+        } else if (lastPlayedCardRef.current?.uid === uid) {
+          // still safe
+          setSelfFieldCard(lastPlayedCardRef.current);
         } else {
           // fallback if somehow not found
           setSelfFieldCard({ uid, cid });
+          lastPlayedCardRef.current = { uid, cid };
         }
         return prev.filter((c) => c.uid !== uid);
       });
-      setPendingUid(null);
-      setPendingCid(null);
+      clearPending();
     });
 
     socket.on("rejectPlayed", ({ reason }) => {
-      // keep hand intact; just clear pending
-      setPendingUid(null);
-      setPendingCid(null);
+      clearPending();
     });
 
     // opponent actions
     socket.on("opponentPlayedCard", () => {
+      // keep back while waiting for reveal (server should later send opp card details)
       setOpponentFieldCard("back");
       setOpponentCards((prev) => {
         if (!prev?.length) return prev;
@@ -505,7 +541,20 @@ export default function Play() {
         return next;
       });
     });
-    socket.on("revealOpponentCard", (cid) => setOpponentFieldCard(cid));
+
+    // ✅ IMPORTANT FIX:
+    // If server sends only cid here, we store as object { cid } (NOT "back").
+    // If your backend can send { cid, image }, this will show the NFT immediately.
+    socket.on("revealOpponentCard", (payload) => {
+      if (payload && typeof payload === "object") {
+        // expected: { cid, image?, uid?, name?, ... }
+        setOpponentFieldCard(payload);
+      } else {
+        // cid number/string
+        setOpponentFieldCard({ cid: payload });
+      }
+    });
+
     socket.on("opponentEndedTurn", () => setOpponentEndedTurn(true));
 
     // round result
@@ -513,15 +562,28 @@ export default function Play() {
       setReveal(true);
       setFighting(true);
 
-      // yourCard/oppCard may only have { uid, cid } from backend;
-      // we keep them as-is and use cardImageSrc() to resolve their art.
-      if (yourCard) setSelfFieldCard(yourCard);
-      if (oppCard) setOpponentFieldCard(oppCard.cid || "back");
+      // ✅ IMPORTANT FIX:
+      // Enrich yourCard with your NFT image if backend only returns uid/cid
+      let resolvedYour = yourCard || null;
+      if (resolvedYour && (!resolvedYour.image || resolvedYour.image.length === 0)) {
+        const played = lastPlayedCardRef.current;
+        if (played && (played.uid === resolvedYour.uid || played.cid === resolvedYour.cid)) {
+          resolvedYour = played;
+        }
+      }
+      if (resolvedYour) setSelfFieldCard(resolvedYour);
+
+      // ✅ IMPORTANT FIX:
+      // Do NOT overwrite opponent card to "back". Keep full oppCard object if provided.
+      // To show NFT, backend must include oppCard.image (recommended).
+      let resolvedOpp = oppCard || null;
+      if (resolvedOpp) setOpponentFieldCard(resolvedOpp);
+
       setRoundWinner(winner);
 
       setLastReveal({
-        yourCard: yourCard || null,
-        oppCard: oppCard || null,
+        yourCard: resolvedYour,
+        oppCard: resolvedOpp,
         winner: winner || null,
       });
 
@@ -554,6 +616,7 @@ export default function Play() {
               selfFieldFx.stop();
               oppFieldFx.stop();
               setLastReveal((lr) => ({ ...lr, winner: null }));
+              lastPlayedCardRef.current = null;
             }, 400);
           }, 400);
         }, 1600);
@@ -597,6 +660,7 @@ export default function Play() {
       socket.off("searchCanceled", onCanceled);
       if (resultTicker) cancelAnimationFrame(resultTicker);
       if (roundTicker) cancelAnimationFrame(roundTicker);
+      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, selfFieldFx, oppFieldFx]);
@@ -897,7 +961,7 @@ export default function Play() {
   };
 
   // play / end turn
-  const handleCardSelect = (card, idx) => {
+  const handleCardSelect = (card) => {
     if (matchOver || reveal || fighting) return;
     if (selfFieldCard) return;
     if (pendingUid) return;
@@ -906,6 +970,15 @@ export default function Play() {
     // optimistic “pending”
     setPendingUid(card.uid);
     setPendingCid(card.cid);
+
+    // ✅ FIX: keep last played full NFT card so reveal can show image even if server returns uid/cid only
+    lastPlayedCardRef.current = card;
+
+    // ✅ FIX: failsafe unlock so you never get stuck unable to pick again
+    if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = setTimeout(() => {
+      clearPending();
+    }, 2500);
 
     socket.emit("playCard", { uid: card.uid, cid: card.cid });
   };
@@ -927,13 +1000,14 @@ export default function Play() {
 
   const isYouMatchWinner = resultModal.open && resultModal.winner === wallet;
 
+  // ✅ FIX: force readable text color on chips too
   function ModeChip({ active, children, disabled, onClick }) {
     return (
       <button
         disabled={disabled}
         onClick={onClick}
-        className={`px-4 py-2 rounded-xl border text-sm transition relative overflow-hidden
-          ${disabled ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"}
+        className={`px-3 sm:px-4 py-2 rounded-xl border text-sm transition relative overflow-hidden
+          text-white ${disabled ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02]"}
           ${active
             ? "bg-cyan-400/10 border-cyan-300/40 shadow-[0_0_18px_rgba(0,255,255,0.18)]"
             : "bg-white/5 border-white/10 hover:border-fuchsia-300/30 hover:shadow-[0_0_18px_rgba(236,72,153,0.14)]"
@@ -954,8 +1028,30 @@ export default function Play() {
   const isWinnerSelf = lastReveal.winner === "self";
   const isWinnerOpp = lastReveal.winner === "opponent";
 
+  // ✅ responsive sizing (UI only)
+  const HAND_CARD_W = "w-[76px] xs:w-[84px] sm:w-24 md:w-24";
+  const HAND_CARD_H = "h-[110px] xs:h-[122px] sm:h-36 md:h-36";
+  const PILE_CARD_W = "w-[60px] xs:w-[68px] sm:w-24";
+  const PILE_CARD_H = "h-[88px] xs:h-[100px] sm:h-36";
+  const FIELD_W = "w-[110px] xs:w-[122px] sm:w-32";
+  const FIELD_H = "h-[152px] xs:h-[168px] sm:h-44";
+
+  const isLobby = status !== "dueling";
+  const showTopHud =
+    status === "dueling" ||
+    status === "matchFound" ||
+    status === "confirming" ||
+    status === "negotiation" ||
+    status === "proposing";
+
   return (
-    <div className="relative w-full min-h-screen overflow-hidden font-silkscreen">
+    <div
+      className={[
+        "relative w-full min-h-[100svh] overflow-hidden font-silkscreen",
+        "touch-pan-y",
+        "text-white", // ✅ ensure default text is readable
+      ].join(" ")}
+    >
       {/* Cyberpunk decorative background layers */}
       <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_top,rgba(0,255,255,0.12),transparent_55%)]" />
       <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_bottom,rgba(236,72,153,0.10),transparent_60%)]" />
@@ -965,7 +1061,8 @@ export default function Play() {
       {/* BACK BUTTON */}
       <button
         onClick={() => navigate(-1)}
-        className="fixed top-4 right-4 z-30 inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-black/50 hover:bg-black/60 border border-cyan-300/30 text-cyan-100 text-sm shadow-[0_0_18px_rgba(0,255,255,0.16)]"
+        className="fixed z-[70] right-3 top-3 sm:right-4 sm:top-4 inline-flex items-center gap-1 px-3 py-2 rounded-md bg-black/55 hover:bg-black/65 border border-cyan-300/30 text-cyan-100 text-xs sm:text-sm shadow-[0_0_18px_rgba(0,255,255,0.16)]"
+        style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
       >
         ← Back
       </button>
@@ -974,10 +1071,11 @@ export default function Play() {
       <AnimatePresence>
         {netDown && (
           <motion.div
-            className="absolute top-0 left-0 right-0 z-50 bg-gradient-to-r from-fuchsia-600 to-cyan-500 text-white text-sm text-center py-2 shadow-[0_0_22px_rgba(0,255,255,0.18)]"
+            className="fixed top-0 left-0 right-0 z-[80] bg-gradient-to-r from-fuchsia-600 to-cyan-500 text-white text-xs sm:text-sm text-center py-2 shadow-[0_0_22px_rgba(0,255,255,0.18)]"
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -40, opacity: 0 }}
+            style={{ paddingTop: "env(safe-area-inset-top)" }}
           >
             Network connection lost. Attempting to reconnect…
           </motion.div>
@@ -992,50 +1090,66 @@ export default function Play() {
       <div className="absolute inset-0 bg-black/75 z-[-1]" />
 
       {/* Top HUD ribbon */}
-      <div className="fixed top-3 left-1/2 -translate-x-1/2 z-20">
-        <div className="rounded-full px-4 py-2 text-cyan-100 text-xs md:text-sm border border-cyan-300/25 bg-black/45 backdrop-blur-md shadow-[0_0_24px_rgba(0,255,255,0.14)]">
-          <span className="opacity-80">Mode:</span>
-          <span className="ml-1 font-semibold text-white">
-            {mode === "friendly"
-              ? "Friendly"
-              : mode === "quick"
-                ? "Quick"
-                : "Ranked"}
-          </span>
-          <span className="mx-2 opacity-50">•</span>
-          <span className="opacity-80">Status:</span>
-          <span className="ml-1 font-semibold capitalize text-fuchsia-200">
-            {status}
-          </span>
+      {showTopHud && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-[60] top-2 sm:top-3 w-[92%] max-w-3xl"
+          style={{ marginTop: "env(safe-area-inset-top)" }}
+        >
+          <div className="rounded-2xl sm:rounded-full px-3 sm:px-4 py-2 text-cyan-100 text-[11px] sm:text-sm border border-cyan-300/25 bg-black/45 backdrop-blur-md shadow-[0_0_24px_rgba(0,255,255,0.14)] flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+            <span className="opacity-80">Mode:</span>
+            <span className="font-semibold text-white">
+              {mode === "friendly"
+                ? "Friendly"
+                : mode === "quick"
+                  ? "Quick"
+                  : "Ranked"}
+            </span>
+            <span className="opacity-40 hidden sm:inline">•</span>
+            <span className="opacity-80">Status:</span>
+            <span className="font-semibold capitalize text-fuchsia-200">
+              {status}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* HUD */}
-      <div className="absolute top-4 left-4 text-white z-20 space-y-1">
-        <p className="text-cyan-100/90">
-          Your Score: <span className="text-white">{selfScore}</span>
-        </p>
-        <p className="text-fuchsia-100/90">
-          Opponent Score: <span className="text-white">{opponentScore}</span>
-        </p>
-        {oppGone && (
-          <p className="text-yellow-300">
-            Opponent disconnected
-            {oppReconnectSeconds != null
-              ? ` — ${oppReconnectSeconds}s to return`
-              : ""}
-          </p>
+      {/* LEFT HUD (only when it helps) */}
+      {(status === "dueling" ||
+        status === "matchFound" ||
+        status === "confirming") && (
+          <div
+            className="fixed z-[60] left-3 sm:left-4 top-[72px] sm:top-[72px] text-white"
+            style={{ marginTop: "env(safe-area-inset-top)" }}
+          >
+            <div className="rounded-2xl border border-white/10 bg-black/45 backdrop-blur-md px-3 py-2 shadow-[0_0_22px_rgba(0,255,255,0.12)] max-w-[75vw] sm:max-w-none">
+              <div className="flex flex-col gap-0.5 text-[11px] sm:text-sm">
+                <p className="text-cyan-100/90">
+                  Your: <span className="text-white">{selfScore}</span>
+                </p>
+                <p className="text-fuchsia-100/90">
+                  Opp: <span className="text-white">{opponentScore}</span>
+                </p>
+                {oppGone && (
+                  <p className="text-yellow-300">
+                    Opponent disconnected
+                    {oppReconnectSeconds != null
+                      ? ` — ${oppReconnectSeconds}s`
+                      : ""}
+                  </p>
+                )}
+                {status === "dueling" && roundSecondsLeft != null && (
+                  <p className="text-yellow-300">Timer: {roundSecondsLeft}s</p>
+                )}
+              </div>
+            </div>
+          </div>
         )}
-        {status === "dueling" && roundSecondsLeft != null && (
-          <p className="text-yellow-300">Round timer: {roundSecondsLeft}s</p>
-        )}
-      </div>
 
       {/* ROUND RESULT MODAL */}
       <AnimatePresence>
         {roundModal.open && (
           <motion.div
-            className="absolute inset-0 z-40 flex items-center justify-center"
+            className="fixed inset-0 z-[90] flex items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1075,7 +1189,7 @@ export default function Play() {
                   <span className="opacity-80">Neon Protocol</span>
                 </div>
 
-                <h2 className="mt-2 text-3xl font-extrabold drop-shadow flex items-center justify-center gap-2">
+                <h2 className="mt-2 text-2xl sm:text-3xl font-extrabold drop-shadow flex items-center justify-center gap-2">
                   {roundModal.outcome === "self" && (
                     <>
                       <span>⚡</span>
@@ -1142,7 +1256,7 @@ export default function Play() {
       <AnimatePresence>
         {resultModal.open && (
           <motion.div
-            className="absolute inset-0 z-50 flex items-center justify-center"
+            className="fixed inset-0 z-[95] flex items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1173,12 +1287,10 @@ export default function Play() {
               />
               <div className="relative">
                 <div className="text-xs tracking-widest uppercase opacity-80">
-                  {resultModal.forfeit
-                    ? "Match Result · Forfeit"
-                    : "Match Result"}
+                  {resultModal.forfeit ? "Match Result · Forfeit" : "Match Result"}
                 </div>
                 <h2
-                  className={`mt-2 text-3xl font-extrabold drop-shadow ${isYouMatchWinner ? "text-cyan-200" : "text-fuchsia-200"
+                  className={`mt-2 text-2xl sm:text-3xl font-extrabold drop-shadow ${isYouMatchWinner ? "text-cyan-200" : "text-fuchsia-200"
                     }`}
                 >
                   {resultModal.forfeit
@@ -1190,14 +1302,14 @@ export default function Play() {
                       : "Defeat"}
                 </h2>
 
-                <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-3">
                   <div className="px-3 py-2 rounded-lg bg-black/35 border border-white/10">
                     <div className="text-[10px] uppercase opacity-70">Winner</div>
                     <div className="text-sm font-semibold break-all">
                       {shortPk(resultModal.winner)}
                     </div>
                   </div>
-                  <div className="text-xs opacity-80">vs</div>
+                  <div className="text-xs opacity-80 hidden sm:block">vs</div>
                   <div className="px-3 py-2 rounded-lg bg-black/35 border border-white/10">
                     <div className="text-[10px] uppercase opacity-70">Loser</div>
                     <div className="text-sm font-semibold break-all">
@@ -1247,69 +1359,452 @@ export default function Play() {
       </AnimatePresence>
 
       <LayoutGroup>
-        <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 text-center text-white">
-          {/* Versus banner */}
-          {(status === "dueling" || status === "matchFound") && (
-            <motion.div
-              className="mb-4 w-full max-w-3xl mx-auto"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
+        {/* =========================
+            ✅ LAYOUT SWITCH
+            - Lobby screens: TRUE center (horizontal + vertical)
+            - Duel screen: ✅ now scroll container + FIXED bottom End Turn bar
+           ========================= */}
+        <div className="relative z-10 h-[100svh]">
+          {/* LOBBY WRAPPER (centers your match card + searching card) */}
+          {isLobby && (
+            <div
+              className="h-full overflow-y-auto flex items-center justify-center px-3 sm:px-4"
+              style={{
+                paddingTop: `calc(${showTopHud ? "76px" : "20px"} + env(safe-area-inset-top))`,
+                paddingBottom: "calc(18px + env(safe-area-inset-bottom))",
+              }}
             >
-              <div className="grid grid-cols-3 items-center gap-2 rounded-2xl border border-cyan-300/20 bg-black/40 backdrop-blur-md px-4 py-3 shadow-[0_0_34px_rgba(0,255,255,0.12)]">
-                <div className="text-left">
-                  <div className="text-[10px] uppercase opacity-70">You</div>
-                  <div className="font-semibold text-cyan-200 break-all">
-                    {shortPk(wallet)}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs uppercase opacity-70">Score</div>
-                  <div className="text-2xl font-extrabold tracking-wide">
-                    {selfScore} : {opponentScore}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] uppercase opacity-70">
-                    Opponent
-                  </div>
-                  <div className="font-semibold text-fuchsia-200 break-all">
-                    {shortPk(opponent)}
-                  </div>
+              <div className="w-full flex items-center justify-center">
+                <div className="w-full max-w-5xl flex flex-col items-center">
+                  {/* Header */}
+                  <motion.h1
+                    className="text-2xl sm:text-3xl md:text-5xl font-bold mb-5 sm:mb-6 text-cyan-100 drop-shadow-[0_0_18px_rgba(0,255,255,0.22)] text-center"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    ⚔️ Duel Arena
+                  </motion.h1>
+
+                  {/* MODE SELECTOR (IDLE) */}
+                  {status === "idle" && (
+                    <motion.div
+                      className="w-full max-w-xl mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-5 sm:p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
+                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ type: "spring", stiffness: 140, damping: 18 }}
+                    >
+                      <div className="text-left">
+                        <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
+                          Choose Your Path
+                        </div>
+                        <div className="text-xl sm:text-2xl font-extrabold text-cyan-200 drop-shadow">
+                          Seek a Worthy Opponent
+                        </div>
+                        <p className="mt-1 text-sm opacity-90">
+                          Quick Match uses betting, Friendly has no betting. Ranked is coming soon.
+                        </p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2 justify-center">
+                        <ModeChip
+                          active={mode === "quick"}
+                          onClick={() => setMode("quick")}
+                        >
+                          ⚡ Quick Match
+                        </ModeChip>
+                        <ModeChip
+                          active={mode === "friendly"}
+                          onClick={() => setMode("friendly")}
+                        >
+                          🤝 Friendly
+                        </ModeChip>
+                        <ModeChip active={mode === "ranked"} disabled onClick={() => { }}>
+                          🏅 Ranked (Soon)
+                        </ModeChip>
+                      </div>
+
+                      {/* Bet slider only for quick */}
+                      {mode === "quick" && (
+                        <div className="mt-5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm opacity-90">Default Wager</label>
+                            <div className="text-sm font-semibold text-cyan-200">
+                              {betAmount.toFixed(2)} TOKENS
+                            </div>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max={MAX_BET_TOKENS}
+                            step="1"
+                            value={betAmount}
+                            onChange={(e) => setBetAmount(+e.target.value)}
+                            className="w-full accent-cyan-300 mt-2"
+                          />
+                          <div className="mt-2 flex flex-wrap gap-2 justify-center">
+                            {[10, 25, 50, 100, 250, 500, 1000, 5000, 10000, 50000, 100000]
+                              .filter((v) => v <= MAX_BET_TOKENS)
+                              .map((v) => (
+                                <button
+                                  key={v}
+                                  onClick={() => setBetAmount(v)}
+                                  className={`px-3 py-1 rounded-lg text-sm border text-white ${betAmount === v
+                                      ? "bg-cyan-400/10 border-cyan-300/40 shadow-[0_0_18px_rgba(0,255,255,0.14)]"
+                                      : "bg-black/30 border-white/10 hover:border-fuchsia-300/30"
+                                    }`}
+                                >
+                                  {v} TOKENS
+                                </button>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <CyberButton onClick={findMatch} className="mt-5 w-full py-3 sm:py-2">
+                        🔎 Find Match
+                      </CyberButton>
+                    </motion.div>
+                  )}
+
+                  {/* SEARCHING */}
+                  {status === "searching" && (
+                    <motion.div
+                      className="w-full max-w-md mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-5 sm:p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
+                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                    >
+                      <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200 text-center">
+                        Divining Opponents
+                      </div>
+                      <div className="mt-1 text-xl sm:text-2xl font-extrabold text-cyan-200 drop-shadow text-center">
+                        Casting the Matchmaking Rune…
+                      </div>
+
+                      <div className="relative mx-auto mt-6 h-28 w-28">
+                        <motion.div
+                          className="absolute inset-0 rounded-full border-2 border-cyan-300/25"
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+                        />
+                        <motion.div
+                          className="absolute inset-2 rounded-full border-2 border-fuchsia-300/20"
+                          animate={{ rotate: -360 }}
+                          transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
+                        />
+                        <div className="absolute inset-6 rounded-full bg-cyan-300/15 blur" />
+                        <div className="absolute inset-8 rounded-full bg-fuchsia-300/15 blur" />
+                        <div className="absolute inset-[38%] rounded-full bg-white/70" />
+                      </div>
+
+                      <p className="mt-4 text-sm opacity-90 text-center">
+                        Searching for a challenger worthy of your blade…
+                      </p>
+
+                      <CyberButton
+                        onClick={cancelFindMatch}
+                        className="mt-5 w-full border-fuchsia-300/35 shadow-[0_0_26px_rgba(236,72,153,0.16)] py-3 sm:py-2"
+                      >
+                        ❌ Cancel
+                      </CyberButton>
+                    </motion.div>
+                  )}
+
+                  {/* MATCH FOUND */}
+                  {status === "matchFound" && (
+                    <motion.div
+                      className="w-full max-w-xl mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-5 sm:p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
+                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-left min-w-0">
+                          <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
+                            Opponent Found · {mode === "friendly" ? "Friendly" : "Quick"}
+                          </div>
+                          <div className="text-xl sm:text-2xl font-extrabold text-cyan-200 drop-shadow break-all">
+                            {shortPk(opponent)}
+                          </div>
+                        </div>
+                        <div className="hidden sm:block text-3xl">🛡️</div>
+                      </div>
+
+                      {mode === "quick" ? (
+                        isFirst ? (
+                          <>
+                            <div className="mt-4">
+                              <div className="flex items-center justify-between">
+                                <label className="text-sm opacity-90">Set Your Wager</label>
+                                <div className="text-sm font-semibold text-cyan-200">
+                                  {betAmount.toFixed(2)} TOKENS
+                                </div>
+                              </div>
+                              <input
+                                type="range"
+                                min="1"
+                                max={MAX_BET_TOKENS}
+                                step="1"
+                                value={betAmount}
+                                onChange={(e) => setBetAmount(+e.target.value)}
+                                className="w-full accent-cyan-300 mt-2"
+                                disabled={status === "confirming" || selfConfirmed}
+                              />
+                              <div className="mt-3 flex flex-wrap gap-2 justify-center">
+                                {[10, 25, 50, 100, 250, 500, 1000, 5000, 10000, 50000, 100000]
+                                  .filter((v) => v <= MAX_BET_TOKENS)
+                                  .map((v) => (
+                                    <button
+                                      key={v}
+                                      onClick={() => setBetAmount(v)}
+                                      className={`px-3 py-1 rounded-lg text-sm border text-white ${betAmount === v
+                                          ? "bg-cyan-400/10 border-cyan-300/40 shadow-[0_0_18px_rgba(0,255,255,0.14)]"
+                                          : "bg-black/30 border-white/10 hover:border-fuchsia-300/30"
+                                        }`}
+                                      disabled={status === "confirming" || selfConfirmed}
+                                    >
+                                      {v} TOKENS
+                                    </button>
+                                  ))}
+                              </div>
+                            </div>
+                            <CyberButton
+                              onClick={sendOffer}
+                              className="mt-5 w-full py-3 sm:py-2"
+                              disabled={status === "confirming" || selfConfirmed}
+                            >
+                              📜 Send Bet Offer
+                            </CyberButton>
+                          </>
+                        ) : (
+                          <p className="mt-4 text-sm opacity-90 text-center">
+                            Awaiting their wager…
+                          </p>
+                        )
+                      ) : (
+                        <p className="mt-4 text-sm opacity-90 text-center">
+                          Friendly match – no betting. Duel will begin automatically when both are
+                          ready.
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* PROPOSING */}
+                  {status === "proposing" && mode === "quick" && (
+                    <motion.div
+                      className="w-full max-w-md mx-auto rounded-2xl border border-cyan-300/15 bg-black/40 p-5 sm:p-6 shadow-[0_0_30px_rgba(0,255,255,0.10)] backdrop-blur-md"
+                      initial={{ opacity: 0.8, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <div className="text-sm opacity-90 text-center">
+                        ⏳ Waiting for opponent to review your offer…
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* NEGOTIATION */}
+                  {status === "negotiation" && negotiation && mode === "quick" && (
+                    <motion.div
+                      className="w-full max-w-xl mx-auto rounded-2xl border border-fuchsia-300/20 bg-black/45 p-5 sm:p-6 shadow-[0_0_46px_rgba(236,72,153,0.12)] backdrop-blur-md"
+                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                    >
+                      <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
+                        Offer Received
+                      </div>
+                      <div className="mt-1 text-xl sm:text-2xl font-extrabold text-cyan-200 drop-shadow">
+                        {shortPk(negotiation.opponentWallet)} offered{" "}
+                        {Number(negotiation.bet).toFixed(2)} TOKENS
+                      </div>
+
+                      <div className="mt-5 grid sm:grid-cols-2 gap-3">
+                        <CyberButton
+                          onClick={acceptProposal}
+                          className="bg-gradient-to-b from-emerald-500/20 to-cyan-500/10 border-emerald-300/30 py-3 sm:py-2"
+                        >
+                          ✅ Accept & Confirm
+                        </CyberButton>
+
+                        <div className="rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-left">
+                          <div className="text-xs uppercase opacity-70 mb-1 text-fuchsia-200">
+                            Counter Offer
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max={MAX_BET_TOKENS}
+                            step="1"
+                            value={betAmount}
+                            onChange={(e) => setBetAmount(+e.target.value)}
+                            className="w-full accent-fuchsia-300"
+                          />
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <div className="text-sm font-semibold text-cyan-200">
+                              {betAmount.toFixed(2)} TOKENS
+                            </div>
+                            <motion.button
+                              onClick={counterProposal}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className="rpg-button px-3 py-2 sm:py-1 border border-fuchsia-300/25 bg-fuchsia-400/10 shadow-[0_0_18px_rgba(236,72,153,0.14)] text-white"
+                            >
+                              ↩ Send Counter
+                            </motion.button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* CONFIRMING / ESCROW */}
+                  {status === "confirming" && mode === "quick" && (
+                    <motion.div
+                      className="w-full max-w-xl mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-5 sm:p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
+                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-left">
+                          <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
+                            Confirmation
+                          </div>
+                          <div className="text-xl sm:text-2xl font-extrabold text-cyan-200 drop-shadow">
+                            Wager {betAmount.toFixed(2)} TOKENS
+                          </div>
+                        </div>
+                        <div className="hidden sm:block text-3xl">💰</div>
+                      </div>
+
+                      {txError && (
+                        <div className="mt-3 text-sm text-fuchsia-200">⚠️ {txError}</div>
+                      )}
+
+                      <motion.button
+                        onClick={confirmMatch}
+                        whileHover={{ scale: isSendingTx ? 1 : 1.02 }}
+                        whileTap={{ scale: isSendingTx ? 1 : 0.98 }}
+                        className={`rpg-button bg-green-600 mt-4 w-full relative overflow-hidden border border-emerald-300/25 shadow-[0_0_26px_rgba(16,185,129,0.16)] py-3 sm:py-2 text-white ${isSendingTx ? "opacity-70 cursor-not-allowed" : ""
+                          }`}
+                        disabled={isSendingTx || selfConfirmed}
+                      >
+                        {isSendingTx
+                          ? "Processing..."
+                          : selfConfirmed
+                            ? "Awaiting opponent…"
+                            : "Confirm & Send Tokens"}
+                      </motion.button>
+
+                      <div className="mt-3 grid sm:grid-cols-2 gap-3">
+                        <div className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-sm">
+                          <div className="text-[11px] uppercase opacity-70 text-fuchsia-200">
+                            Opponent
+                          </div>
+                          <div className="font-semibold break-all">
+                            {shortPk(opponent)}
+                          </div>
+                          {opponentConfirmed && (
+                            <div className="mt-1 text-emerald-300 text-xs">
+                              ✅ Opponent confirmed
+                            </div>
+                          )}
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-sm">
+                          <div className="text-[11px] uppercase opacity-70 text-fuchsia-200">
+                            Escrow Timer
+                          </div>
+                          <div className="font-semibold">
+                            {oppCountdown !== null ? `${oppCountdown}s` : "—"}
+                          </div>
+                          {oppCountdown !== null && (
+                            <div className="text-[11px] opacity-80">
+                              Auto-refund if they don’t pay
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
 
-          {status === "dueling" ? (
-            <>
+          {/* ✅ DUEL WRAPPER (scrollable) */}
+          {!isLobby && (
+            <div
+              className="h-[100svh] overflow-y-auto flex flex-col"
+              style={{
+                paddingTop: "calc(92px + env(safe-area-inset-top))",
+                // reserve space for the fixed bottom action bar (End Turn) so it never hides
+                paddingBottom: "calc(128px + env(safe-area-inset-bottom))",
+              }}
+            >
+              {/* Versus banner */}
+              {(status === "dueling" || status === "matchFound") && (
+                <motion.div
+                  className="mb-3 sm:mb-4 w-full max-w-3xl mx-auto px-3 sm:px-4"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-2 rounded-2xl border border-cyan-300/20 bg-black/40 backdrop-blur-md px-3 sm:px-4 py-3 shadow-[0_0_34px_rgba(0,255,255,0.12)]">
+                    <div className="text-left">
+                      <div className="text-[10px] uppercase opacity-70">You</div>
+                      <div className="font-semibold text-cyan-200 break-all text-xs sm:text-sm">
+                        {shortPk(wallet)}
+                      </div>
+                    </div>
+                    <div className="text-center order-first sm:order-none">
+                      <div className="text-xs uppercase opacity-70">Score</div>
+                      <div className="text-xl sm:text-2xl font-extrabold tracking-wide">
+                        {selfScore} : {opponentScore}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase opacity-70">
+                        Opponent
+                      </div>
+                      <div className="font-semibold text-fuchsia-200 break-all text-xs sm:text-sm">
+                        {shortPk(opponent)}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {/* OPPONENT DRAW PILE */}
-              <div className="w-full max-w-5xl mx-auto">
-                <div className="mx-auto mb-3 w-fit rounded-full px-3 py-1 text-[10px] uppercase tracking-widest bg-black/40 border border-cyan-300/20 text-cyan-100 shadow-[0_0_18px_rgba(0,255,255,0.12)]">
+              <div className="w-full max-w-5xl mx-auto px-3 sm:px-4">
+                <div className="mx-auto mb-2 sm:mb-3 w-fit rounded-full px-3 py-1 text-[10px] uppercase tracking-widest bg-black/40 border border-cyan-300/20 text-cyan-100 shadow-[0_0_18px_rgba(0,255,255,0.12)]">
                   Opponent Draw Pile
                 </div>
-                <div className="relative mx-auto flex justify-center gap-3 mb-5">
-                  <div className="pointer-events-none absolute -inset-x-8 -inset-y-2 rounded-3xl bg-[radial-gradient(circle_at_center,rgba(0,255,255,0.14),transparent_70%)]" />
-                  <AnimatePresence initial={false}>
-                    {opponentCards.map((card, i) => (
-                      <motion.div
-                        key={`opp-${i}`}
-                        layout
-                        {...fadeInUp}
-                        className="relative"
-                      >
-                        <motion.img
-                          src={card === "back" ? backImage : imgSrc(card)}
-                          className="w-24 h-36 rounded-xl shadow border border-white/10 bg-black/25"
-                        />
-                        <div className="absolute -bottom-1 left-1 right-1 h-1 rounded-full bg-black/40 blur-sm" />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
+
+                <div className="relative mx-auto mb-4 sm:mb-5">
+                  <div className="pointer-events-none absolute -inset-x-6 -inset-y-2 rounded-3xl bg-[radial-gradient(circle_at_center,rgba(0,255,255,0.14),transparent_70%)]" />
+
+                  <div className="mx-auto max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                    <div className="flex justify-center gap-2 sm:gap-3 min-w-max px-1">
+                      <AnimatePresence initial={false}>
+                        {opponentCards.map((card, i) => (
+                          <motion.div
+                            key={`opp-${i}`}
+                            layout
+                            {...fadeInUp}
+                            className="relative flex-shrink-0"
+                          >
+                            <motion.img
+                              src={card === "back" ? backImage : imgSrc(card)}
+                              className={`${PILE_CARD_W} ${PILE_CARD_H} rounded-xl shadow border border-white/10 bg-black/25`}
+                              draggable={false}
+                            />
+                            <div className="absolute -bottom-1 left-1 right-1 h-1 rounded-full bg-black/40 blur-sm" />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* FIELD BOXES */}
-              <div className="w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 items-center gap-4 md:gap-8">
+              <div className="w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 items-center gap-3 sm:gap-4 md:gap-8 px-3 sm:px-4">
                 {/* Opponent Field Box */}
                 <div className="md:justify-self-end">
                   <div className="relative rounded-2xl p-3 bg-black/40 border border-fuchsia-300/25 shadow-[inset_0_0_50px_rgba(236,72,153,0.10)] backdrop-blur-md">
@@ -1318,33 +1813,22 @@ export default function Play() {
                     </div>
                     <motion.div
                       layout
-                      className="relative w-32 h-44 mx-auto flex items-center justify-center rounded-xl bg-gradient-to-b from-fuchsia-900/40 to-black/20 border-2 border-fuchsia-300/55 shadow-inner shadow-fuchsia-500/10"
+                      className={`relative ${FIELD_W} ${FIELD_H} mx-auto flex items-center justify-center rounded-xl bg-gradient-to-b from-fuchsia-900/40 to-black/20 border-2 border-fuchsia-300/55 shadow-inner shadow-fuchsia-500/10`}
                     >
                       <AnimatePresence initial={false}>
                         {opponentFieldCard ? (
-                          <>
-                            <motion.img
-                              key={`opp-field-${String(opponentFieldCard)}`}
-                              layout
-                              src={
-                                typeof opponentFieldCard === "string"
-                                  ? backImage // keep hidden / face-down
-                                  : cardImageSrc(opponentFieldCard)
-                              }
-                              className="w-[95%] h-[95%] object-contain rounded-lg"
-                              animate={
-                                typeof opponentFieldCard !== "string"
-                                  ? flipFace
-                                  : {}
-                              }
-                            />
-                          </>
+                          <motion.img
+                            key={`opp-field-${opponentFieldCard?.uid || opponentFieldCard?.cid || String(opponentFieldCard)}`}
+                            layout
+                            src={cardImageSrc(opponentFieldCard)}
+                            className="w-[95%] h-[95%] object-contain rounded-lg"
+                            animate={typeof opponentFieldCard === "string" ? {} : flipFace}
+                            draggable={false}
+                          />
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-fuchsia-200">
                             <span className="text-xl">⟐</span>
-                            <span className="text-[10px] opacity-80">
-                              Deploy
-                            </span>
+                            <span className="text-[10px] opacity-80">Deploy</span>
                           </div>
                         )}
                       </AnimatePresence>
@@ -1353,6 +1837,11 @@ export default function Play() {
                 </div>
 
                 {/* VS badge */}
+                <div className="flex md:hidden items-center justify-center py-1">
+                  <div className="rounded-full px-4 py-2 border border-cyan-300/20 bg-black/40 text-xs tracking-wide text-cyan-100 shadow-[0_0_20px_rgba(0,255,255,0.12)]">
+                    VS
+                  </div>
+                </div>
                 <div className="hidden md:flex items-center justify-center">
                   <div className="rounded-full px-4 py-2 border border-cyan-300/20 bg-black/40 text-sm tracking-wide text-cyan-100 shadow-[0_0_20px_rgba(0,255,255,0.12)]">
                     VS
@@ -1367,27 +1856,21 @@ export default function Play() {
                     </div>
                     <motion.div
                       layout
-                      className="relative w-32 h-44 mx-auto flex items-center justify-center rounded-xl bg-gradient-to-b from-cyan-900/35 to-black/20 border-2 border-cyan-300/55 shadow-inner shadow-cyan-500/10"
+                      className={`relative ${FIELD_W} ${FIELD_H} mx-auto flex items-center justify-center rounded-xl bg-gradient-to-b from-cyan-900/35 to-black/20 border-2 border-cyan-300/55 shadow-inner shadow-cyan-500/10`}
                     >
                       <AnimatePresence initial={false}>
                         {selfFieldCard ? (
-                          <>
-                            <motion.img
-                              key={`self-field-${selfFieldCard.uid || String(selfFieldCard.cid)
-                                }`}
-                              src={cardImageSrc(selfFieldCard)}
-                              className="w-[95%] h-[95%] object-contain rounded-lg"
-                              onAnimationComplete={() =>
-                                selfFieldFx.start(fieldDrop)
-                              }
-                            />
-                          </>
+                          <motion.img
+                            key={`self-field-${selfFieldCard.uid || String(selfFieldCard.cid)}`}
+                            src={cardImageSrc(selfFieldCard)}
+                            className="w-[95%] h-[95%] object-contain rounded-lg"
+                            onAnimationComplete={() => selfFieldFx.start(fieldDrop)}
+                            draggable={false}
+                          />
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-cyan-200">
                             <span className="text-xl">⟐</span>
-                            <span className="text-[10px] opacity-80">
-                              Deploy
-                            </span>
+                            <span className="text-[10px] opacity-80">Deploy</span>
                           </div>
                         )}
                       </AnimatePresence>
@@ -1399,484 +1882,137 @@ export default function Play() {
                 </div>
               </div>
 
-              {/* YOUR HAND */}
-              <div className="w-full max-w-5xl mx-auto mt-6">
+              {/* HAND AREA (scroll only) */}
+              <div className="w-full max-w-5xl mx-auto mt-4 sm:mt-6 px-3 sm:px-4">
                 <div className="mx-auto mb-2 w-fit rounded-full px-3 py-1 text-[10px] uppercase tracking-widest bg-black/40 border border-cyan-300/20 text-cyan-100 shadow-[0_0_18px_rgba(0,255,255,0.12)]">
                   Your Hand
                 </div>
-                <div className="relative rounded-3xl px-4 py-5 border border-cyan-300/15 bg-gradient-to-t from-black/55 to-white/5 backdrop-blur-md shadow-[0_10px_46px_rgba(0,0,0,0.45)]">
+
+                <div className="relative rounded-3xl px-3 sm:px-4 py-4 sm:py-5 border border-cyan-300/15 bg-gradient-to-t from-black/55 to-white/5 backdrop-blur-md shadow-[0_10px_46px_rgba(0,0,0,0.45)]">
                   <div className="pointer-events-none absolute -top-6 left-0 right-0 h-6 bg-gradient-to-b from-cyan-300/20 to-transparent blur-lg" />
                   <div className="pointer-events-none absolute -bottom-8 left-0 right-0 h-10 bg-gradient-to-t from-fuchsia-300/15 to-transparent blur-2xl" />
 
-                  <div
-                    className={`flex flex-wrap justify-center gap-3 ${pendingUid ? "pointer-events-none" : ""
-                      }`}
-                  >
-                    <AnimatePresence initial={false}>
-                      {selfCards.map((card) => {
-                        const isPending = pendingUid === card.uid;
-                        return (
-                          <motion.div
-                            key={card.uid}
-                            layout
-                            {...fadeInUp}
-                            className={`relative w-24 h-36 rounded-2xl ${isPending ? "opacity-70" : ""
-                              }`}
-                          >
-                            <div className="absolute -inset-[2px] rounded-2xl bg-[conic-gradient(from_180deg_at_50%_50%,rgba(0,255,255,0.20),rgba(236,72,153,0.12),rgba(255,255,255,0.08),rgba(0,255,255,0.20))] opacity-70" />
-                            <motion.img
-                              src={cardImageSrc(card)}
-                              className={`relative w-full h-full rounded-2xl cursor-pointer border border-white/15 bg-black/25 ${isPending ? "cursor-wait" : ""
+                  {/* ✅ FIX: DO NOT pointer-events-none the entire hand (this was the “can’t pick cards” bug) */}
+                  <div className="mx-auto max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                    <div className="flex gap-3 justify-start sm:justify-center min-w-max px-1">
+                      <AnimatePresence initial={false}>
+                        {selfCards.map((card) => {
+                          const isPending = pendingUid === card.uid;
+                          return (
+                            <motion.div
+                              key={card.uid}
+                              layout
+                              {...fadeInUp}
+                              className={`relative flex-shrink-0 ${HAND_CARD_W} ${HAND_CARD_H} rounded-2xl ${isPending ? "opacity-70" : ""
                                 }`}
-                              whileHover={isPending ? undefined : cardHover}
-                              whileTap={isPending ? undefined : cardTap}
-                              transition={{
-                                type: "spring",
-                                stiffness: 280,
-                                damping: 20,
-                              }}
-                              onClick={() => handleCardSelect(card)}
-                            />
-                            <div className="absolute -bottom-1 left-2 right-2 h-2 rounded-full bg-black/50 blur-[3px]" />
-                            {isPending && (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="h-7 w-7 rounded-full border-2 border-white/30 border-t-cyan-200 animate-spin" />
-                              </div>
-                            )}
-                          </motion.div>
-                        );
-                      })}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* End Turn + timer */}
-                  <div className="mt-5 w-full max-w-sm mx-auto">
-                    <motion.button
-                      onClick={handleEndTurn}
-                      disabled={selfEndedTurn}
-                      className="rpg-button w-full relative overflow-hidden border border-cyan-300/30 bg-gradient-to-b from-cyan-400/15 via-white/5 to-fuchsia-500/10 shadow-[0_0_26px_rgba(0,255,255,0.16)]"
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      {selfEndedTurn
-                        ? opponentEndedTurn
-                          ? "🔍 Revealing..."
-                          : "⏳ Waiting for opponent..."
-                        : "🕒 End Turn"}
-                    </motion.button>
-
-                    {roundSecondsLeft != null && (
-                      <div className="mt-3">
-                        <div className="h-2 w-full bg-white/20 rounded overflow-hidden">
-                          <motion.div
-                            className="h-2 bg-gradient-to-r from-cyan-300 to-fuchsia-300"
-                            style={{ width: `${timerPct}%` }}
-                            initial={false}
-                            animate={{ width: `${timerPct}%` }}
-                            transition={{
-                              type: "tween",
-                              ease: "linear",
-                              duration: 0.2,
-                            }}
-                          />
-                        </div>
-                        <div className="mt-1 text-xs opacity-80">
-                          {roundSecondsLeft}s left to choose
-                        </div>
-                      </div>
-                    )}
+                            >
+                              <div className="absolute -inset-[2px] rounded-2xl bg-[conic-gradient(from_180deg_at_50%_50%,rgba(0,255,255,0.20),rgba(236,72,153,0.12),rgba(255,255,255,0.08),rgba(0,255,255,0.20))] opacity-70" />
+                              <motion.img
+                                src={cardImageSrc(card)}
+                                className={`relative w-full h-full rounded-2xl cursor-pointer border border-white/15 bg-black/25 ${isPending ? "cursor-wait" : ""
+                                  }`}
+                                whileHover={isPending || isMobile ? undefined : cardHover}
+                                whileTap={isPending ? undefined : cardTap}
+                                transition={{ type: "spring", stiffness: 280, damping: 20 }}
+                                onClick={() => handleCardSelect(card)}
+                                draggable={false}
+                              />
+                              <div className="absolute -bottom-1 left-2 right-2 h-2 rounded-full bg-black/50 blur-[3px]" />
+                              {isPending && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="h-7 w-7 rounded-full border-2 border-white/30 border-t-cyan-200 animate-spin" />
+                                </div>
+                              )}
+                            </motion.div>
+                          );
+                        })}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 </div>
               </div>
-            </>
-          ) : (
-            <>
-              {/* Header */}
-              <motion.h1
-                className="text-3xl md:text-5xl font-bold mb-6 text-cyan-100 drop-shadow-[0_0_18px_rgba(0,255,255,0.22)]"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+
+              {/* ✅ FIXED BOTTOM ACTION BAR: End Turn ALWAYS visible */}
+              <div
+                className="fixed left-0 right-0 bottom-0 z-[75] px-3 sm:px-4"
+                style={{
+                  paddingBottom: "calc(12px + env(safe-area-inset-bottom))",
+                }}
               >
-                ⚔️ Duel Arena
-              </motion.h1>
+                <div className="mx-auto max-w-5xl">
+                  <div className="rounded-2xl border border-cyan-300/20 bg-black/55 backdrop-blur-md shadow-[0_0_34px_rgba(0,255,255,0.12)] px-3 sm:px-4 py-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
+                      <motion.button
+                        onClick={handleEndTurn}
+                        disabled={selfEndedTurn}
+                        className="rpg-button w-full relative overflow-hidden border border-cyan-300/30 bg-gradient-to-b from-cyan-400/15 via-white/5 to-fuchsia-500/10 shadow-[0_0_26px_rgba(0,255,255,0.16)] py-3 sm:py-2 text-white"
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        {selfEndedTurn
+                          ? opponentEndedTurn
+                            ? "🔍 Revealing..."
+                            : "⏳ Waiting for opponent..."
+                          : "🕒 End Turn"}
+                      </motion.button>
 
-              {/* Mode selector */}
-              {status === "idle" && (
-                <motion.div
-                  className="w-full max-w-xl mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ type: "spring", stiffness: 140, damping: 18 }}
-                >
-                  <div className="text-left">
-                    <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
-                      Choose Your Path
-                    </div>
-                    <div className="text-2xl font-extrabold text-cyan-200 drop-shadow">
-                      Seek a Worthy Opponent
-                    </div>
-                    <p className="mt-1 text-sm opacity-90">
-                      Quick Match uses betting, Friendly has no betting. Ranked
-                      is coming soon.
-                    </p>
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-2 justify-center">
-                    <ModeChip
-                      active={mode === "quick"}
-                      onClick={() => setMode("quick")}
-                    >
-                      ⚡ Quick Match
-                    </ModeChip>
-                    <ModeChip
-                      active={mode === "friendly"}
-                      onClick={() => setMode("friendly")}
-                    >
-                      🤝 Friendly
-                    </ModeChip>
-                    <ModeChip active={mode === "ranked"} disabled onClick={() => { }}>
-                      🏅 Ranked (Soon)
-                    </ModeChip>
-                  </div>
-
-                  {/* Bet slider only for quick */}
-                  {mode === "quick" && (
-                    <div className="mt-5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm opacity-90">
-                          Default Wager
-                        </label>
-                        <div className="text-sm font-semibold text-cyan-200">
-                          {betAmount.toFixed(2)} TOKENS
-                        </div>
-                      </div>
-                      <input
-                        type="range"
-                        min="1"
-                        max={MAX_BET_TOKENS}
-                        step="1"
-                        value={betAmount}
-                        onChange={(e) => setBetAmount(+e.target.value)}
-                        className="w-full accent-cyan-300 mt-2"
-                      />
-                      <div className="mt-2 flex flex-wrap gap-2 justify-center">
-                        {[10, 25, 50, 100, 250, 500, 1000, 5000, 10000, 50000, 100000]
-                          .filter((v) => v <= MAX_BET_TOKENS)
-                          .map((v) => (
-                            <button
-                              key={v}
-                              onClick={() => setBetAmount(v)}
-                              className={`px-3 py-1 rounded-lg text-sm border ${betAmount === v
-                                  ? "bg-cyan-400/10 border-cyan-300/40 shadow-[0_0_18px_rgba(0,255,255,0.14)]"
-                                  : "bg-black/30 border-white/10 hover:border-fuchsia-300/30"
-                                }`}
-                            >
-                              {v} TOKENS
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <CyberButton onClick={findMatch} className="mt-5 w-full">
-                    🔎 Find Match
-                  </CyberButton>
-                </motion.div>
-              )}
-
-              {/* SEARCHING */}
-              {status === "searching" && (
-                <motion.div
-                  className="w-full max-w-md mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                >
-                  <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
-                    Divining Opponents
-                  </div>
-                  <div className="mt-1 text-2xl font-extrabold text-cyan-200 drop-shadow">
-                    Casting the Matchmaking Rune…
-                  </div>
-
-                  <div className="relative mx-auto mt-6 h-28 w-28">
-                    <motion.div
-                      className="absolute inset-0 rounded-full border-2 border-cyan-300/25"
-                      animate={{ rotate: 360 }}
-                      transition={{
-                        repeat: Infinity,
-                        duration: 4,
-                        ease: "linear",
-                      }}
-                    />
-                    <motion.div
-                      className="absolute inset-2 rounded-full border-2 border-fuchsia-300/20"
-                      animate={{ rotate: -360 }}
-                      transition={{
-                        repeat: Infinity,
-                        duration: 6,
-                        ease: "linear",
-                      }}
-                    />
-                    <div className="absolute inset-6 rounded-full bg-cyan-300/15 blur" />
-                    <div className="absolute inset-8 rounded-full bg-fuchsia-300/15 blur" />
-                    <div className="absolute inset-[38%] rounded-full bg-white/70" />
-                  </div>
-
-                  <p className="mt-4 text-sm opacity-90">
-                    Searching for a challenger worthy of your blade…
-                  </p>
-
-                  <CyberButton
-                    onClick={cancelFindMatch}
-                    className="mt-5 w-full border-fuchsia-300/35 shadow-[0_0_26px_rgba(236,72,153,0.16)]"
-                  >
-                    ❌ Cancel
-                  </CyberButton>
-                </motion.div>
-              )}
-
-              {/* MATCH FOUND */}
-              {status === "matchFound" && (
-                <motion.div
-                  className="w-full max-w-xl mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
-                        Opponent Found ·{" "}
-                        {mode === "friendly" ? "Friendly" : "Quick"}
-                      </div>
-                      <div className="text-2xl font-extrabold text-cyan-200 drop-shadow">
-                        {shortPk(opponent)}
-                      </div>
-                    </div>
-                    <div className="hidden md:block text-3xl">🛡️</div>
-                  </div>
-
-                  {mode === "quick" ? (
-                    isFirst ? (
-                      <>
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between">
-                            <label className="text-sm opacity-90">
-                              Set Your Wager
-                            </label>
-                            <div className="text-sm font-semibold text-cyan-200">
-                              {betAmount.toFixed(2)} TOKENS
+                      <div className="sm:w-[260px]">
+                        {roundSecondsLeft != null ? (
+                          <div>
+                            <div className="h-2 w-full bg-white/20 rounded overflow-hidden">
+                              <motion.div
+                                className="h-2 bg-gradient-to-r from-cyan-300 to-fuchsia-300"
+                                style={{ width: `${timerPct}%` }}
+                                initial={false}
+                                animate={{ width: `${timerPct}%` }}
+                                transition={{
+                                  type: "tween",
+                                  ease: "linear",
+                                  duration: 0.2,
+                                }}
+                              />
+                            </div>
+                            <div className="mt-1 text-xs opacity-80 text-center sm:text-right">
+                              {roundSecondsLeft}s left to choose
                             </div>
                           </div>
-                          <input
-                            type="range"
-                            min="1"
-                            max={MAX_BET_TOKENS}
-                            step="1"
-                            value={betAmount}
-                            onChange={(e) => setBetAmount(+e.target.value)}
-                            className="w-full accent-cyan-300 mt-2"
-                            disabled={status === "confirming" || selfConfirmed}
-                          />
-                          <div className="mt-3 flex flex-wrap gap-2 justify-center">
-                            {[10, 25, 50, 100, 250, 500, 1000, 5000, 10000, 50000, 100000]
-                              .filter((v) => v <= MAX_BET_TOKENS)
-                              .map((v) => (
-                                <button
-                                  key={v}
-                                  onClick={() => setBetAmount(v)}
-                                  className={`px-3 py-1 rounded-lg text-sm border ${betAmount === v
-                                      ? "bg-cyan-400/10 border-cyan-300/40 shadow-[0_0_18px_rgba(0,255,255,0.14)]"
-                                      : "bg-black/30 border-white/10 hover:border-fuchsia-300/30"
-                                    }`}
-                                  disabled={status === "confirming" || selfConfirmed}
-                                >
-                                  {v} TOKENS
-                                </button>
-                              ))}
+                        ) : (
+                          <div className="text-xs opacity-70 text-center sm:text-right">
+                            Awaiting timer…
                           </div>
-                        </div>
-                        <CyberButton
-                          onClick={sendOffer}
-                          className="mt-5 w-full"
-                          disabled={status === "confirming" || selfConfirmed}
-                        >
-                          📜 Send Bet Offer
-                        </CyberButton>
-                      </>
-                    ) : (
-                      <p className="mt-4 text-sm opacity-90">
-                        Awaiting their wager…
-                      </p>
-                    )
-                  ) : (
-                    <p className="mt-4 text-sm opacity-90">
-                      Friendly match – no betting. Duel will begin automatically
-                      when both are ready.
-                    </p>
-                  )}
-                </motion.div>
-              )}
-
-              {/* PROPOSING */}
-              {status === "proposing" && mode === "quick" && (
-                <motion.div
-                  className="w-full max-w-md mx-auto rounded-2xl border border-cyan-300/15 bg-black/40 p-6 shadow-[0_0_30px_rgba(0,255,255,0.10)] backdrop-blur-md"
-                  initial={{ opacity: 0.8, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <div className="text-sm opacity-90">
-                    ⏳ Waiting for opponent to review your offer…
-                  </div>
-                </motion.div>
-              )}
-
-              {/* NEGOTIATION */}
-              {status === "negotiation" && negotiation && mode === "quick" && (
-                <motion.div
-                  className="w-full max-w-xl mx-auto rounded-2xl border border-fuchsia-300/20 bg-black/45 p-6 shadow-[0_0_46px_rgba(236,72,153,0.12)] backdrop-blur-md"
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                >
-                  <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
-                    Offer Received
-                  </div>
-                  <div className="mt-1 text-2xl font-extrabold text-cyan-200 drop-shadow">
-                    {shortPk(negotiation.opponentWallet)} offered{" "}
-                    {Number(negotiation.bet).toFixed(2)} TOKENS
-                  </div>
-
-                  <div className="mt-5 grid sm:grid-cols-2 gap-3">
-                    <CyberButton
-                      onClick={acceptProposal}
-                      className="bg-gradient-to-b from-emerald-500/20 to-cyan-500/10 border-emerald-300/30"
-                    >
-                      ✅ Accept & Confirm
-                    </CyberButton>
-
-                    <div className="rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-left">
-                      <div className="text-xs uppercase opacity-70 mb-1 text-fuchsia-200">
-                        Counter Offer
-                      </div>
-                      <input
-                        type="range"
-                        min="1"
-                        max={MAX_BET_TOKENS}
-                        step="1"
-                        value={betAmount}
-                        onChange={(e) => setBetAmount(+e.target.value)}
-                        className="w-full accent-fuchsia-300"
-                      />
-                      <div className="mt-1 flex items-center justify-between">
-                        <div className="text-sm font-semibold text-cyan-200">
-                          {betAmount.toFixed(2)} TOKENS
-                        </div>
-                        <motion.button
-                          onClick={counterProposal}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          className="rpg-button px-3 py-1 border border-fuchsia-300/25 bg-fuchsia-400/10 shadow-[0_0_18px_rgba(236,72,153,0.14)]"
-                        >
-                          ↩ Send Counter
-                        </motion.button>
+                        )}
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              )}
 
-              {/* CONFIRMING / ESCROW */}
-              {status === "confirming" && mode === "quick" && (
-                <motion.div
-                  className="w-full max-w-xl mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-left">
-                      <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
-                        Confirmation
-                      </div>
-                      <div className="text-2xl font-extrabold text-cyan-200 drop-shadow">
-                        Wager {betAmount.toFixed(2)} TOKENS
-                      </div>
-                    </div>
-                    <div className="hidden md:block text-3xl">💰</div>
-                  </div>
-
-                  {txError && (
-                    <div className="mt-3 text-sm text-fuchsia-200">
-                      ⚠️ {txError}
-                    </div>
-                  )}
-
-                  <motion.button
-                    onClick={confirmMatch}
-                    whileHover={{ scale: isSendingTx ? 1 : 1.04 }}
-                    whileTap={{ scale: isSendingTx ? 1 : 0.97 }}
-                    className={`rpg-button bg-green-600 mt-4 w-full relative overflow-hidden border border-emerald-300/25 shadow-[0_0_26px_rgba(16,185,129,0.16)] ${isSendingTx ? "opacity-70 cursor-not-allowed" : ""
-                      }`}
-                    disabled={isSendingTx || selfConfirmed}
-                  >
-                    {isSendingTx
-                      ? "Processing..."
-                      : selfConfirmed
-                        ? "Awaiting opponent…"
-                        : "Confirm & Send Tokens"}
-                  </motion.button>
-
-                  <div className="mt-3 grid sm:grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-sm">
-                      <div className="text-[11px] uppercase opacity-70 text-fuchsia-200">
-                        Opponent
-                      </div>
-                      <div className="font-semibold">{shortPk(opponent)}</div>
-                      {opponentConfirmed && (
-                        <div className="mt-1 text-emerald-300 text-xs">
-                          ✅ Opponent confirmed
-                        </div>
-                      )}
-                    </div>
-                    <div className="rounded-lg border border-white/10 bg-black/35 px-3 py-2 text-sm">
-                      <div className="text-[11px] uppercase opacity-70 text-fuchsia-200">
-                        Escrow Timer
-                      </div>
-                      <div className="font-semibold">
-                        {oppCountdown !== null ? `${oppCountdown}s` : "—"}
-                      </div>
-                      {oppCountdown !== null && (
-                        <div className="text-[11px] opacity-80">
-                          Auto-refund if they don’t pay
-                        </div>
-                      )}
+                    {/* small debug line; remove anytime */}
+                    <div className="mt-2 text-[11px] opacity-70">
+                      Click lock: <span className="text-cyan-200">{pendingUid ? "ON" : "OFF"}</span>
                     </div>
                   </div>
-                </motion.div>
-              )}
-            </>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Bonus modal */}
           <AnimatePresence>
             {bonusModal && (
               <motion.div
-                className="absolute inset-0 bg-black/85 text-white z-30 flex flex-col items-center justify-center backdrop-blur-sm"
+                className="fixed inset-0 bg-black/85 text-white z-[85] flex flex-col items-center justify-center backdrop-blur-sm px-4"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
                 <motion.h2
-                  className="text-3xl mb-4 font-bold text-cyan-200 drop-shadow-[0_0_18px_rgba(0,255,255,0.22)]"
+                  className="text-2xl sm:text-3xl mb-4 font-bold text-cyan-200 drop-shadow-[0_0_18px_rgba(0,255,255,0.22)]"
                   initial={{ scale: 0.9 }}
                   animate={{ scale: 1 }}
                 >
                   🌀 Bonus Round Triggered!
                 </motion.h2>
-                <p className="text-lg text-white/90">
+                <p className="text-base sm:text-lg text-white/90 text-center">
                   A draw occurred in regulation — fresh hand dealt.
                 </p>
-                <CyberButton
-                  onClick={() => setBonusModal(false)}
-                  className="mt-6"
-                >
+                <CyberButton onClick={() => setBonusModal(false)} className="mt-6 py-3 sm:py-2">
                   Continue Duel
                 </CyberButton>
               </motion.div>
@@ -1887,7 +2023,7 @@ export default function Play() {
           <AnimatePresence>
             {infoModal.open && (
               <motion.div
-                className="fixed inset-0 z-[60] flex items-center justify-center"
+                className="fixed inset-0 z-[100] flex items-center justify-center"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -1911,7 +2047,7 @@ export default function Play() {
                     <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
                       Notice
                     </div>
-                    <h3 className="mt-1 text-2xl font-extrabold text-cyan-200 drop-shadow">
+                    <h3 className="mt-1 text-xl sm:text-2xl font-extrabold text-cyan-200 drop-shadow">
                       {infoModal.title || "Info"}
                     </h3>
                     <p className="mt-3 text-sm opacity-90 whitespace-pre-wrap">
@@ -1919,7 +2055,7 @@ export default function Play() {
                     </p>
                     <CyberButton
                       onClick={() => setInfoModal((m) => ({ ...m, open: false }))}
-                      className="mt-5"
+                      className="mt-5 py-3 sm:py-2"
                     >
                       Close
                     </CyberButton>
@@ -1935,7 +2071,7 @@ export default function Play() {
       <AnimatePresence>
         {reveal && fighting && (lastReveal.yourCard || lastReveal.oppCard) && (
           <motion.div
-            className="fixed inset-0 z-[55] flex items-center justify-center"
+            className="fixed inset-0 z-[99] flex items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1952,10 +2088,14 @@ export default function Play() {
               animate={{ y: 0, scale: 1 }}
               exit={{ y: -8, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 160, damping: 18 }}
+              style={{
+                marginTop: "env(safe-area-inset-top)",
+                marginBottom: "env(safe-area-inset-bottom)",
+              }}
             >
               <div className="pointer-events-none absolute -inset-1 blur-3xl opacity-50 bg-[radial-gradient(circle_at_left,rgba(0,255,255,0.22),transparent_45%),radial-gradient(circle_at_right,rgba(236,72,153,0.18),transparent_45%)]" />
 
-              <div className="relative px-5 sm:px-8 py-6 sm:py-8">
+              <div className="relative px-4 sm:px-8 py-5 sm:py-8">
                 <div className="text-center text-[10px] sm:text-xs uppercase tracking-[0.2em] opacity-80 text-fuchsia-200">
                   Versus Reveal
                 </div>
@@ -1973,17 +2113,14 @@ export default function Play() {
                     <div className="relative">
                       <motion.img
                         src={cardImageSrc(lastReveal?.yourCard)}
-                        className={`h-56 sm:h-72 w-auto rounded-2xl border ${isWinnerSelf
+                        className={`h-52 sm:h-72 w-auto max-w-[78vw] rounded-2xl border ${isWinnerSelf
                             ? "border-cyan-200 shadow-[0_0_44px_rgba(0,255,255,0.30)]"
                             : "border-white/20"
                           }`}
                         initial={{ rotate: -2, scale: 0.98 }}
                         animate={{ rotate: 0, scale: 1 }}
-                        transition={{
-                          type: "spring",
-                          stiffness: 120,
-                          damping: 14,
-                        }}
+                        transition={{ type: "spring", stiffness: 120, damping: 14 }}
+                        draggable={false}
                       />
                       <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 text-[11px] px-2 py-1 rounded-full bg-black/40 border border-cyan-300/20 backdrop-blur">
                         Power:{" "}
@@ -2000,6 +2137,30 @@ export default function Play() {
                   </motion.div>
 
                   {/* VS MEDALLION */}
+                  <motion.div
+                    className="flex sm:hidden flex-col items-center gap-2"
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                  >
+                    <div className="rounded-full px-4 py-3 border border-cyan-300/25 bg-black/40 backdrop-blur-md text-sm font-bold tracking-widest text-cyan-100 shadow-[0_0_22px_rgba(0,255,255,0.14)]">
+                      VS
+                    </div>
+                    <div
+                      className={`text-[10px] uppercase tracking-widest ${isWinnerSelf
+                          ? "text-cyan-200"
+                          : isWinnerOpp
+                            ? "text-fuchsia-200"
+                            : "text-slate-200"
+                        }`}
+                    >
+                      {isWinnerSelf
+                        ? "You Prevail"
+                        : isWinnerOpp
+                          ? "Opponent Prevails"
+                          : "Draw"}
+                    </div>
+                  </motion.div>
+
                   <motion.div
                     className="hidden sm:flex flex-col items-center gap-2"
                     initial={{ scale: 0.9, opacity: 0 }}
@@ -2036,17 +2197,14 @@ export default function Play() {
                     <div className="relative">
                       <motion.img
                         src={cardImageSrc(lastReveal?.oppCard)}
-                        className={`h-56 sm:h-72 w-auto rounded-2xl border ${isWinnerOpp
+                        className={`h-52 sm:h-72 w-auto max-w-[78vw] rounded-2xl border ${isWinnerOpp
                             ? "border-fuchsia-200 shadow-[0_0_44px_rgba(236,72,153,0.30)]"
                             : "border-white/20"
                           }`}
                         initial={{ rotate: 2, scale: 0.98 }}
                         animate={{ rotate: 0, scale: 1 }}
-                        transition={{
-                          type: "spring",
-                          stiffness: 120,
-                          damping: 14,
-                        }}
+                        transition={{ type: "spring", stiffness: 120, damping: 14 }}
+                        draggable={false}
                       />
                       <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 text-[11px] px-2 py-1 rounded-full bg-black/40 border border-fuchsia-300/20 backdrop-blur">
                         Power:{" "}
@@ -2063,13 +2221,17 @@ export default function Play() {
                   </motion.div>
                 </div>
 
-                <div className="mt-8 text-center text-[11px] sm:text-xs tracking-widest uppercase opacity-90 text-white/90">
+                <div className="mt-7 sm:mt-8 text-center text-[11px] sm:text-xs tracking-widest uppercase opacity-90 text-white/90">
                   {isWinnerSelf
                     ? "Your card prevails!"
                     : isWinnerOpp
                       ? "Opponent's card prevails!"
                       : "Stalemate — no winner this round."}
                 </div>
+
+                {/* NOTE for your “only back card shows” issue:
+                    This UI will show opponent NFT ONLY if backend sends `oppCard.image` (or payload object in revealOpponentCard).
+                    If backend only sends cid, we can only show local sprite via cid. */}
               </div>
             </motion.div>
           </motion.div>

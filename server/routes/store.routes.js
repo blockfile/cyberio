@@ -22,6 +22,12 @@ const RPC = process.env.SOLANA_RPC;
 const CYBERIO_MINT = process.env.SD_TOKEN_MINT;
 const TREASURY_PUBLIC_KEY = process.env.FEE_WALLET;
 const TOKEN_PROGRAM = (process.env.TOKEN_PROGRAM || "tokenkeg").toLowerCase();
+const CONFIGURED_DECIMALS = Number(
+  process.env.SD_DECIMALS ||
+    process.env.REACT_APP_TOKEN_DECIMALS ||
+    process.env.WAGER_DECIMALS ||
+    6
+);
 
 if (!RPC) console.warn("⚠️ SOLANA_RPC missing");
 if (!CYBERIO_MINT) console.warn("⚠️ CYBERIO_MINT missing");
@@ -57,12 +63,19 @@ function getPriceForDuration(durationDays) {
   return null;
 }
 
-/**
- * Resolve token program ID:
- * - Use env choice first (token2022 vs tokenkeg)
- * - But still validate against actual mint owner on-chain if possible
- */
-async function resolveTokenProgramIdForMint(mintPk) {
+function resolveConfiguredTokenProgramId() {
+  if (
+    TOKEN_PROGRAM === "token2022" ||
+    TOKEN_PROGRAM === "token-2022" ||
+    TOKEN_PROGRAM === TOKEN_2022_PROGRAM_ID.toBase58().toLowerCase()
+  ) {
+    return TOKEN_2022_PROGRAM_ID;
+  }
+
+  return TOKEN_PROGRAM_ID;
+}
+
+async function resolveOnChainTokenProgramIdForMint(mintPk) {
   const info = await connection.getAccountInfo(mintPk);
   if (!info) throw new Error("Mint account not found on-chain");
 
@@ -70,6 +83,26 @@ async function resolveTokenProgramIdForMint(mintPk) {
   if (info.owner.equals(TOKEN_PROGRAM_ID)) return TOKEN_PROGRAM_ID;
 
   throw new Error(`Unsupported mint owner program: ${info.owner.toBase58()}`);
+}
+
+async function resolvePurchaseTokenConfig(mintPk) {
+  const configuredTokenProgramId = resolveConfiguredTokenProgramId();
+
+  if (Number.isFinite(CONFIGURED_DECIMALS) && CONFIGURED_DECIMALS >= 0) {
+    return {
+      tokenProgramId: configuredTokenProgramId,
+      decimals: CONFIGURED_DECIMALS,
+      source: "env",
+    };
+  }
+
+  const tokenProgramId = await resolveOnChainTokenProgramIdForMint(mintPk);
+  const mintInfo = await getMint(connection, mintPk, "confirmed", tokenProgramId);
+  return {
+    tokenProgramId,
+    decimals: Number(mintInfo.decimals),
+    source: "chain",
+  };
 }
 
 function pow10(decimals) {
@@ -139,9 +172,8 @@ router.post("/pass/intent", async (req, res) => {
     const mintPk = new PublicKey(CYBERIO_MINT);
     const treasuryPk = new PublicKey(TREASURY_PUBLIC_KEY);
 
-    const tokenProgramId = await resolveTokenProgramIdForMint(mintPk);
-    const mintInfo = await getMint(connection, mintPk, "confirmed", tokenProgramId);
-    const decimals = Number(mintInfo.decimals);
+    const { tokenProgramId, decimals, source: tokenConfigSource } =
+      await resolvePurchaseTokenConfig(mintPk);
 
     // amountRaw = priceUi * 10^decimals
     const amountRaw = (BigInt(Math.floor(priceUi)) * pow10(decimals)).toString();
@@ -187,6 +219,7 @@ router.post("/pass/intent", async (req, res) => {
         memo,
         durationDays,
         priceUi,
+        tokenConfigSource,
       },
     });
   } catch (e) {

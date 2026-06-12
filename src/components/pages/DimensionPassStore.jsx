@@ -1,7 +1,7 @@
 /* eslint-env browser, es2021 */
-/* global BigInt */
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { WalletContext } from "../../context/WalletConnect";
+import { API_BASE_URL } from "../../config/endpoints";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import {
     getAssociatedTokenAddress,
@@ -19,13 +19,9 @@ import TIER1 from "../assets/images/dimentsionalpass/TIER1.png";
 import TIER2 from "../assets/images/dimentsionalpass/TIER2.png";
 import TIER3 from "../assets/images/dimentsionalpass/TIER3.png";
 
-// Use same env var as your Dapp.jsx (and support API_BASE too)
-const API_BASE =
-    (process.env.REACT_APP_API_URL || "").trim() ||
-    (process.env.REACT_APP_API_BASE || "").trim() ||
-    "http://localhost:3001";
+const API_BASE = API_BASE_URL;
 
-// RPC for Phantom recentBlockhash
+// RPC for wallet recentBlockhash
 const SOLANA_RPC =
     (process.env.REACT_APP_SOLANA_RPC || "").trim() ||
     (process.env.REACT_APP_QUICKNODE_RPC_URL || "").trim() ||
@@ -67,15 +63,31 @@ async function safeJson(url, init) {
     return json;
 }
 
+function getPurchaseErrorMessage(error) {
+    const msg = String(error?.message || error || "Purchase failed");
+    const lower = msg.toLowerCase();
+
+    if (
+        lower.includes("fetch failed") ||
+        lower.includes("failed to fetch") ||
+        lower.includes("err_connection_timed_out") ||
+        lower.includes("failed to get info about account") ||
+        lower.includes("recentblockhash")
+    ) {
+        return "Solana RPC is currently unreachable. Please try again when the RPC endpoint is responding.";
+    }
+
+    return msg;
+}
+
 export default function DimensionPassStore() {
-    const { wallet, connectWallet } = useContext(WalletContext);
+    const { wallet, connectWallet, walletProvider } = useContext(WalletContext);
     const navigate = useNavigate();
 
     const [loading, setLoading] = useState(false);
     const [activePass, setActivePass] = useState(null);
     const [notice, setNotice] = useState(null);
 
-    const canUsePhantom = useMemo(() => !!window?.solana?.isPhantom, []);
     const solanaConnection = useMemo(() => new Connection(SOLANA_RPC, "confirmed"), []);
 
     // Optional: show active pass status (won't block UI if backend route missing)
@@ -100,7 +112,7 @@ export default function DimensionPassStore() {
     async function buyPass(durationDays) {
         try {
             if (!wallet) throw new Error("Connect your wallet first.");
-            if (!canUsePhantom) throw new Error("Phantom wallet is required.");
+            if (!walletProvider) throw new Error("Wallet provider unavailable. Please reconnect your wallet.");
 
             setNotice(null);
             setLoading(true);
@@ -194,8 +206,25 @@ export default function DimensionPassStore() {
             const { blockhash } = await solanaConnection.getLatestBlockhash("confirmed");
             tx.recentBlockhash = blockhash;
 
-            // 6) Phantom signs & sends
-            const { signature } = await window.solana.signAndSendTransaction(tx);
+            // 6) selected wallet signs & sends
+            let signature = null;
+            if (typeof walletProvider.signAndSendTransaction === "function") {
+                const res = await walletProvider.signAndSendTransaction(tx, {
+                    skipPreflight: false,
+                    preflightCommitment: "confirmed",
+                    maxRetries: 3,
+                });
+                signature = res?.signature || res;
+            } else if (typeof walletProvider.signTransaction === "function") {
+                const signed = await walletProvider.signTransaction(tx);
+                signature = await solanaConnection.sendRawTransaction(signed.serialize(), {
+                    skipPreflight: false,
+                    preflightCommitment: "confirmed",
+                    maxRetries: 3,
+                });
+            } else {
+                throw new Error("Selected wallet does not support transaction signing.");
+            }
             if (!signature) throw new Error("No signature returned by wallet.");
 
             // 7) confirm with server
@@ -216,7 +245,8 @@ export default function DimensionPassStore() {
             setNotice(`Success! Pass active until ${new Date(confirmJson.pass.expiresAt).toLocaleString()}`);
             await fetchActivePass();
         } catch (e) {
-            setNotice(e?.message || "Purchase failed");
+            console.error("Pass purchase failed:", e);
+            setNotice(getPurchaseErrorMessage(e));
         } finally {
             setLoading(false);
         }
@@ -288,7 +318,7 @@ export default function DimensionPassStore() {
                                 {!wallet ? (
                                     <button
                                         type="button"
-                                        onClick={connectWallet}
+                                        onClick={() => connectWallet({ forceSelect: true })}
                                         className="w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase"
                                     >
                                         CONNECT WALLET
@@ -303,9 +333,9 @@ export default function DimensionPassStore() {
                                     </button>
                                 )}
 
-                                {!canUsePhantom ? (
+                                {wallet && !walletProvider ? (
                                     <div className="rounded-xl border border-white/15 bg-white/5 p-3 text-sm opacity-85">
-                                        Phantom not detected.
+                                        Wallet provider unavailable. Reconnect to continue.
                                     </div>
                                 ) : null}
                             </div>

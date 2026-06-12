@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState, useContext } from "react";
 import axios from "axios";
 import Navbar from "../navbar/navbar";
 import { WalletContext } from "../../context/WalletConnect";
+import { API_BASE_URL } from "../../config/endpoints";
 import { motion, AnimatePresence } from "framer-motion";
 import bg2 from "../assets/images/bg2.jpg";
 
@@ -39,10 +40,29 @@ const rarityOrder = (rarity) => {
   if (rarity === "Rare") return 2;
   return 1;
 };
-const API_BASE =
-  (process.env.REACT_APP_API_URL || "").trim() ||
-  (process.env.REACT_APP_API_BASE || "").trim() ||
-  "http://localhost:3001";
+const API_BASE = API_BASE_URL;
+
+const inventoryCache = new Map();
+const inventoryInflight = new Map();
+
+function fetchInventoryCards(wallet) {
+  if (inventoryCache.has(wallet)) {
+    return Promise.resolve(inventoryCache.get(wallet));
+  }
+
+  if (inventoryInflight.has(wallet)) {
+    return inventoryInflight.get(wallet);
+  }
+
+  const request = axios.get(`${API_BASE}/api/inventory/${wallet}`).then(({ data }) => {
+    const cards = data.cards || [];
+    inventoryCache.set(wallet, cards);
+    return cards;
+  });
+
+  inventoryInflight.set(wallet, request);
+  return request.finally(() => inventoryInflight.delete(wallet));
+}
 
 export default function Inventory() {
   const { wallet } = useContext(WalletContext);
@@ -63,16 +83,31 @@ export default function Inventory() {
   useEffect(() => {
     if (!wallet) return;
 
-    setLoading(true);
+    let alive = true;
+    const cachedCards = inventoryCache.get(wallet);
+    if (cachedCards) {
+      setCards(cachedCards);
+      setCurrentPage(1);
+    }
 
-    axios
-      .get(`${API_BASE}/api/inventory/${wallet}`)
-      .then(({ data }) => {
-        setCards(data.cards || []);
+    setLoading(!cachedCards);
+
+    fetchInventoryCards(wallet)
+      .then((nextCards) => {
+        if (!alive) return;
+        setCards(nextCards);
         setCurrentPage(1);
       })
-      .catch((err) => console.error("Error fetching inventory:", err))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (alive) console.error("Error fetching inventory:", err);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [wallet]);
 
 
@@ -87,6 +122,9 @@ export default function Inventory() {
       isFree: !!card.isFree,
       count: card.count || 1,
       rarity: effectiveRarity,
+      power: card.power,
+      skill: card.skill,
+      powerSource: card.powerSource,
     });
   };
 
@@ -341,7 +379,7 @@ export default function Inventory() {
           {/* Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-3 md:gap-4 mb-6">
             {paginatedCards.map((card, index) => {
-              const { cardId, count, isFree, name, image, rarity } = card;
+              const { cardId, count, isFree, name, image, rarity, power, skill } = card;
               const effectiveRarity = rarity || getRarity(cardId);
 
               return (
@@ -426,6 +464,12 @@ export default function Inventory() {
                       <div className="mt-2 flex items-center justify-between text-[10px] tracking-[.18em] uppercase text-white/60">
                         <span>{isFree ? "Free / Soulbound" : "Paid / Tradable"}</span>
                         <span className="text-white/80 font-black">x{count || 1}</span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[10px] tracking-[.16em] uppercase text-white/65">
+                        <span>PWR {power ?? "-"}</span>
+                        {skill ? (
+                          <span className="truncate text-white/80">SKL {skill}</span>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -560,6 +604,18 @@ export default function Inventory() {
                       <div className="text-[10px] tracking-[.28em] uppercase text-white/55">Type</div>
                       <div className="mt-1 font-black tracking-[.16em] text-white/90">
                         {modalMeta.isFree ? "FREE / SOULBOUND" : "PAID / TRADABLE"}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                      <div className="text-[10px] tracking-[.28em] uppercase text-white/55">Power</div>
+                      <div className="mt-1 font-black tracking-[.16em] text-white/90">
+                        {modalMeta.power ?? "-"}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                      <div className="text-[10px] tracking-[.28em] uppercase text-white/55">Skill</div>
+                      <div className="mt-1 font-black tracking-[.16em] text-white/90 truncate">
+                        {modalMeta.skill || "-"}
                       </div>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-black/30 p-3 col-span-2">

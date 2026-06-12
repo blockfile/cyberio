@@ -13,13 +13,7 @@ import {
   MATCH_RESULT_MS,
   ROUND_RESULT_MS,
 } from "../components/play/shared";
-
-
-const SOCKET_URL =
-  (process.env.REACT_APP_SOCKET_URL || "").trim() ||
-  (process.env.REACT_APP_API_URL || "").trim() ||
-  (process.env.REACT_APP_API_BASE || "").trim() ||
-  "http://localhost:3001";
+import { SOCKET_URL } from "../config/endpoints";
 
 // SOCKET (single instance)
 export const socket = io(SOCKET_URL, {

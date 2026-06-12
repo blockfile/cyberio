@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const DimensionPassSchema = new mongoose.Schema(
   {
-    wallet: { type: String, required: true, index: true },
+    wallet: { type: String, required: true },
     durationDays: { type: Number, required: true },
     expiresAt: { type: Date, required: true, index: true },
 

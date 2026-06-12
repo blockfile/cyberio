@@ -16,6 +16,9 @@ const NftAssetSchema = new mongoose.Schema(
     image: { type: String, default: "" },
 
     power: { type: Number, default: 0 },
+    skill: { type: String, default: "" },
+    skillPower: { type: Number, default: null },
+    powerSource: { type: String, default: "" },
 
     attributes: { type: Array, default: [] },
     raw: { type: Object, default: {} },

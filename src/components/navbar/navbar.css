@@ -1,0 +1,208 @@
+/* src/components/navbar/navbar.css */
+
+.cyNav{
+  position: relative;
+  z-index: 60;
+  padding: 10px 12px;
+}
+
+.cyNav__bar{
+  position: relative;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.38);
+  backdrop-filter: blur(10px) saturate(160%);
+  box-shadow: 0 18px 44px rgba(0,0,0,.45), 0 0 0 1px rgba(255,43,214,.08) inset;
+
+  padding: 10px 12px;
+  overflow: hidden;
+}
+
+.cyNav__scan{
+  position:absolute;
+  inset:-50%;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.10), transparent 55%);
+  filter: blur(18px);
+  opacity: .45;
+  animation: cyNavScan 4.4s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes cyNavScan{
+  0%,100%{ transform: translate(-2%, -2%); }
+  50%{ transform: translate(2%, 2%); }
+}
+
+.cyNav__sheen{
+  position:absolute;
+  inset:-40%;
+  pointer-events:none;
+  opacity: .30;
+  background: linear-gradient(
+    120deg,
+    transparent 35%,
+    rgba(255,43,214,.18) 50%,
+    rgba(140,0,255,.12) 56%,
+    transparent 72%
+  );
+  transform: translateX(-25%) rotate(8deg);
+  animation: cyNavSheen 5.6s ease-in-out infinite;
+}
+@keyframes cyNavSheen{
+  0%,100%{ transform: translateX(-28%) rotate(8deg); opacity:.18; }
+  50%{ transform: translateX(28%) rotate(8deg); opacity:.42; }
+}
+
+.cyNav__brand{
+  position: relative;
+  z-index: 2;
+  min-width: 160px;
+}
+
+.cyNav__brandTitle{
+  font-weight: 900;
+  letter-spacing: .22em;
+  color: rgba(255, 105, 210, .98);
+  text-shadow: 0 0 18px rgba(255,43,214,.24), 0 0 28px rgba(140,0,255,.18);
+}
+
+.cyNav__brandSub{
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.60);
+}
+
+.cyNav__right{
+  position: relative;
+  z-index: 2;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap: 10px;
+}
+
+.cyNav__mono{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: .10em;
+}
+
+/* Pills */
+.cyNav__pill{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  backdrop-filter: blur(10px);
+  color: rgba(255,255,255,.88);
+  font-size: 12px;
+}
+.cyNav__pill b{ color: rgba(255,255,255,.95); letter-spacing: .06em; }
+
+.cyNav__pill--glass{
+  background: rgba(0,0,0,.28);
+  border-color: rgba(255,255,255,.14);
+}
+
+.cyNav__pill--purple{ border-color: rgba(255,43,214,.26); }
+.cyNav__pill--yellow{ border-color: rgba(255,200,60,.26); }
+.cyNav__pill--blue{ border-color: rgba(80,160,255,.26); }
+
+/* Buttons */
+.cyNav__btn{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.92);
+  cursor: pointer;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+
+.cyNav__btn:hover{
+  transform: translateY(-1px);
+  border-color: rgba(255,43,214,.28);
+  box-shadow: 0 0 22px rgba(255,43,214,.12);
+}
+
+.cyNav__btn:disabled{
+  opacity: .7;
+  cursor: not-allowed;
+}
+
+.cyNav__btn--primary{
+  border-color: rgba(255,43,214,.30);
+  background: rgba(255,43,214,.10);
+}
+
+.cyNav__btn--ghost{
+  background: rgba(255,255,255,.04);
+}
+
+.cyNav__btn--danger{
+  border-color: rgba(255,80,120,.26);
+  background: rgba(255,80,120,.10);
+}
+
+/* Mobile toggle */
+.cyNav__toggle{
+  position: relative;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  display:none;
+  place-items:center;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.30);
+  color: rgba(255, 105, 210, .98);
+  cursor: pointer;
+}
+
+/* Mobile drawer */
+.cyNav__mobile{
+  margin-top: 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.38);
+  backdrop-filter: blur(10px) saturate(160%);
+  box-shadow: 0 18px 44px rgba(0,0,0,.45);
+  padding: 12px;
+}
+
+.cyNav__mobileRow{
+  margin-bottom: 10px;
+}
+
+.cyNav__mobileGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cyNav__mobileActions{
+  margin-top: 12px;
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Helpers */
+.w-full{ width: 100%; }
+
+/* Responsive */
+@media (max-width: 820px){
+  .cyNav__right{ display:none; }
+  .cyNav__toggle{ display:grid; }
+}

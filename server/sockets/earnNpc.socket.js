@@ -33,6 +33,7 @@ const EarnDaily = require("../model/EarnDaily");
 const DimensionPass = require("../model/DimensionPass"); // ✅ required
 const NftAssetDb = require("../model/NftAssetDb"); // ✅ required (reads your nftassets collection)
 const CARD_META = require("../util/cardMetadata.json");
+const { computeNftStatsFromDoc } = require("../util/nftStats");
 
 // ===== CONFIG =====
 const ROUNDS_TO_WIN = Number(process.env.EARN_ROUNDS_TO_WIN || 2);
@@ -226,32 +227,39 @@ async function getPassStatus(wallet) {
 }
 
 async function getLowPowerCount(wallet) {
-  // expected schema: nftassets.ownerWallet + nftassets.power
-  const count = await NftAssetDb.countDocuments({
-    ownerWallet: wallet,
-    power: { $lt: LOW_POWER_THRESHOLD },
-  });
-  return Number(count || 0);
+  const assets = await NftAssetDb.find(
+    { ownerWallet: wallet },
+    { power: 1, skill: 1, attributes: 1, raw: 1 }
+  ).lean();
+
+  return assets.filter(
+    (asset) => computeNftStatsFromDoc(asset).power < LOW_POWER_THRESHOLD
+  ).length;
 }
 
 async function loadLowPowerDeck(wallet) {
   const assets = await NftAssetDb.find(
-    { ownerWallet: wallet, power: { $lt: LOW_POWER_THRESHOLD } },
-    { cid: 1, name: 1, image: 1, power: 1 }
+    { ownerWallet: wallet },
+    { cid: 1, name: 1, image: 1, power: 1, skill: 1, attributes: 1, raw: 1 }
   )
-    .limit(200)
     .lean();
+  const lowPowerAssets = assets
+    .map((asset) => ({ asset, stats: computeNftStatsFromDoc(asset) }))
+    .filter(({ stats }) => stats.power < LOW_POWER_THRESHOLD)
+    .slice(0, 200);
 
-  const cardIds = assets.map((a) => ({
+  const cardIds = lowPowerAssets.map(({ asset: a, stats }) => ({
     cid: String(a.cid ?? a._id),
     name: a.name || null,
     image: a.image || null,
+    power: stats.power,
+    skill: stats.skill || null,
   }));
 
   const cardPowersMap = {};
-  for (const a of assets) {
+  for (const { asset: a, stats } of lowPowerAssets) {
     const cid = String(a.cid ?? a._id);
-    cardPowersMap[cid] = Number(a.power || 0);
+    cardPowersMap[cid] = Number(stats.power || 0);
   }
 
   return { cardIds, cardPowersMap };
@@ -414,6 +422,7 @@ async function dealBonusHand(socket, s, buildDeckFromDb) {
       cid,
       image: c.image || null,
       name: c.name || null,
+      skill: c.skill || null,
       power: Number(cardPowersMap?.[cid] ?? 0),
     };
   });
@@ -506,6 +515,7 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
           cid,
           image: c.image || null,
           name: c.name || null,
+          skill: c.skill || null,
           power: Number(cardPowersMap?.[cid] ?? 0),
         };
       });

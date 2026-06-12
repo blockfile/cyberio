@@ -1,17 +1,19 @@
 // server/util/deck.js
-const axios = require("axios");
 const NftAsset = require("../model/NftAsset");
+const { getDasErrorMessage, postDas } = require("./dasClient");
+const { computeNftStatsFromAsset, computeNftStatsFromDoc } = require("./nftStats");
 
 /**
  * DAS endpoint:
  *  - Prefer DAS_RPC in env
- *  - Fallback to SOLANA_RPC if that URL is DAS-compatible
+ *  - Fallback to QUICKNODE_RPC_URL / SOLANA_RPC if that URL is DAS-compatible
  */
-const DAS_ENDPOINT = process.env.DAS_RPC || process.env.SOLANA_RPC;
+const DAS_ENDPOINT =
+  process.env.DAS_RPC || process.env.QUICKNODE_RPC_URL || process.env.SOLANA_RPC;
 
 if (!DAS_ENDPOINT) {
   console.warn(
-    "[DECK] WARNING: DAS_ENDPOINT not set. Set DAS_RPC or SOLANA_RPC to a DAS-compatible URL."
+    "[DECK] WARNING: DAS_ENDPOINT not set. Set DAS_RPC, QUICKNODE_RPC_URL, or SOLANA_RPC to a DAS-compatible URL."
   );
 }
 
@@ -50,9 +52,7 @@ async function fetchDasAssetsByOwner(ownerWallet, withRetry) {
   };
 
   const doCall = async () => {
-    const { data } = await axios.post(DAS_ENDPOINT, body, {
-      headers: { "Content-Type": "application/json" },
-    });
+    const data = await postDas(DAS_ENDPOINT, body);
     if (!data?.result?.items) return [];
     return data.result.items;
   };
@@ -64,36 +64,6 @@ async function fetchDasAssetsByOwner(ownerWallet, withRetry) {
 }
 
 /**
- * Power function – reads from attributes.
- * Expected metadata.attributes like:
- *  [
- *    { trait_type: "Power", value: 5 },
- *    ...
- *  ]
- */
-function computePowerFromAttributes(attributes) {
-  if (!Array.isArray(attributes)) return 0;
-
-  // Prefer explicit power-like trait
-  const powerTrait = attributes.find((a) => {
-    const t = (a?.trait_type || "").toString().toLowerCase();
-    return ["power", "atk", "attack"].includes(t);
-  });
-
-  if (powerTrait) {
-    const rawVal = powerTrait.value;
-    if (typeof rawVal === "number") return rawVal;
-    if (typeof rawVal === "string") {
-      const num = parseFloat(rawVal.replace(/[^\d.\-]/g, ""));
-      if (!Number.isNaN(num)) return num;
-    }
-  }
-
-  // Fallback: at least 1, scaled by attribute count
-  return attributes.length > 0 ? attributes.length : 1;
-}
-
-/**
  * Sync wallet NFTs from DAS into Mongo.
  * - If SD_COLLECTION_ID is set, only NFTs in that collection are stored.
  * - After sync, any NFTs that this wallet no longer owns are removed.
@@ -101,7 +71,30 @@ function computePowerFromAttributes(attributes) {
 async function syncWalletNftsToDb(walletAddress, withRetry) {
   console.log("[DECK] syncing wallet NFTs to DB:", walletAddress);
 
-  const items = await fetchDasAssetsByOwner(walletAddress, withRetry);
+  let items;
+  try {
+    items = await fetchDasAssetsByOwner(walletAddress, withRetry);
+  } catch (e) {
+    const cachedCount = await NftAsset.countDocuments({ ownerWallet: walletAddress });
+    const reason = getDasErrorMessage(e);
+    console.warn("[DECK] DAS sync skipped; using cached NFTs:", {
+      wallet: walletAddress,
+      cachedCount,
+      reason,
+    });
+
+    return {
+      saved: 0,
+      skipped: 0,
+      skippedWrongCollection: 0,
+      skippedNoCid: 0,
+      deletedStale: 0,
+      cached: true,
+      syncSkipped: true,
+      cachedCount,
+      warning: reason,
+    };
+  }
   console.log("[DECK] DAS total items:", items.length);
 
   if (items.length > 0) {
@@ -171,7 +164,7 @@ async function syncWalletNftsToDb(walletAddress, withRetry) {
       cid;
     const attributes = asset?.content?.metadata?.attributes || [];
 
-    const power = computePowerFromAttributes(attributes);
+    const stats = computeNftStatsFromAsset(asset);
 
     // Resolve collectionId again for storage
     const groupingArr = Array.isArray(asset.grouping) ? asset.grouping : [];
@@ -188,7 +181,10 @@ async function syncWalletNftsToDb(walletAddress, withRetry) {
         collectionId,
         name,
         image,
-        power,
+        power: stats.power,
+        skill: stats.skill,
+        skillPower: stats.skillPower,
+        powerSource: stats.powerSource,
         attributes,
         raw: asset,
         lastSyncedAt: new Date(),
@@ -239,15 +235,22 @@ async function buildDeckFromDb(walletAddress) {
     .lean()
     .exec();
 
-  const cardIds = docs.map((d) => ({
-    cid: d.cid,
-    image: d.image || null,
-    name: d.name || null,
-  }));
+  const cardStats = new Map();
+  const cardIds = docs.map((d) => {
+    const stats = computeNftStatsFromDoc(d);
+    cardStats.set(d.cid, stats);
+    return {
+      cid: d.cid,
+      image: d.image || null,
+      name: d.name || null,
+      power: stats.power,
+      skill: stats.skill || null,
+    };
+  });
 
   const cardPowersMap = {};
   for (const d of docs) {
-    cardPowersMap[d.cid] = typeof d.power === "number" ? d.power : 0;
+    cardPowersMap[d.cid] = cardStats.get(d.cid)?.power ?? 0;
   }
 
   console.log("[DECK] final deck size:", cardIds.length);

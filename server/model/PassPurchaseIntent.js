@@ -23,7 +23,7 @@ const PassPurchaseIntentSchema = new mongoose.Schema(
     },
 
     confirmedTxid: { type: String, default: "" },
-    expiresAt: { type: Date, required: true, index: true }, // intent expiration (e.g. now+10m)
+    expiresAt: { type: Date, required: true }, // intent expiration (e.g. now+10m)
   },
   { timestamps: true }
 );

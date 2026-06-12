@@ -3,6 +3,7 @@ const { PublicKey } = require("@solana/web3.js");
 
 const DimensionPass = require("../model/DimensionPass");
 const NftAssetDb = require("../model/NftAssetDb");
+const { computeNftStatsFromDoc } = require("../util/nftStats");
 
 const router = express.Router();
 
@@ -43,12 +44,16 @@ router.get("/eligibility", async (req, res) => {
 
     // If no pass => eligible false, but still return counts
     // 2) NFT rule (read only) — use YOUR SYNCED collection
-    const lowPowerCount = await NftAssetDb.countDocuments({
-      ownerWallet: wallet,
-      power: { $lt: POWER_THRESHOLD },
-      // optional: if you want only a specific collection:
-      // collectionId: process.env.SD_COLLECTION_ID
-    });
+    const nftDocs = await NftAssetDb.find(
+      { ownerWallet: wallet },
+      { power: 1, skill: 1, attributes: 1, raw: 1 }
+    )
+      .lean()
+      .exec();
+
+    const lowPowerCount = nftDocs.filter(
+      (doc) => computeNftStatsFromDoc(doc).power < POWER_THRESHOLD
+    ).length;
 
     const eligible = hasActivePass && lowPowerCount >= REQUIRED_LOW_POWER;
 
