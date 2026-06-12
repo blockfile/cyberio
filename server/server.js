@@ -338,6 +338,26 @@ async function withRpcConnection(task, { tries = 3, baseDelayMs = 500 } = {}) {
   throw last;
 }
 
+function shortPk(value) {
+  const text = String(value || "");
+  return text.length > 12 ? `${text.slice(0, 6)}...${text.slice(-6)}` : text;
+}
+
+async function assertTreasuryCanPayFees() {
+  const lamports = await withRpcConnection(
+    (conn) => conn.getBalance(treasuryKeypair.publicKey),
+    { tries: 2, baseDelayMs: 500 }
+  );
+
+  if (lamports <= 0) {
+    throw new Error(
+      `Treasury ${shortPk(TREASURY_PUBKEY)} has 0 SOL for transaction fees. Fund it before token payouts.`
+    );
+  }
+
+  return lamports;
+}
+
 function removeFromQueues(sock) {
   ["quick", "friendly"].forEach((m) => {
     const q = queues[m];
@@ -570,6 +590,7 @@ async function sendTokensFromTreasury({ toWallet, amountRaw, mint, decimals }) {
   const toOwner = new PublicKey(toWallet);
 
   const treasuryOwner = treasuryKeypair.publicKey;
+  await assertTreasuryCanPayFees();
 
   // ✅ detect correct token program for this mint
   const tokenProgramId = await resolveTokenProgramIdForMint(mint);
@@ -626,7 +647,11 @@ function calcRakeSplit(potAmountRaw) {
 async function distributePotWithRakeTokens({ potAmountRaw, winnerWallet, mint, decimals }) {
   const { rakeAmountRaw, payoutAmountRaw } = calcRakeSplit(potAmountRaw);
 
-  if (rakeAmountRaw > 0 && FEE_WALLET) {
+  if (rakeAmountRaw > 0 && FEE_WALLET === TREASURY_PUBKEY) {
+    console.log(
+      `Rake retained in treasury: ${rakeAmountRaw} raw -> ${shortPk(TREASURY_PUBKEY)}`
+    );
+  } else if (rakeAmountRaw > 0 && FEE_WALLET) {
     try {
       await sendTokensFromTreasury({
         toWallet: FEE_WALLET,
@@ -642,7 +667,11 @@ async function distributePotWithRakeTokens({ potAmountRaw, winnerWallet, mint, d
     console.warn("⚠️ Rake configured but FEE_WALLET missing — skipping rake payout.");
   }
 
-  if (payoutAmountRaw > 0 && winnerWallet) {
+  if (payoutAmountRaw > 0 && winnerWallet === TREASURY_PUBKEY) {
+    console.log(
+      `Winner payout retained in treasury: ${payoutAmountRaw} raw -> ${shortPk(TREASURY_PUBKEY)}`
+    );
+  } else if (payoutAmountRaw > 0 && winnerWallet) {
     await sendTokensFromTreasury({
       toWallet: winnerWallet,
       amountRaw: payoutAmountRaw,
@@ -913,7 +942,7 @@ io.on("connection", (socket) => {
     socket.opponent?.emit("acceptProposal", { bet });
   });
 
-  socket.on("beginDuelPayment", ({ wallet, betAmountRaw, escrowId } = {}, ack) => {
+  socket.on("beginDuelPayment", ({ wallet, betAmountRaw, betAmountTokens, escrowId } = {}, ack) => {
     const reply = (payload) => {
       if (typeof ack === "function") ack(payload);
     };
@@ -944,15 +973,28 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const wagerDecimals = state.betDecimals || WAGER_DECIMALS;
+    const expectedBetAmountRaw =
+      betAmountRaw ||
+      (Number.isFinite(Number(betAmountTokens))
+        ? Math.round(Number(betAmountTokens) * Math.pow(10, wagerDecimals))
+        : null);
+
     state.phase = "confirming";
     state.paymentReady = state.paymentReady || {};
     state.paymentReady[socket.id] = {
       wallet: wallet || socket.wallet,
-      betAmountRaw: betAmountRaw || null,
+      betAmountRaw: expectedBetAmountRaw,
       escrowId: escrowId || null,
       at: Date.now(),
     };
-    reply({ ok: true });
+    reply({
+      ok: true,
+      treasuryWallet: TREASURY_PUBKEY,
+      wagerMint: state.betMint || WAGER_MINT,
+      wagerDecimals,
+      betAmountRaw: expectedBetAmountRaw,
+    });
   });
 
   /**

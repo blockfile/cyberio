@@ -851,12 +851,6 @@ export default function Play() {
       setIsSendingTx(true);
       setTxError("");
 
-      if (!WAGER_MINT) {
-        setTxError("Token mint is not set. Please configure REACT_APP_TOKEN_MINT.");
-        setIsSendingTx(false);
-        return;
-      }
-
       // cap safety (UI + tx)
       if (Number(betAmount) > MAX_BET_TOKENS) {
         setTxError(`Max wager is ${MAX_BET_TOKENS} tokens.`);
@@ -889,16 +883,13 @@ export default function Play() {
         crypto?.randomUUID?.() ||
         `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      const mintPk = new PublicKey(WAGER_MINT);
-      const treasuryOwnerPk = new PublicKey(TREASURY);
-
       // ✅ Detect token program for this mint (Tokenkeg vs Token-2022)
       // SPL raw amount
-      const betAmountRaw = Math.round(
+      const preliminaryBetAmountRaw = Math.round(
         Number(betAmount) * Math.pow(10, WAGER_DECIMALS)
       );
 
-      if (!Number.isFinite(betAmountRaw) || betAmountRaw <= 0) {
+      if (!Number.isFinite(preliminaryBetAmountRaw) || preliminaryBetAmountRaw <= 0) {
         setTxError("Invalid wager amount.");
         setIsSendingTx(false);
         return;
@@ -907,7 +898,8 @@ export default function Play() {
       // ✅ ATAs must be derived with the SAME token program id
       const paymentGate = await beginDuelPayment({
         wallet,
-        betAmountRaw,
+        betAmountRaw: preliminaryBetAmountRaw,
+        betAmountTokens: Number(betAmount),
         escrowId,
       });
 
@@ -925,6 +917,28 @@ export default function Play() {
         );
         return;
       }
+
+      const wagerMint = paymentGate.wagerMint || WAGER_MINT;
+      const wagerDecimals = Number(paymentGate.wagerDecimals ?? WAGER_DECIMALS);
+      const betAmountRaw = Number(
+        paymentGate.betAmountRaw ??
+          Math.round(Number(betAmount) * Math.pow(10, wagerDecimals))
+      );
+
+      if (!wagerMint) {
+        setTxError("Token mint is not set by the server.");
+        setIsSendingTx(false);
+        return;
+      }
+
+      if (!Number.isFinite(betAmountRaw) || betAmountRaw <= 0) {
+        setTxError("Invalid wager amount from server.");
+        setIsSendingTx(false);
+        return;
+      }
+
+      const mintPk = new PublicKey(wagerMint);
+      const treasuryOwnerPk = new PublicKey(paymentGate.treasuryWallet || TREASURY);
 
       const { connection, tokenProgramId } = await withRpcFallback(
         async (rpcConnection) => ({
@@ -989,7 +1003,7 @@ export default function Play() {
           treasuryAta,
           ownerPk,
           betAmountRaw,
-          WAGER_DECIMALS,
+          wagerDecimals,
           [],
           tokenProgramId // ✅ IMPORTANT
         )
@@ -1056,8 +1070,8 @@ export default function Play() {
 
         // New SPL payload (primary):
         betAmountRaw,
-        betMint: WAGER_MINT,
-        betDecimals: WAGER_DECIMALS,
+        betMint: wagerMint,
+        betDecimals: wagerDecimals,
         escrowId,
 
         // helpful debug (optional on backend)
