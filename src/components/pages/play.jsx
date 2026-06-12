@@ -133,6 +133,13 @@ const fadeInUp = {
 /* modal durations */
 const MATCH_RESULT_MS = 4200;
 const ROUND_RESULT_MS = 2600;
+const ACTIVE_MATCH_STATUSES = new Set([
+  "matchFound",
+  "proposing",
+  "negotiation",
+  "confirming",
+  "dueling",
+]);
 
 // =========================
 // ✅ helper: detect token program (Tokenkeg vs Token-2022)
@@ -261,6 +268,7 @@ export default function Play() {
 
   // retry-safe escrow
   const [lastEscrowId, setLastEscrowId] = useState(null);
+  const statusRef = useRef(status);
 
   const selfFieldFx = useAnimationControls();
   const oppFieldFx = useAnimationControls();
@@ -271,6 +279,34 @@ export default function Play() {
     oppCard: null,
     winner: null,
   });
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  const resetMatchState = ({ clearEscrow = true } = {}) => {
+    setStatus("idle");
+    setNegotiation(null);
+    setOppCountdown(null);
+    setSelfConfirmed(false);
+    setOpponentConfirmed(false);
+    setMatchOver(false);
+    setRoundSecondsLeft(null);
+    setSelfCards([]);
+    setOpponentCards([]);
+    setSelfFieldCard(null);
+    setOpponentFieldCard(null);
+    setRoundWinner(null);
+    setOppGone(false);
+    setOppReconnectSeconds(null);
+    setIsSendingTx(false);
+    setTxError("");
+    if (clearEscrow) setLastEscrowId(null);
+    clearPending();
+    lastPlayedCardRef.current = null;
+    setRoundModal((m2) => ({ ...m2, open: false }));
+    setLastReveal({ yourCard: null, oppCard: null, winner: null });
+  };
 
   // =========================
   // CYBERPUNK THEME HELPERS
@@ -393,24 +429,12 @@ export default function Play() {
 
     socket.on("paymentError", ({ reason }) => {
       openInfo("Payment Error", `${reason}`);
-      setStatus("idle");
-      setNegotiation(null);
-      setOppCountdown(null);
-      setSelfConfirmed(false);
-      setOpponentConfirmed(false);
-      setMatchOver(false);
-      setRoundSecondsLeft(null);
-      setSelfCards([]);
-      setOpponentCards([]);
-      setSelfFieldCard(null);
-      setOpponentFieldCard(null);
-      setRoundWinner(null);
-      setIsSendingTx(false);
-      setTxError("");
-      clearPending();
-      lastPlayedCardRef.current = null;
-      setRoundModal((m2) => ({ ...m2, open: false }));
-      setLastReveal({ yourCard: null, oppCard: null, winner: null });
+      resetMatchState();
+    });
+
+    socket.on("matchCanceled", ({ reason }) => {
+      openInfo("Match Canceled", reason || "Opponent left before confirming.");
+      resetMatchState();
     });
 
     // ✅ REFUND HANDLER (keeps your old lamports flow, also supports SPL amountRaw/decimals)
@@ -428,24 +452,7 @@ export default function Play() {
         );
       }
 
-      setStatus("idle");
-      setNegotiation(null);
-      setOppCountdown(null);
-      setSelfConfirmed(false);
-      setOpponentConfirmed(false);
-      setMatchOver(false);
-      setRoundSecondsLeft(null);
-      setSelfCards([]);
-      setOpponentCards([]);
-      setSelfFieldCard(null);
-      setOpponentFieldCard(null);
-      setRoundWinner(null);
-      setIsSendingTx(false);
-      setTxError("");
-      clearPending();
-      lastPlayedCardRef.current = null;
-      setRoundModal((m2) => ({ ...m2, open: false }));
-      setLastReveal({ yourCard: null, oppCard: null, winner: null });
+      resetMatchState();
     });
 
     // duel start / bonus round hand
@@ -654,6 +661,13 @@ export default function Play() {
     socket.on("searchCanceled", onCanceled);
 
     return () => {
+      const latestStatus = statusRef.current;
+      if (latestStatus === "searching") {
+        socket.emit("cancelFindMatch");
+      } else if (ACTIVE_MATCH_STATUSES.has(latestStatus)) {
+        socket.emit("leaveMatch", { reason: "Opponent left the match." });
+      }
+
       socket.removeAllListeners();
       socket.io.off("reconnect_attempt");
       socket.io.off("reconnect");
@@ -721,6 +735,16 @@ export default function Play() {
     setStatus("idle");
   };
 
+  const leaveCurrentMatch = () => {
+    const latestStatus = statusRef.current;
+    if (latestStatus === "searching") {
+      socket.emit("cancelFindMatch");
+    } else if (ACTIVE_MATCH_STATUSES.has(latestStatus)) {
+      socket.emit("leaveMatch", { reason: "Opponent left the match." });
+    }
+    resetMatchState();
+  };
+
   // betting-only actions
   const sendOffer = () => {
     if (mode !== "quick") return;
@@ -745,6 +769,17 @@ export default function Play() {
     setNegotiation(null);
     setStatus("proposing");
   };
+
+  const beginDuelPayment = (payload) =>
+    new Promise((resolve) => {
+      socket.timeout(5000).emit("beginDuelPayment", payload, (err, response) => {
+        if (err) {
+          resolve({ ok: false, reason: "Could not verify match state. Please try again." });
+          return;
+        }
+        resolve(response || { ok: false, reason: "Match is no longer active." });
+      });
+    });
 
   // ✅ SPL TOKEN BET CONFIRM (INTEGRATED; FIXED FOR TOKEN-2022; NO OTHER LOGIC REMOVED)
   const confirmMatch = async () => {
@@ -811,6 +846,20 @@ export default function Play() {
       }
 
       // ✅ ATAs must be derived with the SAME token program id
+      const paymentGate = await beginDuelPayment({
+        wallet,
+        betAmountRaw,
+        escrowId,
+      });
+
+      if (!paymentGate.ok) {
+        setTxError(paymentGate.reason || "Match is no longer active.");
+        setIsSendingTx(false);
+        resetMatchState();
+        openInfo("Match Canceled", paymentGate.reason || "Opponent left before confirming.");
+        return;
+      }
+
       const fromAta = await getAssociatedTokenAddress(
         mintPk,
         ownerPk,
@@ -1384,6 +1433,17 @@ export default function Play() {
                   >
                     ⚔️ Duel Arena
                   </motion.h1>
+
+                  {ACTIVE_MATCH_STATUSES.has(status) && status !== "dueling" && (
+                    <button
+                      type="button"
+                      onClick={leaveCurrentMatch}
+                      disabled={isSendingTx}
+                      className="mb-4 rounded-xl border border-fuchsia-300/25 bg-fuchsia-500/10 px-4 py-2 text-xs uppercase tracking-[.18em] text-fuchsia-100 hover:bg-fuchsia-500/15 disabled:opacity-60"
+                    >
+                      Leave Match
+                    </button>
+                  )}
 
                   {/* MODE SELECTOR (IDLE) */}
                   {status === "idle" && (

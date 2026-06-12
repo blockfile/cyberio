@@ -176,6 +176,120 @@ function cleanupRoom(room) {
   if (s.oppDropTicker) clearTimeout(s.oppDropTicker);
   roomState.delete(room);
 }
+
+function clearRoomMembership(room, state) {
+  const ids = [state?.playerAId, state?.playerBId].filter(Boolean);
+  ids.forEach((id) => {
+    rooms.delete(id);
+    const player = io.sockets.sockets.get(id);
+    if (!player) return;
+    player.leave(room);
+    player.opponent = null;
+    player.fieldCard = null;
+    player.hasEndedTurn = false;
+  });
+}
+
+async function refundRoomPayments(room, state) {
+  if (!state || state.escrowRefunded) return;
+  const payments = Object.entries(state.payments || {});
+  if (!payments.length) return;
+
+  state.escrowRefunded = true;
+
+  for (const [wallet, payment] of payments) {
+    try {
+      await refundFromTreasuryTokens({
+        toWallet: wallet,
+        amountRaw: payment.amountRaw,
+        mint: payment.mint,
+        decimals: payment.decimals,
+      });
+
+      const playerId = wallet === state.walletA ? state.playerAId : state.playerBId;
+      const player = io.sockets.sockets.get(playerId);
+      player?.emit("refundProcessed", {
+        amountRaw: payment.amountRaw,
+        decimals: payment.decimals,
+        reason: "Match canceled before both players confirmed.",
+      });
+    } catch (e) {
+      console.error("Refund canceled match failed:", e?.message || e);
+    }
+  }
+}
+
+async function cancelPendingRoom(room, leavingSocket, reason = "Opponent left the match.") {
+  const state = getRoomState(room);
+  if (!state || state.gameStarted) return false;
+
+  state.canceled = true;
+  state.phase = "canceled";
+
+  if (state.timer) {
+    clearTimeout(state.timer);
+    state.timer = null;
+  }
+
+  const leavingWallet = leavingSocket?.wallet || null;
+  io.to(room).emit("matchCanceled", {
+    reason,
+    by: leavingWallet,
+  });
+
+  await refundRoomPayments(room, state);
+  clearRoomMembership(room, state);
+  cleanupRoom(room);
+  return true;
+}
+
+async function refundSubmittedPaymentIfValid({
+  socket,
+  wallet,
+  txid,
+  betAmountRaw,
+  betMint,
+  betDecimals,
+  escrowId,
+  reason,
+}) {
+  const mint = betMint || WAGER_MINT;
+  const decimals = betDecimals != null ? Number(betDecimals) : WAGER_DECIMALS;
+
+  if (!txid || !wallet || !betAmountRaw || !escrowId) {
+    socket.emit("paymentError", { reason });
+    return;
+  }
+
+  try {
+    const verified = await verifyTreasuryTokenDepositWithEscrow({
+      txid,
+      expectedAmountRaw: betAmountRaw,
+      fromWallet: wallet,
+      escrowId,
+      mint,
+      decimals,
+    });
+
+    if (verified.ok) {
+      await refundFromTreasuryTokens({
+        toWallet: wallet,
+        amountRaw: betAmountRaw,
+        mint,
+        decimals,
+      });
+      socket.emit("refundProcessed", {
+        amountRaw: betAmountRaw,
+        decimals,
+        reason,
+      });
+    }
+  } catch (e) {
+    console.error("Refund submitted payment failed:", e?.message || e);
+  }
+
+  socket.emit("paymentError", { reason });
+}
 async function withRetry(fn, { tries = 5, baseDelayMs = 500 } = {}) {
   let last;
   for (let i = 0; i < tries; i++) {
@@ -576,7 +690,39 @@ io.on("connection", (socket) => {
 
   socket.on("cancelFindMatch", () => {
     removeFromQueues(socket);
+    const room = rooms.get(socket.id);
+    if (room) {
+      void cancelPendingRoom(room, socket, "Opponent canceled the match.");
+      return;
+    }
     socket.emit("searchCanceled");
+  });
+
+  socket.on("leaveMatch", async ({ reason } = {}) => {
+    removeFromQueues(socket);
+    const room = rooms.get(socket.id);
+    if (!room) {
+      socket.emit("searchCanceled");
+      return;
+    }
+
+    const state = getRoomState(room);
+    if (state?.gameStarted && !state.gameOver) {
+      const other = socket.opponent;
+      if (other) {
+        state.gameOver = true;
+        other.emit("duelResult", {
+          winner: other.wallet,
+          loser: socket.wallet,
+          forfeit: true,
+        });
+      }
+      cleanupRoom(room);
+      if (state) clearRoomMembership(room, state);
+      return;
+    }
+
+    await cancelPendingRoom(room, socket, reason || "Opponent left the match.");
   });
 
   // FIND MATCH
@@ -713,7 +859,7 @@ io.on("connection", (socket) => {
   socket.on("sendBetProposal", ({ bet }) => {
     const room = getRoomFor(socket);
     const state = getRoomState(room);
-    if (!state || state.mode !== "quick") return;
+    if (!state || state.mode !== "quick" || state.canceled) return;
     socket.bet = bet;
     socket.opponent?.emit("proposalReceived", {
       opponentWallet: socket.wallet,
@@ -724,9 +870,53 @@ io.on("connection", (socket) => {
   socket.on("acceptProposal", ({ bet }) => {
     const room = getRoomFor(socket);
     const state = getRoomState(room);
-    if (!state || state.mode !== "quick") return;
+    if (!state || state.mode !== "quick" || state.canceled) return;
     socket.bet = bet;
+    state.phase = "confirming";
+    state.acceptedBet = bet;
     socket.opponent?.emit("acceptProposal", { bet });
+  });
+
+  socket.on("beginDuelPayment", ({ wallet, betAmountRaw, escrowId } = {}, ack) => {
+    const reply = (payload) => {
+      if (typeof ack === "function") ack(payload);
+    };
+
+    const room = getRoomFor(socket);
+    const state = getRoomState(room);
+    const other = socket.opponent;
+
+    if (wallet && socket.wallet && wallet !== socket.wallet) {
+      reply({ ok: false, reason: "Wallet changed. Please reconnect and find a new match." });
+      return;
+    }
+
+    if (!room || !state || state.mode !== "quick") {
+      reply({ ok: false, reason: "Match is no longer active." });
+      return;
+    }
+
+    if (state.canceled || state.phase === "canceled" || state.gameStarted) {
+      reply({ ok: false, reason: "Match is no longer active." });
+      return;
+    }
+
+    const otherOnline = !!(other && io.sockets.sockets.get(other.id));
+    if (!otherOnline) {
+      void cancelPendingRoom(room, socket, "Opponent left before payment.");
+      reply({ ok: false, reason: "Opponent left before payment." });
+      return;
+    }
+
+    state.phase = "confirming";
+    state.paymentReady = state.paymentReady || {};
+    state.paymentReady[socket.id] = {
+      wallet: wallet || socket.wallet,
+      betAmountRaw: betAmountRaw || null,
+      escrowId: escrowId || null,
+      at: Date.now(),
+    };
+    reply({ ok: true });
   });
 
   /**
@@ -736,9 +926,33 @@ io.on("connection", (socket) => {
     "confirmDuel",
     async ({ wallet, txid, betAmountRaw, betMint, betDecimals, escrowId }) => {
       const room = getRoomFor(socket);
-      if (!room) return;
-      const state = getRoomState(room) || {};
-      if (state.mode !== "quick") return;
+      if (!room) {
+        await refundSubmittedPaymentIfValid({
+          socket,
+          wallet,
+          txid,
+          betAmountRaw,
+          betMint,
+          betDecimals,
+          escrowId,
+          reason: "Match is no longer active. Refunded if payment was received.",
+        });
+        return;
+      }
+      const state = getRoomState(room);
+      if (!state || state.mode !== "quick") {
+        await refundSubmittedPaymentIfValid({
+          socket,
+          wallet,
+          txid,
+          betAmountRaw,
+          betMint,
+          betDecimals,
+          escrowId,
+          reason: "Match is no longer active. Refunded if payment was received.",
+        });
+        return;
+      }
       const other = socket.opponent;
 
       const mint = betMint || state.betMint || WAGER_MINT;
@@ -747,28 +961,33 @@ io.on("connection", (socket) => {
 
       if (state.phase === "matching") state.phase = "confirming";
 
+      if (state.canceled || state.phase === "canceled") {
+        await refundSubmittedPaymentIfValid({
+          socket,
+          wallet,
+          txid,
+          betAmountRaw,
+          betMint: mint,
+          betDecimals: decimals,
+          escrowId,
+          reason: "Match was canceled. Refunded if payment was received.",
+        });
+        return;
+      }
+
       const otherOnline = !!(other && io.sockets.sockets.get(other.id));
       if (!otherOnline) {
-        // opponent gone → verify then refund
-        try {
-          const v = await verifyTreasuryTokenDepositWithEscrow({
-            txid,
-            expectedAmountRaw: betAmountRaw,
-            fromWallet: wallet,
-            escrowId,
-            mint,
-            decimals,
-          });
-          if (v.ok) {
-            await refundFromTreasuryTokens({
-              toWallet: wallet,
-              amountRaw: betAmountRaw,
-              mint,
-              decimals,
-            });
-          }
-        } catch {}
-        socket.emit("paymentError", { reason: "Opponent disconnected. Refunded." });
+        await refundSubmittedPaymentIfValid({
+          socket,
+          wallet,
+          txid,
+          betAmountRaw,
+          betMint: mint,
+          betDecimals: decimals,
+          escrowId,
+          reason: "Opponent disconnected. Refunded if payment was received.",
+        });
+        clearRoomMembership(room, state);
         cleanupRoom(room);
         return;
       }
@@ -1010,54 +1229,8 @@ io.on("connection", (socket) => {
         other.emit("opponentDisconnected");
         startReconnectGrace(room, other);
       } else {
-        if (
-          state &&
-          state.mode === "quick" &&
-          !state.escrowRefunded &&
-          state.phase === "confirming"
-        ) {
-          const leavingWallet = socket.wallet;
-          const otherWallet = other?.wallet;
-          const pLeaving = state.payments[leavingWallet];
-          const pOther = otherWallet ? state.payments[otherWallet] : null;
-
-          try {
-            if (pLeaving && !pOther) {
-              state.escrowRefunded = true;
-              await refundFromTreasuryTokens({
-                toWallet: leavingWallet,
-                amountRaw: pLeaving.amountRaw,
-                mint: pLeaving.mint,
-                decimals: pLeaving.decimals,
-              });
-              io.to(room).emit("refundProcessed", {
-                amountRaw: pLeaving.amountRaw,
-                decimals: pLeaving.decimals,
-              });
-            } else if (!pLeaving && pOther) {
-              state.escrowRefunded = true;
-              await refundFromTreasuryTokens({
-                toWallet: otherWallet,
-                amountRaw: pOther.amountRaw,
-                mint: pOther.mint,
-                decimals: pOther.decimals,
-              });
-              io.to(room).emit("refundProcessed", {
-                amountRaw: pOther.amountRaw,
-                decimals: pOther.decimals,
-              });
-            }
-          } catch (e) {
-            console.error("Refund on disconnect failed:", e?.message || e);
-          }
-          cleanupRoom(room);
-        } else {
-          cleanupRoom(room);
-        }
+        await cancelPendingRoom(room, socket, "Opponent disconnected before match started.");
       }
-
-      rooms.delete(socket.id);
-      if (other) rooms.delete(other.id);
     }
     console.log("🔴 Player disconnected:", socket.id);
   });
