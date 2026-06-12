@@ -78,6 +78,20 @@ const cardImageSrc = (cardOrCid) => {
 // =========================
 const RPC_ENDPOINT =
   process.env.REACT_APP_SOLANA_RPC || "https://api.mainnet-beta.solana.com";
+const RPC_ENDPOINTS = Array.from(
+  new Set(
+    [
+      RPC_ENDPOINT,
+      ...(process.env.REACT_APP_SOLANA_RPC_FALLBACKS || "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      RPC_ENDPOINT.includes("devnet") || RPC_ENDPOINT.includes("testnet")
+        ? ""
+        : "https://api.mainnet-beta.solana.com",
+    ].filter(Boolean)
+  )
+);
 
 // NOTE: your existing constant name was TREASURY; kept.
 // For SPL betting, treat this as TREASURY OWNER (not ATA).
@@ -154,6 +168,19 @@ async function resolveTokenProgramId(connection, mintPk) {
 
   // Unknown token program (rare, but be explicit)
   throw new Error(`Unsupported token program for mint. Owner=${ownerStr}`);
+}
+
+async function withRpcFallback(task) {
+  let lastError;
+  for (const endpoint of RPC_ENDPOINTS) {
+    try {
+      const connection = new Connection(endpoint, "confirmed");
+      return await task(connection);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("RPC unavailable");
 }
 
 // ✅ mobile helper (UI only; no game logic changes)
@@ -770,16 +797,51 @@ export default function Play() {
     setStatus("proposing");
   };
 
-  const beginDuelPayment = (payload) =>
+  const waitForSocketReady = () =>
     new Promise((resolve) => {
-      socket.timeout(5000).emit("beginDuelPayment", payload, (err, response) => {
+      if (socket.connected) {
+        resolve(true);
+        return;
+      }
+
+      const done = (ok) => {
+        clearTimeout(timer);
+        socket.off("connect", onConnect);
+        socket.off("connect_error", onError);
+        resolve(ok);
+      };
+      const onConnect = () => done(true);
+      const onError = () => done(false);
+      const timer = setTimeout(() => done(false), 6000);
+
+      socket.once("connect", onConnect);
+      socket.once("connect_error", onError);
+      socket.connect();
+    });
+
+  const beginDuelPayment = async (payload) => {
+    const ready = await waitForSocketReady();
+    if (!ready) {
+      return {
+        ok: false,
+        reason: "Game server is not connected. Refresh both tabs and restart the backend if needed.",
+      };
+    }
+
+    return new Promise((resolve) => {
+      socket.timeout(15000).emit("beginDuelPayment", payload, (err, response) => {
         if (err) {
-          resolve({ ok: false, reason: "Could not verify match state. Please try again." });
+          resolve({
+            ok: false,
+            reason:
+              "Game server did not answer the match check. Refresh both tabs and make sure the backend was restarted.",
+          });
           return;
         }
         resolve(response || { ok: false, reason: "Match is no longer active." });
       });
     });
+  };
 
   // ✅ SPL TOKEN BET CONFIRM (INTEGRATED; FIXED FOR TOKEN-2022; NO OTHER LOGIC REMOVED)
   const confirmMatch = async () => {
@@ -802,7 +864,6 @@ export default function Play() {
         return;
       }
 
-      const connection = new Connection(RPC_ENDPOINT, "confirmed");
       const provider = window.solana;
       if (!provider) {
         setTxError("Wallet not found. Please connect a Solana wallet.");
@@ -832,8 +893,6 @@ export default function Play() {
       const treasuryOwnerPk = new PublicKey(TREASURY);
 
       // ✅ Detect token program for this mint (Tokenkeg vs Token-2022)
-      const tokenProgramId = await resolveTokenProgramId(connection, mintPk);
-
       // SPL raw amount
       const betAmountRaw = Math.round(
         Number(betAmount) * Math.pow(10, WAGER_DECIMALS)
@@ -855,10 +914,24 @@ export default function Play() {
       if (!paymentGate.ok) {
         setTxError(paymentGate.reason || "Match is no longer active.");
         setIsSendingTx(false);
+        socket.emit("leaveMatch", { reason: "Payment check failed before sending tokens." });
         resetMatchState();
-        openInfo("Match Canceled", paymentGate.reason || "Opponent left before confirming.");
+        openInfo(
+          paymentGate.reason?.toLowerCase().includes("opponent") ||
+            paymentGate.reason?.toLowerCase().includes("match")
+            ? "Match Canceled"
+            : "Connection Issue",
+          paymentGate.reason || "Opponent left before confirming."
+        );
         return;
       }
+
+      const { connection, tokenProgramId } = await withRpcFallback(
+        async (rpcConnection) => ({
+          connection: rpcConnection,
+          tokenProgramId: await resolveTokenProgramId(rpcConnection, mintPk),
+        })
+      );
 
       const fromAta = await getAssociatedTokenAddress(
         mintPk,

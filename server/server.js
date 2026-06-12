@@ -68,7 +68,23 @@ const { attachEarnNpcSocket } = require("../server/sockets/earnNpc.socket");
 
 /** ─ SOLANA / TREASURY & ENV ─ */
 const SOLANA_RPC = process.env.SOLANA_RPC;
+const SOLANA_RPC_URLS = Array.from(
+  new Set(
+    [
+      SOLANA_RPC,
+      process.env.QUICKNODE_RPC_URL,
+      ...(process.env.SOLANA_RPC_FALLBACKS || process.env.RPC_FALLBACKS || "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      SOLANA_RPC && !/devnet|testnet/i.test(SOLANA_RPC)
+        ? "https://api.mainnet-beta.solana.com"
+        : "",
+    ].filter(Boolean)
+  )
+);
 const connection = new Connection(SOLANA_RPC, "confirmed");
+const rpcConnections = SOLANA_RPC_URLS.map((url) => new Connection(url, "confirmed"));
 
 const treasurySecret = bs58.decode(process.env.TREASURY_PRIVATE_KEY);
 const treasuryKeypair = Keypair.fromSecretKey(treasurySecret);
@@ -92,6 +108,9 @@ function isRecoverableNetworkError(err) {
     msg.includes("ECONNRESET") ||
     msg.includes("ETIMEDOUT") ||
     msg.includes("ENOTFOUND") ||
+    msg.includes("429") ||
+    msg.toLowerCase().includes("too many requests") ||
+    msg.toLowerCase().includes("rate limit") ||
     msg.includes("TLS")
   );
 }
@@ -302,6 +321,23 @@ async function withRetry(fn, { tries = 5, baseDelayMs = 500 } = {}) {
   }
   throw last;
 }
+
+async function withRpcConnection(task, { tries = 3, baseDelayMs = 500 } = {}) {
+  let last;
+  const connections = rpcConnections.length ? rpcConnections : [connection];
+
+  for (const conn of connections) {
+    try {
+      return await withRetry(() => task(conn), { tries, baseDelayMs });
+    } catch (e) {
+      last = e;
+      if (!isRecoverableNetworkError(e)) break;
+    }
+  }
+
+  throw last;
+}
+
 function removeFromQueues(sock) {
   ["quick", "friendly"].forEach((m) => {
     const q = queues[m];
@@ -353,10 +389,10 @@ function decodeMemoFromParsedTx(parsedTx) {
 /** ✅ FIX: Resolve token program for a mint (Tokenkeg vs Token-2022) */
 async function resolveTokenProgramIdForMint(mint) {
   const mintPk = new PublicKey(mint);
-  const info = await withRetry(() => connection.getAccountInfo(mintPk), {
-    tries: 5,
-    baseDelayMs: 600,
-  });
+  const info = await withRpcConnection(
+    (conn) => conn.getAccountInfo(mintPk),
+    { tries: 3, baseDelayMs: 600 }
+  );
   if (!info) throw new Error("Mint account not found on chain.");
 
   const owner = info.owner.toBase58();
@@ -427,12 +463,12 @@ async function verifyTreasuryTokenDepositWithEscrow({
   decimals,
 }) {
   try {
-    const tx = await withRetry(
-      () =>
-        connection.getParsedTransaction(txid, {
+    const tx = await withRpcConnection(
+      (conn) =>
+        conn.getParsedTransaction(txid, {
           maxSupportedTransactionVersion: 0,
         }),
-      { tries: 5, baseDelayMs: 600 }
+      { tries: 4, baseDelayMs: 800 }
     );
     if (!tx || !tx.meta) return { ok: false, reason: "Tx not found" };
 
@@ -1022,11 +1058,12 @@ io.on("connection", (socket) => {
       });
 
       if (!verified.ok) {
-        if (
+        const refundableVerifyFailure =
           verified.reason === "Amount mismatch" ||
           verified.reason === "Missing/invalid memo escrowId" ||
-          verified.reason === "Token transfer not found"
-        ) {
+          verified.reason === "Token transfer not found";
+
+        if (refundableVerifyFailure) {
           try {
             await refundFromTreasuryTokens({
               toWallet: wallet,
@@ -1039,6 +1076,12 @@ io.on("connection", (socket) => {
           }
         }
         socket.emit("paymentError", { reason: verified.reason });
+        socket.opponent?.emit("matchCanceled", {
+          reason: `Opponent payment failed: ${verified.reason}. Match canceled.`,
+          by: socket.wallet,
+        });
+        clearRoomMembership(room, state);
+        cleanupRoom(room);
         return;
       }
 
