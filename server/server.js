@@ -785,14 +785,56 @@ io.on("connection", (socket) => {
 
     const state = getRoomState(room);
     if (state?.gameStarted && !state.gameOver) {
-      const other = socket.opponent;
+      const other =
+        socket.opponent ||
+        io.sockets.sockets.get(
+          socket.id === state.playerAId ? state.playerBId : state.playerAId
+        );
       if (other) {
         state.gameOver = true;
-        other.emit("duelResult", {
-          winner: other.wallet,
-          loser: socket.wallet,
-          forfeit: true,
-        });
+        const winner = other.wallet;
+        const loser = socket.wallet;
+        const mint = state.betMint || WAGER_MINT;
+        const decimals = state.betDecimals || WAGER_DECIMALS;
+        const pA = state.payments?.[state.walletA];
+        const pB = state.payments?.[state.walletB];
+        const potAmountRaw = (pA?.amountRaw || 0) + (pB?.amountRaw || 0);
+        const betUnits =
+          Number(state.lockedBetAmountRaw || 0) / Math.pow(10, decimals);
+
+        try {
+          if (state.matchId) {
+            await Match.findByIdAndUpdate(state.matchId, {
+              winner,
+              loser,
+              bet: state.mode === "quick" ? betUnits : 0,
+              totalPot: state.mode === "quick" ? betUnits * 2 : 0,
+            });
+          } else {
+            await Match.create({
+              winner,
+              loser,
+              player1: state.walletA,
+              player2: state.walletB,
+              bet: state.mode === "quick" ? betUnits : 0,
+              totalPot: state.mode === "quick" ? betUnits * 2 : 0,
+              rounds: state.history,
+            });
+          }
+
+          if (potAmountRaw > 0) {
+            await distributePotWithRakeTokens({
+              potAmountRaw,
+              winnerWallet: winner,
+              mint,
+              decimals,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to finalize manual forfeit:", e?.message || e);
+        }
+
+        io.to(room).emit("duelResult", { winner, loser, forfeit: true });
       }
       cleanupRoom(room);
       if (state) clearRoomMembership(room, state);
@@ -1661,6 +1703,7 @@ io.on("connection", (socket) => {
         } catch (e) {
           console.error("Failed to save forfeit:", e?.message || e);
         }
+        clearRoomMembership(room, state);
         cleanupRoom(room);
         return;
       }
