@@ -723,15 +723,27 @@ function consumePlayedCard(sock, uid) {
  * - includes power for overlay convenience
  */
 function getFullCardFromSocket(sock, uid, cid, power) {
-  const fromHand = (sock?.hand || []).find((c) => c.uid === uid);
-  if (fromHand) {
+  if (!uid && !cid) return null;
+
+  const fromPending =
+    sock?.fieldCard &&
+    ((uid && sock.fieldCard.uid === uid) || (cid && sock.fieldCard.cid === cid))
+      ? sock.fieldCard
+      : null;
+  const fromHand = (sock?.hand || []).find(
+    (c) => (uid && c.uid === uid) || (cid && c.cid === cid)
+  );
+  const fromDeck = (sock?.userCards || []).find((c) => cid && c.cid === cid);
+  const source = fromPending || fromHand || fromDeck;
+
+  if (source) {
     return {
-      uid: fromHand.uid,
-      cid: fromHand.cid,
-      image: fromHand.image || null,
-      name: fromHand.name || null,
-      skill: fromHand.skill || null,
-      power: power != null ? power : undefined,
+      uid: source.uid || uid || null,
+      cid: source.cid || cid || null,
+      image: source.image || null,
+      name: source.name || null,
+      skill: source.skill || null,
+      power: power != null ? power : source.power ?? undefined,
     };
   }
   return {
@@ -1382,7 +1394,8 @@ io.on("connection", (socket) => {
                 name: choice.name || null,
                 skill: choice.skill || null,
               };
-              s.emit("opponentPlayedCard");
+              s.emit("ackPlayed", { uid: choice.uid, cid: choice.cid, auto: true });
+              s.opponent?.emit("opponentPlayedCard");
             }
           }
           s.hasEndedTurn = true;

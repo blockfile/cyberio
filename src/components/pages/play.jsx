@@ -2087,8 +2087,9 @@ export default function Play() {
                 }}
               >
                 <div className="mx-auto max-w-5xl">
-                  <div className="rounded-2xl border border-cyan-300/20 bg-black/55 backdrop-blur-md shadow-[0_0_34px_rgba(0,255,255,0.12)] px-3 sm:px-4 py-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
+                  <div className="relative overflow-hidden rounded-2xl border border-cyan-300/20 bg-black/65 backdrop-blur-md shadow-[0_0_34px_rgba(0,255,255,0.12)] px-3 sm:px-4 py-3">
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/50 to-transparent" />
+                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_170px] gap-3 items-center">
                       <motion.button
                         onClick={handleEndTurn}
                         disabled={selfEndedTurn}
@@ -2097,17 +2098,25 @@ export default function Play() {
                       >
                         {selfEndedTurn
                           ? opponentEndedTurn
-                            ? "🔍 Revealing..."
-                            : "⏳ Waiting for opponent..."
-                          : "🕒 End Turn"}
+                            ? "REVEALING..."
+                            : "WAITING FOR OPPONENT..."
+                          : "END TURN"}
                       </motion.button>
 
-                      <div className="sm:w-[260px]">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 shadow-inner shadow-black/30">
                         {roundSecondsLeft != null ? (
-                          <div>
-                            <div className="h-2 w-full bg-white/20 rounded overflow-hidden">
+                          <div className="space-y-2">
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="text-[9px] uppercase text-cyan-100/65">
+                                Timer
+                              </span>
+                              <span className="font-mono text-lg leading-none text-cyan-100 tabular-nums">
+                                {roundSecondsLeft}s
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-white/[0.12] overflow-hidden">
                               <motion.div
-                                className="h-2 bg-gradient-to-r from-cyan-300 to-fuchsia-300"
+                                className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-200 to-fuchsia-300 shadow-[0_0_12px_rgba(0,255,255,0.35)]"
                                 style={{ width: `${timerPct}%` }}
                                 initial={false}
                                 animate={{ width: `${timerPct}%` }}
@@ -2118,21 +2127,16 @@ export default function Play() {
                                 }}
                               />
                             </div>
-                            <div className="mt-1 text-xs opacity-80 text-center sm:text-right">
-                              {roundSecondsLeft}s left to choose
-                            </div>
                           </div>
                         ) : (
-                          <div className="text-xs opacity-70 text-center sm:text-right">
-                            Awaiting timer…
+                          <div className="flex items-center justify-between gap-3 text-cyan-100/70">
+                            <span className="text-[9px] uppercase">
+                              Timer
+                            </span>
+                            <span className="font-mono text-sm">--</span>
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    {/* small debug line; remove anytime */}
-                    <div className="mt-2 text-[11px] opacity-70">
-                      Click lock: <span className="text-cyan-200">{pendingUid ? "ON" : "OFF"}</span>
                     </div>
                   </div>
                 </div>
