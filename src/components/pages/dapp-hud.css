@@ -241,6 +241,7 @@ html, body, #root{
   align-items:center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 .panel--left .stat{
   min-height: 44px;
@@ -252,10 +253,14 @@ html, body, #root{
   gap: 8px;
   font-size: 12px;
   color: rgba(255,255,255,.78);
+  min-width: 0;
 }
 .stat__value{
   font-weight: 900;
   color: rgba(255,255,255,.95);
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .panel__small{
@@ -273,6 +278,7 @@ html, body, #root{
   gap: 12px;
   padding: 8px 0;
   border-bottom: 1px dashed rgba(255,255,255,.10);
+  min-width: 0;
 }
 .panel--left .panel__smallRow{
   padding: 7px 0;
@@ -914,7 +920,9 @@ html, body, #root{
 .infoBlock__head{
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
+.infoBlock__head{ flex-wrap: wrap; }
 .infoBlock__title{
   min-width: 0;
   gap: 10px;
@@ -1002,10 +1010,12 @@ html, body, #root{
   gap: 12px;
   color: rgba(255,255,255,.62);
   font-size: 12px;
+  min-width: 0;
 }
 .infoMetric .mono{
   color: rgba(255,255,255,.88);
   text-align: right;
+  overflow-wrap: anywhere;
 }
 .infoAction{
   width: 100%;
@@ -1065,11 +1075,138 @@ html, body, #root{
   text-align: right;
 }
 
-/* Responsive layout */
-@media (max-width: 820px){
+/* Zoom / medium monitor layout */
+@media (max-width: 1180px){
+  html, body, #root{
+    overflow: hidden;
+  }
+
+  .dapp-hud{
+    height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .dapp-hud__frame{
+    height: auto;
+    min-height: calc(100dvh - 86px);
+    margin: 8px;
+    padding: 12px;
+    overflow: visible;
+  }
+
+  .dapp-hud__topbar{
+    align-items: stretch;
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+
+  .dapp-hud__brand{
+    min-width: 0;
+  }
+
+  .dapp-hud__telemetry{
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .dapp-hud__body{
     grid-template-columns: 1fr;
-    height: calc(100% - 106px);
+    grid-auto-rows: auto;
+    height: auto;
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .center{
+    order: 1;
+    min-height: 520px;
+  }
+
+  .panel--left{
+    order: 2;
+  }
+
+  .panel--right{
+    order: 3;
+  }
+
+  .panel{
+    min-width: 0;
+  }
+
+  .panel--left{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, .9fr);
+    align-items: start;
+  }
+
+  .panel--left .panel__title{
+    grid-column: 1 / -1;
+  }
+
+  .panel--left .panel__divider{
+    display: none;
+  }
+
+  .panel--left .panel__small{
+    grid-row: 2 / span 4;
+    grid-column: 2;
+    padding: 0 12px 12px;
+    border-left: 1px solid rgba(255,255,255,.08);
+  }
+
+  .panel--left .stat{
+    grid-column: 1;
+  }
+
+  .panel--right .panel__content{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .panel--right .panel__content > *{
+    min-width: 0;
+  }
+
+  .panel--right .panel__small--right{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 16px;
+  }
+
+  .infoHero{
+    grid-column: 1 / -1;
+  }
+
+  .infoHero,
+  .infoBlock{
+    padding-right: 12px;
+  }
+
+  .carousel{
+    min-height: 466px;
+  }
+}
+
+/* Responsive layout */
+@media (max-width: 820px){
+  .dapp-hud{
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .dapp-hud__body{
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
   }
 
   .panel--left,
@@ -1080,7 +1217,9 @@ html, body, #root{
   .dapp-hud__frame{
     margin: 8px;
     padding: 10px;
-    height: calc(100dvh - 64px);
+    height: auto;
+    min-height: calc(100dvh - 76px);
+    overflow: visible;
   }
 
   .dapp-hud__topbar{
@@ -1090,26 +1229,28 @@ html, body, #root{
   }
 
   .center{
-    height: 100%;
+    height: auto;
+    min-height: 0;
   }
 
-  /* ✅ IMPORTANT: no internal scroll bars on mobile */
   .carousel{
-    height: calc(100% - 54px);
-    padding: 8px 0 10px;
-    overflow: hidden;
+    height: auto;
+    min-height: 0;
+    padding: 14px 0 18px;
+    overflow: visible;
   }
 
   /* ✅ smaller mobile card (NO overflow/scroll) */
   .modeCardMobile{
     width: min(330px, 92%);
-    touch-action: pan-x; /* prioritize horizontal swipe */
+    touch-action: pan-y;
   }
 
   .modeCardMobile .modeCard__frame{
-    height: 360px;          /* fixed so it always fits */
+    min-height: 360px;
+    height: auto;
     padding: 12px;
-    overflow: hidden;       /* ✅ remove scrollbar */
+    overflow: visible;
   }
 
   .modeCardMobile .modeCard__title{

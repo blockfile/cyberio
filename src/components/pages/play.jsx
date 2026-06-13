@@ -73,6 +73,60 @@ const cardImageSrc = (cardOrCid) => {
   return backImage;
 };
 
+const cardDisplayName = (cardOrCid) => {
+  if (!cardOrCid || typeof cardOrCid !== "object") return "Cyberio";
+  return cardOrCid.name || cardOrCid.title || "Cyberio";
+};
+
+const cardDisplayPower = (cardOrCid) => {
+  if (!cardOrCid || typeof cardOrCid !== "object") return null;
+  return cardOrCid.power ?? cardOrCid.atk ?? cardOrCid.strength ?? cardOrCid.value ?? null;
+};
+
+function GameCard({ card, className = "" }) {
+  const isBack =
+    typeof card === "string" && String(card).toLowerCase() === "back";
+
+  if (isBack) {
+    return (
+      <img
+        src={backImage}
+        className={`h-full w-full rounded-[inherit] object-cover ${className}`}
+        draggable={false}
+        alt=""
+      />
+    );
+  }
+
+  const power = cardDisplayPower(card);
+
+  return (
+    <div
+      className={`relative h-full w-full overflow-hidden rounded-[inherit] border border-white/15 bg-[#05070d] shadow-[inset_0_0_22px_rgba(0,0,0,0.75)] ${className}`}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,rgba(0,255,255,0.16),transparent_30%,rgba(236,72,153,0.14)_72%,transparent)]" />
+      <div className="relative flex h-full flex-col p-[7%]">
+        <div className="flex h-[10%] min-h-[8px] items-center justify-between gap-1 text-[6px] uppercase text-cyan-100/75 sm:text-[7px]">
+          <span className="truncate">{cardDisplayName(card)}</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-cyan-200/80 shadow-[0_0_8px_rgba(0,255,255,0.7)]" />
+        </div>
+        <div className="mt-[5%] aspect-square w-full overflow-hidden rounded-[10%] border border-cyan-100/20 bg-black/70 shadow-[inset_0_0_18px_rgba(0,255,255,0.10)]">
+          <img
+            src={cardImageSrc(card)}
+            className="h-full w-full object-cover"
+            draggable={false}
+            alt=""
+          />
+        </div>
+        <div className="mt-auto flex min-h-[14%] items-center justify-between rounded-[12%] border border-white/10 bg-black/55 px-[6%] text-[6px] uppercase text-white/75 sm:text-[7px]">
+          <span>Pwr</span>
+          <span className="text-cyan-100">{power ?? "?"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // =========================
 // ✅ ENV (your .env values)
 // =========================
@@ -1974,14 +2028,14 @@ export default function Play() {
                           <div className="pointer-events-none absolute inset-2 rounded-lg border border-dashed border-fuchsia-100/18" />
                           <AnimatePresence initial={false}>
                             {opponentFieldCard ? (
-                              <motion.img
+                              <motion.div
                                 key={`opp-field-${opponentFieldCard?.uid || opponentFieldCard?.cid || String(opponentFieldCard)}`}
                                 layout
-                                src={cardImageSrc(opponentFieldCard)}
-                                className="relative z-10 w-[95%] h-[95%] object-contain rounded-lg"
+                                className="relative z-10 w-[95%] h-[95%] rounded-lg"
                                 animate={typeof opponentFieldCard === "string" ? {} : flipFace}
-                                draggable={false}
-                              />
+                              >
+                                <GameCard card={opponentFieldCard} />
+                              </motion.div>
                             ) : (
                               <div className="relative z-10 flex flex-col items-center gap-2 text-fuchsia-100/80">
                                 <span className="h-2 w-2 rotate-45 border border-fuchsia-200/80" />
@@ -2015,13 +2069,13 @@ export default function Play() {
                           <div className="pointer-events-none absolute inset-2 rounded-lg border border-dashed border-cyan-100/18" />
                           <AnimatePresence initial={false}>
                             {selfFieldCard ? (
-                              <motion.img
+                              <motion.div
                                 key={`self-field-${selfFieldCard.uid || String(selfFieldCard.cid)}`}
-                                src={cardImageSrc(selfFieldCard)}
-                                className="relative z-10 w-[95%] h-[95%] object-contain rounded-lg"
+                                className="relative z-10 w-[95%] h-[95%] rounded-lg"
                                 onAnimationComplete={() => selfFieldFx.start(fieldDrop)}
-                                draggable={false}
-                              />
+                              >
+                                <GameCard card={selfFieldCard} />
+                              </motion.div>
                             ) : (
                               <div className="relative z-10 flex flex-col items-center gap-2 text-cyan-100/80">
                                 <span className="h-2 w-2 rotate-45 border border-cyan-200/80" />
@@ -2061,16 +2115,16 @@ export default function Play() {
                                 }`}
                             >
                               <div className="absolute -inset-[2px] rounded-2xl bg-[conic-gradient(from_180deg_at_50%_50%,rgba(0,255,255,0.20),rgba(236,72,153,0.12),rgba(255,255,255,0.08),rgba(0,255,255,0.20))] opacity-70" />
-                              <motion.img
-                                src={cardImageSrc(card)}
+                              <motion.div
                                 className={`relative w-full h-full rounded-2xl cursor-pointer border border-white/15 bg-black/25 ${isPending ? "cursor-wait" : ""
                                   }`}
                                 whileHover={isPending || isMobile ? undefined : cardHover}
                                 whileTap={isPending ? undefined : cardTap}
                                 transition={{ type: "spring", stiffness: 280, damping: 20 }}
                                 onClick={() => handleCardSelect(card)}
-                                draggable={false}
-                              />
+                              >
+                                <GameCard card={card} />
+                              </motion.div>
                               <div className="absolute -bottom-1 left-2 right-2 h-2 rounded-full bg-black/50 blur-[3px]" />
                               {isPending && (
                                 <div className="absolute inset-0 flex items-center justify-center">
@@ -2269,17 +2323,17 @@ export default function Play() {
                       You
                     </div>
                     <div className="relative">
-                      <motion.img
-                        src={cardImageSrc(lastReveal?.yourCard)}
-                        className={`h-52 sm:h-72 w-auto max-w-[78vw] rounded-2xl border ${isWinnerSelf
+                      <motion.div
+                        className={`h-52 w-36 max-w-[78vw] sm:h-72 sm:w-48 rounded-2xl border ${isWinnerSelf
                             ? "border-cyan-200 shadow-[0_0_44px_rgba(0,255,255,0.30)]"
                             : "border-white/20"
                           }`}
                         initial={{ rotate: -2, scale: 0.98 }}
                         animate={{ rotate: 0, scale: 1 }}
                         transition={{ type: "spring", stiffness: 120, damping: 14 }}
-                        draggable={false}
-                      />
+                      >
+                        <GameCard card={lastReveal?.yourCard} />
+                      </motion.div>
                       <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 text-[11px] px-2 py-1 rounded-full bg-black/40 border border-cyan-300/20 backdrop-blur">
                         Power:{" "}
                         <span className="font-bold text-cyan-200">
@@ -2353,17 +2407,17 @@ export default function Play() {
                       Opponent
                     </div>
                     <div className="relative">
-                      <motion.img
-                        src={cardImageSrc(lastReveal?.oppCard)}
-                        className={`h-52 sm:h-72 w-auto max-w-[78vw] rounded-2xl border ${isWinnerOpp
+                      <motion.div
+                        className={`h-52 w-36 max-w-[78vw] sm:h-72 sm:w-48 rounded-2xl border ${isWinnerOpp
                             ? "border-fuchsia-200 shadow-[0_0_44px_rgba(236,72,153,0.30)]"
                             : "border-white/20"
                           }`}
                         initial={{ rotate: 2, scale: 0.98 }}
                         animate={{ rotate: 0, scale: 1 }}
                         transition={{ type: "spring", stiffness: 120, damping: 14 }}
-                        draggable={false}
-                      />
+                      >
+                        <GameCard card={lastReveal?.oppCard} />
+                      </motion.div>
                       <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 text-[11px] px-2 py-1 rounded-full bg-black/40 border border-fuchsia-300/20 backdrop-blur">
                         Power:{" "}
                         <span className="font-bold text-fuchsia-200">

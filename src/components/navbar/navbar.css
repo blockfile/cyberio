@@ -202,7 +202,34 @@
 .w-full{ width: 100%; }
 
 /* Responsive */
-@media (max-width: 820px){
+@media (max-width: 1180px){
   .cyNav__right{ display:none; }
   .cyNav__toggle{ display:grid; }
+}
+
+@media (max-width: 520px){
+  .cyNav{
+    padding: 8px;
+  }
+
+  .cyNav__bar{
+    padding: 9px 10px;
+  }
+
+  .cyNav__brand{
+    min-width: 0;
+  }
+
+  .cyNav__brandTitle{
+    letter-spacing: .16em;
+  }
+
+  .cyNav__brandSub{
+    font-size: 10px;
+    letter-spacing: .16em;
+  }
+
+  .cyNav__mobileGrid{
+    grid-template-columns: 1fr;
+  }
 }
