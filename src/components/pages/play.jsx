@@ -1878,7 +1878,7 @@ export default function Play() {
           {/* ✅ DUEL WRAPPER (scrollable) */}
           {!isLobby && (
             <div
-              className="h-[100svh] overflow-y-auto flex flex-col"
+              className="h-[100svh] overflow-y-auto no-scrollbar flex flex-col"
               style={{
                 paddingTop: "calc(92px + env(safe-area-inset-top))",
                 // reserve space for the fixed bottom action bar (End Turn) so it never hides
@@ -1926,7 +1926,7 @@ export default function Play() {
                 <div className="relative mx-auto mb-4 sm:mb-5">
                   <div className="pointer-events-none absolute -inset-x-6 -inset-y-2 rounded-3xl bg-[radial-gradient(circle_at_center,rgba(0,255,255,0.14),transparent_70%)]" />
 
-                  <div className="mx-auto max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                  <div className="mx-auto max-w-full overflow-x-auto no-scrollbar overscroll-x-contain [-webkit-overflow-scrolling:touch]">
                     <div className="flex justify-center gap-2 sm:gap-3 min-w-max px-1">
                       <AnimatePresence initial={false}>
                         {opponentCards.map((card, i) => (
@@ -1950,81 +1950,88 @@ export default function Play() {
                 </div>
               </div>
 
-              {/* FIELD BOXES */}
-              <div className="w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 items-center gap-3 sm:gap-4 md:gap-8 px-3 sm:px-4">
-                {/* Opponent Field Box */}
-                <div className="md:justify-self-end">
-                  <div className="relative rounded-2xl p-3 bg-black/40 border border-fuchsia-300/25 shadow-[inset_0_0_50px_rgba(236,72,153,0.10)] backdrop-blur-md">
-                    <div className="absolute -top-3 left-3 text-[10px] px-2 py-[2px] rounded-full bg-fuchsia-400/85 text-black font-bold tracking-widest uppercase">
-                      Opponent Field
-                    </div>
-                    <motion.div
-                      layout
-                      className={`relative ${FIELD_W} ${FIELD_H} mx-auto flex items-center justify-center rounded-xl bg-gradient-to-b from-fuchsia-900/40 to-black/20 border-2 border-fuchsia-300/55 shadow-inner shadow-fuchsia-500/10`}
-                    >
-                      <AnimatePresence initial={false}>
-                        {opponentFieldCard ? (
-                          <motion.img
-                            key={`opp-field-${opponentFieldCard?.uid || opponentFieldCard?.cid || String(opponentFieldCard)}`}
-                            layout
-                            src={cardImageSrc(opponentFieldCard)}
-                            className="w-[95%] h-[95%] object-contain rounded-lg"
-                            animate={typeof opponentFieldCard === "string" ? {} : flipFace}
-                            draggable={false}
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1 text-fuchsia-200">
-                            <span className="text-xl">⟐</span>
-                            <span className="text-[10px] opacity-80">Deploy</span>
-                          </div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  </div>
-                </div>
+              {/* FIELD ARENA */}
+              <div className="w-full max-w-5xl mx-auto px-3 sm:px-4">
+                <div className="relative overflow-hidden rounded-3xl border border-cyan-300/15 bg-[linear-gradient(90deg,rgba(236,72,153,0.10),rgba(0,0,0,0.40)_32%,rgba(14,165,233,0.12)_68%,rgba(0,0,0,0.42))] px-4 sm:px-6 py-5 shadow-[0_18px_55px_rgba(0,0,0,0.45),inset_0_0_70px_rgba(0,255,255,0.06)] backdrop-blur-md">
+                  <div className="pointer-events-none absolute inset-x-8 top-1/2 h-px bg-gradient-to-r from-fuchsia-300/35 via-cyan-200/35 to-cyan-300/35" />
+                  <div className="pointer-events-none absolute left-1/2 top-4 bottom-4 w-px -translate-x-1/2 bg-cyan-200/10" />
+                  <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-fuchsia-400/10 to-transparent" />
+                  <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-cyan-300/10 to-transparent" />
 
-                {/* VS badge */}
-                <div className="flex md:hidden items-center justify-center py-1">
-                  <div className="rounded-full px-4 py-2 border border-cyan-300/20 bg-black/40 text-xs tracking-wide text-cyan-100 shadow-[0_0_20px_rgba(0,255,255,0.12)]">
-                    VS
-                  </div>
-                </div>
-                <div className="hidden md:flex items-center justify-center">
-                  <div className="rounded-full px-4 py-2 border border-cyan-300/20 bg-black/40 text-sm tracking-wide text-cyan-100 shadow-[0_0_20px_rgba(0,255,255,0.12)]">
-                    VS
-                  </div>
-                </div>
-
-                {/* Your Field Box */}
-                <div className="md:justify-self-start">
-                  <div className="relative rounded-2xl p-3 bg-black/40 border border-cyan-300/25 shadow-[inset_0_0_50px_rgba(0,255,255,0.10)] backdrop-blur-md">
-                    <div className="absolute -top-3 left-3 text-[10px] px-2 py-[2px] rounded-full bg-cyan-300/85 text-black font-bold tracking-widest uppercase">
-                      Your Field
+                  <div className="relative grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_96px_minmax(0,1fr)] items-center gap-4 sm:gap-5">
+                    <div className="md:justify-self-end">
+                      <div className="relative w-[150px] sm:w-[170px] rounded-2xl border border-fuchsia-300/25 bg-black/45 p-3 shadow-[0_0_30px_rgba(236,72,153,0.10)]">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-[9px] uppercase text-fuchsia-100/75">
+                            Opponent
+                          </span>
+                          <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-300 shadow-[0_0_10px_rgba(236,72,153,0.8)]" />
+                        </div>
+                        <motion.div
+                          layout
+                          className={`relative ${FIELD_W} ${FIELD_H} mx-auto flex items-center justify-center overflow-hidden rounded-xl border border-fuchsia-200/45 bg-[radial-gradient(circle_at_center,rgba(236,72,153,0.18),rgba(0,0,0,0.58)_64%)] shadow-inner shadow-fuchsia-500/10`}
+                        >
+                          <div className="pointer-events-none absolute inset-2 rounded-lg border border-dashed border-fuchsia-100/18" />
+                          <AnimatePresence initial={false}>
+                            {opponentFieldCard ? (
+                              <motion.img
+                                key={`opp-field-${opponentFieldCard?.uid || opponentFieldCard?.cid || String(opponentFieldCard)}`}
+                                layout
+                                src={cardImageSrc(opponentFieldCard)}
+                                className="relative z-10 w-[95%] h-[95%] object-contain rounded-lg"
+                                animate={typeof opponentFieldCard === "string" ? {} : flipFace}
+                                draggable={false}
+                              />
+                            ) : (
+                              <div className="relative z-10 flex flex-col items-center gap-2 text-fuchsia-100/80">
+                                <span className="h-2 w-2 rotate-45 border border-fuchsia-200/80" />
+                                <span className="text-[9px] uppercase">Deploy</span>
+                              </div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      </div>
                     </div>
-                    <motion.div
-                      layout
-                      className={`relative ${FIELD_W} ${FIELD_H} mx-auto flex items-center justify-center rounded-xl bg-gradient-to-b from-cyan-900/35 to-black/20 border-2 border-cyan-300/55 shadow-inner shadow-cyan-500/10`}
-                    >
-                      <AnimatePresence initial={false}>
-                        {selfFieldCard ? (
-                          <motion.img
-                            key={`self-field-${selfFieldCard.uid || String(selfFieldCard.cid)}`}
-                            src={cardImageSrc(selfFieldCard)}
-                            className="w-[95%] h-[95%] object-contain rounded-lg"
-                            onAnimationComplete={() => selfFieldFx.start(fieldDrop)}
-                            draggable={false}
-                          />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1 text-cyan-200">
-                            <span className="text-xl">⟐</span>
-                            <span className="text-[10px] opacity-80">Deploy</span>
-                          </div>
-                        )}
-                      </AnimatePresence>
-                      {!selfFieldCard && (
-                        <div className="absolute inset-1 rounded-lg border-2 border-dashed border-white/15 pointer-events-none" />
-                      )}
-                    </motion.div>
+
+                    <div className="flex items-center justify-center py-1">
+                      <div className="relative flex h-12 w-12 items-center justify-center rounded-full border border-cyan-300/25 bg-black/55 text-xs text-cyan-100 shadow-[0_0_22px_rgba(0,255,255,0.14)]">
+                        <span className="absolute inset-1 rounded-full border border-fuchsia-300/10" />
+                        VS
+                      </div>
+                    </div>
+
+                    <div className="md:justify-self-start">
+                      <div className="relative w-[150px] sm:w-[170px] rounded-2xl border border-cyan-300/25 bg-black/45 p-3 shadow-[0_0_30px_rgba(0,255,255,0.10)]">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <span className="text-[9px] uppercase text-cyan-100/75">
+                            Your Field
+                          </span>
+                          <span className="h-1.5 w-1.5 rounded-full bg-cyan-200 shadow-[0_0_10px_rgba(0,255,255,0.8)]" />
+                        </div>
+                        <motion.div
+                          layout
+                          className={`relative ${FIELD_W} ${FIELD_H} mx-auto flex items-center justify-center overflow-hidden rounded-xl border border-cyan-200/45 bg-[radial-gradient(circle_at_center,rgba(0,255,255,0.16),rgba(0,0,0,0.58)_64%)] shadow-inner shadow-cyan-500/10`}
+                        >
+                          <div className="pointer-events-none absolute inset-2 rounded-lg border border-dashed border-cyan-100/18" />
+                          <AnimatePresence initial={false}>
+                            {selfFieldCard ? (
+                              <motion.img
+                                key={`self-field-${selfFieldCard.uid || String(selfFieldCard.cid)}`}
+                                src={cardImageSrc(selfFieldCard)}
+                                className="relative z-10 w-[95%] h-[95%] object-contain rounded-lg"
+                                onAnimationComplete={() => selfFieldFx.start(fieldDrop)}
+                                draggable={false}
+                              />
+                            ) : (
+                              <div className="relative z-10 flex flex-col items-center gap-2 text-cyan-100/80">
+                                <span className="h-2 w-2 rotate-45 border border-cyan-200/80" />
+                                <span className="text-[9px] uppercase">Deploy</span>
+                              </div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2040,7 +2047,7 @@ export default function Play() {
                   <div className="pointer-events-none absolute -bottom-8 left-0 right-0 h-10 bg-gradient-to-t from-fuchsia-300/15 to-transparent blur-2xl" />
 
                   {/* ✅ FIX: DO NOT pointer-events-none the entire hand (this was the “can’t pick cards” bug) */}
-                  <div className="mx-auto max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                  <div className="mx-auto max-w-full overflow-x-auto no-scrollbar overscroll-x-contain [-webkit-overflow-scrolling:touch]">
                     <div className="flex gap-3 justify-start sm:justify-center min-w-max px-1">
                       <AnimatePresence initial={false}>
                         {selfCards.map((card) => {
