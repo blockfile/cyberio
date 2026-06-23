@@ -14,8 +14,10 @@
 /* overlay (used on /world): sit on top of the live city, just dim it */
 .cl-root--overlay {
   z-index: 100000;
-  background: rgba(5, 3, 15, 0.5);
-  backdrop-filter: blur(2px);
+  /* Avoid backdrop-filter here. Nested backdrop filters over the animated city
+     can lose child layers on some Windows/Chrome GPU combinations. */
+  background: rgba(5, 3, 15, 0.68);
+  isolation: isolate;
 }
 
 /* the blurred city backdrop, slow drift (image set inline via PUBLIC_URL) */
@@ -39,10 +41,15 @@
   mask-image: linear-gradient(180deg, transparent 0%, #000 30%, #000 100%);
   opacity: 0.5;
 }
+.cl-root--overlay .cl-grid {
+  -webkit-mask-image: none;
+  mask-image: none;
+  opacity: 0.22;
+}
 .cl-scan {
   position: absolute; inset: 0; pointer-events: none;
-  background: repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.18) 2px 4px);
-  mix-blend-mode: multiply; opacity: 0.5;
+  background: repeating-linear-gradient(180deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.1) 2px 4px);
+  opacity: 0.55;
 }
 .cl-vignette {
   position: absolute; inset: 0; pointer-events: none;
@@ -57,17 +64,18 @@
   width: min(92vw, 560px);
   padding: 40px 34px 26px;
   text-align: center;
-  background: linear-gradient(160deg, rgba(18,14,40,0.82), rgba(8,6,22,0.88));
+  background: linear-gradient(160deg, rgba(18,14,40,0.97), rgba(8,6,22,0.98));
   border: 2px solid rgba(0, 229, 255, 0.55);
   border-radius: 18px;
   box-shadow:
     0 0 30px rgba(0, 200, 255, 0.35),
     0 0 80px rgba(160, 60, 255, 0.25),
     inset 0 0 26px rgba(40, 120, 255, 0.12);
-  backdrop-filter: blur(3px);
-  animation: clPanelIn 0.5s ease-out both;
+  isolation: isolate;
+  animation: clPanelIn 0.35s ease-out both;
 }
-@keyframes clPanelIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+/* Opacity-only entrance avoids moving a translucent composited surface. */
+@keyframes clPanelIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* glowing corner brackets */
 .cl-corner { position: absolute; width: 22px; height: 22px; border: 3px solid #2ef2ff; box-shadow: 0 0 10px #2ef2ff; }
@@ -101,14 +109,8 @@
   position: absolute; left: 0; top: 0; width: 100%;
   pointer-events: none;
 }
-.cl-logo::before { color: #ff3cf0; text-shadow: 0 0 10px #ff3cf0; clip-path: inset(0 0 55% 0); animation: clGlitch 3.2s steps(2) infinite; }
-.cl-logo::after  { color: #18f0ff; text-shadow: 0 0 10px #18f0ff; clip-path: inset(55% 0 0 0); animation: clGlitch 2.6s steps(2) infinite reverse; }
-@keyframes clGlitch {
-  0%, 92%, 100% { transform: translate(0, 0); opacity: 0; }
-  93% { transform: translate(-3px, -1px); opacity: 0.9; }
-  95% { transform: translate(3px, 1px);  opacity: 0.9; }
-  97% { transform: translate(-2px, 1px); opacity: 0.7; }
-}
+.cl-logo::before { color: #ff3cf0; text-shadow: 0 0 10px #ff3cf0; opacity: 0.12; transform: translateX(-1px); }
+.cl-logo::after  { color: #18f0ff; text-shadow: 0 0 10px #18f0ff; opacity: 0.12; transform: translateX(1px); }
 
 .cl-tag {
   margin: 16px auto 26px;
@@ -129,15 +131,10 @@
   cursor: pointer;
   box-shadow: 0 0 18px rgba(46, 242, 255, 0.6), inset 0 0 10px rgba(255,255,255,0.5);
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
-  animation: clPulse 2.6s ease-in-out infinite;
 }
 .cl-connect:hover { transform: translateY(-2px); filter: brightness(1.08); box-shadow: 0 0 28px rgba(46,242,255,0.9), 0 0 60px rgba(160,60,255,0.4); }
 .cl-connect:active { transform: translateY(0); }
 .cl-connect__ic { font-size: 15px; }
-@keyframes clPulse {
-  0%, 100% { box-shadow: 0 0 16px rgba(46,242,255,0.5), inset 0 0 10px rgba(255,255,255,0.45); }
-  50%      { box-shadow: 0 0 26px rgba(46,242,255,0.8), inset 0 0 12px rgba(255,255,255,0.6); }
-}
 
 /* links */
 .cl-links {
