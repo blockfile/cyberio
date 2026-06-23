@@ -15,7 +15,7 @@
 /* zoom buttons */
 .world-zoom-ui {
   position: fixed;
-  right: 16px; bottom: 16px;
+  right: 16px; bottom: 72px;        /* lifted above the bottom-right BGM/volume player */
   z-index: 99999;
   display: flex; flex-direction: column; gap: 6px;
 }
