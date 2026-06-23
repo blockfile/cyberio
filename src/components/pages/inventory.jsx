@@ -56,19 +56,20 @@ const inventoryCache = new Map();
 const inventoryInflight = new Map();
 
 function fetchInventoryCards(wallet) {
-  if (inventoryCache.has(wallet)) {
-    return Promise.resolve(inventoryCache.get(wallet));
-  }
-
   if (inventoryInflight.has(wallet)) {
     return inventoryInflight.get(wallet);
   }
 
-  const request = axios.get(`${API_BASE}/api/inventory/${wallet}`).then(({ data }) => {
-    const cards = data.cards || [];
-    inventoryCache.set(wallet, cards);
-    return cards;
-  });
+  // The cached value is only used for an instant first paint. Always revalidate
+  // it so returning to Inventory after a draw cannot show an old card list for
+  // the remainder of the SPA session.
+  const request = axios
+    .get(`${API_BASE}/api/inventory/${wallet}`)
+    .then(({ data }) => {
+      const cards = data.cards || [];
+      inventoryCache.set(wallet, cards);
+      return cards;
+    });
 
   inventoryInflight.set(wallet, request);
   return request.finally(() => inventoryInflight.delete(wallet));

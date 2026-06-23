@@ -2,6 +2,7 @@
 /* global BigInt */
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../../config/endpoints";
 import Navbar from "../navbar/navbar";
 import { WalletContext } from "../../context/WalletConnect";
 import { motion, AnimatePresence } from "framer-motion";
@@ -282,7 +283,7 @@ export default function Market({ embedded = false }) {
     (async () => {
       if (wallet) {
         const meRes = await axios.get(
-          `http://localhost:3001/api/user/${wallet}`
+          `${API_BASE_URL}/api/user/${wallet}`
         );
         setMe(meRes.data);
       }
@@ -294,7 +295,7 @@ export default function Market({ embedded = false }) {
 
   async function refreshListings() {
     const { data } = await axios.get(
-      "http://localhost:3001/api/market/listings",
+      `${API_BASE_URL}/api/market/listings`,
       { params: { exclude: wallet || "" } }
     );
     setListings(data.others || []);
@@ -305,7 +306,7 @@ export default function Market({ embedded = false }) {
     if (!wallet) return setPending([]);
     try {
       const { data } = await axios.get(
-        "http://localhost:3001/api/market/pending",
+        `${API_BASE_URL}/api/market/pending`,
         { params: { wallet } }
       );
       setPending(data.pending || []);
@@ -339,14 +340,14 @@ export default function Market({ embedded = false }) {
     setBusy(true);
     setBusyText(qty > 1 ? "Creating listings…" : "Listing card…");
     try {
-      await axios.post("http://localhost:3001/api/market/list", {
+      await axios.post(`${API_BASE_URL}/api/market/list`, {
         walletAddress: wallet,
         cardId: card.cardId,
         quantity: qty,
         priceSD,
       });
       setToastMsg(qty > 1 ? `Created ${qty} listings` : "Listed!");
-      const meRes = await axios.get(`http://localhost:3001/api/user/${wallet}`);
+      const meRes = await axios.get(`${API_BASE_URL}/api/user/${wallet}`);
       setMe(meRes.data);
       await refreshListings();
       setQtyMap((m) => ({ ...m, [card.cardId]: 1 }));
@@ -365,12 +366,12 @@ export default function Market({ embedded = false }) {
     setBusy(true);
     setBusyText("Cancelling listing…");
     try {
-      await axios.post("http://localhost:3001/api/market/cancel", {
+      await axios.post(`${API_BASE_URL}/api/market/cancel`, {
         walletAddress: wallet,
         listingId,
       });
       setToastMsg("Listing cancelled");
-      const meRes = await axios.get(`http://localhost:3001/api/user/${wallet}`);
+      const meRes = await axios.get(`${API_BASE_URL}/api/user/${wallet}`);
       setMe(meRes.data);
       await refreshListings();
     } catch (e) {
@@ -400,7 +401,7 @@ export default function Market({ embedded = false }) {
     try {
       // 1) Lock intent & get memo
       const intent = await axios.post(
-        "http://localhost:3001/api/market/intent",
+        `${API_BASE_URL}/api/market/intent`,
         {
           buyerWallet: wallet,
           listingId: listing._id,
@@ -500,7 +501,7 @@ export default function Market({ embedded = false }) {
       if (!sig && memo && userRejected) {
         try {
           setBusyText("Unlocking listing…");
-          await axios.post("http://localhost:3001/api/market/intent-cancel", {
+          await axios.post(`${API_BASE_URL}/api/market/intent-cancel`, {
             buyerWallet: wallet,
             listingId: listing._id,
             memo,
@@ -520,14 +521,14 @@ export default function Market({ embedded = false }) {
         // If we have a tx signature, finalize like before.
         if (sig) {
           setBusyText("Verifying purchase…");
-          await axios.post("http://localhost:3001/api/market/buy", {
+          await axios.post(`${API_BASE_URL}/api/market/buy`, {
             buyerWallet: wallet,
             listingId: listing._id,
             txSignature: sig,
           });
           setToastMsg("Purchased!");
           const meRes = await axios.get(
-            `http://localhost:3001/api/user/${wallet}`
+            `${API_BASE_URL}/api/user/${wallet}`
           );
           setMe(meRes.data);
           await refreshListings();
@@ -551,13 +552,13 @@ export default function Market({ embedded = false }) {
     setBusy(true);
     setBusyText("Verifying purchase…");
     try {
-      await axios.post("http://localhost:3001/api/market/buy", {
+      await axios.post(`${API_BASE_URL}/api/market/buy`, {
         buyerWallet: wallet,
         listingId: it._id,
         txSignature,
       });
       setToastMsg("Delivered!");
-      const meRes = await axios.get(`http://localhost:3001/api/user/${wallet}`);
+      const meRes = await axios.get(`${API_BASE_URL}/api/user/${wallet}`);
       setMe(meRes.data);
       await refreshListings();
       await loadPending();

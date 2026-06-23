@@ -6,6 +6,7 @@ import Navbar from "../navbar/navbar";
 import backCard from "../assets/images/back.png";
 import drawEffect from "../assets/images/drawbg.gif";
 import { WalletContext } from "../../context/WalletConnect";
+import { API_BASE_URL } from "../../config/endpoints";
 import { nftArt } from "./cardArt";
 
 import {
@@ -134,7 +135,7 @@ export default function DrawCard({ embedded = false }) {
           setBusy(true);
           setBusyText("Loading your profile…");
           const res = await axios.get(
-            `http://localhost:3001/api/user/${walletAddress}`
+            `${API_BASE_URL}/api/user/${walletAddress}`
           );
           setUserData(res.data);
         } catch (err) {
@@ -160,7 +161,7 @@ export default function DrawCard({ embedded = false }) {
         setBusyText("Loading pending draws…");
       }
       const { data } = await axios.get(
-        "http://localhost:3001/api/draw-card/pending",
+        `${API_BASE_URL}/api/draw-card/pending`,
         { params: { wallet: walletAddress } }
       );
       setPendingDraws(data.pending || []);
@@ -214,7 +215,7 @@ export default function DrawCard({ embedded = false }) {
           // 1) Request an intent (server creates a new locked memo)
           setBusyText("Creating intent…");
           const intentRes = await axios.post(
-            "http://localhost:3001/api/draw-card/intent",
+            `${API_BASE_URL}/api/draw-card/intent`,
             { walletAddress }
           );
 
@@ -320,7 +321,7 @@ export default function DrawCard({ embedded = false }) {
             // 3) Finalize (server verifies: memo + amount + destination)
             setBusyText("Verifying purchase…");
             const finalizeRes = await axios.post(
-              "http://localhost:3001/api/draw-card/finalize",
+              `${API_BASE_URL}/api/draw-card/finalize`,
               { walletAddress, txSignature: sig, memo }
             );
 
@@ -349,7 +350,7 @@ export default function DrawCard({ embedded = false }) {
         // FREE PATH
         setBusyText("Drawing your free card…");
         const freeRes = await axios.post(
-          "http://localhost:3001/api/draw-card/free",
+          `${API_BASE_URL}/api/draw-card/free`,
           { walletAddress }
         );
         const freeCardNumber = freeRes.data.drawnCard;
@@ -378,7 +379,7 @@ export default function DrawCard({ embedded = false }) {
         if (justCreatedMemo && activeMemo && rejected) {
           try {
             setBusyText("Unlocking pending draw…");
-            await axios.post("http://localhost:3001/api/draw-card/cancel", {
+            await axios.post(`${API_BASE_URL}/api/draw-card/cancel`, {
               walletAddress,
               memo: activeMemo,
             });
@@ -414,7 +415,7 @@ export default function DrawCard({ embedded = false }) {
     setMessage("");
     try {
       const res = await axios.post(
-        "http://localhost:3001/api/draw-card/finalize",
+        `${API_BASE_URL}/api/draw-card/finalize`,
         {
           walletAddress,
           txSignature,
@@ -452,7 +453,7 @@ export default function DrawCard({ embedded = false }) {
     setBusy(true);
     setBusyText("Cancelling pending draw…");
     try {
-      await axios.post("http://localhost:3001/api/draw-card/cancel", {
+      await axios.post(`${API_BASE_URL}/api/draw-card/cancel`, {
         walletAddress,
         memo,
       });

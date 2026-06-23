@@ -15,6 +15,7 @@ function rarityFromPower(power) {
 // GET /api/inventory/:walletAddress  → { cards: [...] }
 router.get("/:walletAddress", async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const user = await User.findOne({ walletAddress: req.params.walletAddress }).lean();
     const cards = (user?.cards || []).map((c) => ({
       cardId: c.cardId,
