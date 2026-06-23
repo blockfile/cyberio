@@ -540,6 +540,14 @@ export default function EarnNpc({ embedded = false, tier = "static" }) {
             <div className="earnnpc-viewport">
                 <div className="earnnpc-wrap">
                     {status !== "dueling" && status !== "redealing" ? (
+                        embedded ? (
+                            <div className="w-full max-w-sm mx-auto rounded-2xl border border-fuchsia-400/30 bg-black/45 p-6 text-center backdrop-blur-md">
+                                <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">Earn Duel</div>
+                                <div className="mt-2 text-xl font-extrabold text-cyan-200">Starting duel…</div>
+                                <div className="mt-2 text-sm opacity-80">Connecting to your opponent…</div>
+                                <button onClick={startEarn} className="mt-4 px-5 py-2 rounded-xl border border-fuchsia-300/40 bg-white/10 hover:bg-white/15 text-sm font-bold tracking-widest uppercase">Retry</button>
+                            </div>
+                        ) : (
                         <motion.div
                             className="w-full max-w-xl mx-auto rounded-2xl border border-fuchsia-400/30
                          bg-gradient-to-b from-fuchsia-900/25 to-violet-900/10
@@ -593,6 +601,7 @@ export default function EarnNpc({ embedded = false, tier = "static" }) {
                                 Start P2E Duel
                             </motion.button>
                         </motion.div>
+                        )
                     ) : (
                         <>
                             {/* NPC draw pile */}

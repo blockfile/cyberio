@@ -160,3 +160,10 @@
 @media (max-height: 700px) {
   .earnnpc-modal { max-height: calc(100dvh - 110px - var(--safe-top) - var(--safe-bottom)); }
 }
+
+/* Embedded inside the in-city HUD panel: fit the panel body, not the full viewport
+   (default .earnnpc-scene is height:100dvh which overflows the panel and clips the hand) */
+.world-panel-body .earnnpc-scene { height: 100%; }
+.world-panel-body .earnnpc-viewport { padding-top: 84px; padding-bottom: 86px; }
+.world-panel-body .earnnpc-wrap { transform: scale(0.9); }
+/* the earn bars are position:fixed → contained to the panel body via its translateZ */
