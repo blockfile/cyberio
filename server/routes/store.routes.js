@@ -217,6 +217,18 @@ router.post("/pass/intent", async (req, res) => {
     const priceUi = getPriceForDuration(durationDays);
     if (!priceUi) throw new Error("Invalid pass durationDays.");
 
+    const activePass = await DimensionPass.findOne({
+      wallet,
+      expiresAt: { $gt: nowUtc() },
+    }).lean();
+    if (activePass && Number(activePass.durationDays) === durationDays) {
+      throw new Error(
+        `Your ${durationDays}-day Dimension Pass is already active until ${new Date(
+          activePass.expiresAt
+        ).toISOString()}. Choose a different duration to extend it.`
+      );
+    }
+
     const mintPk = new PublicKey(CYBERIO_MINT);
     const treasuryPk = new PublicKey(TREASURY_PUBLIC_KEY);
 

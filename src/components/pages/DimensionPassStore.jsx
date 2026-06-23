@@ -482,6 +482,9 @@ export default function DimensionPassStore({ embedded = false }) {
                                         <div className="space-y-1">
                                             <div>Duration: {activePass.durationDays} days</div>
                                             <div>Expires: {new Date(activePass.expiresAt).toLocaleString()}</div>
+                                            <div className="text-xs text-white/55">
+                                                This duration is disabled. Buying another tier adds its days to the current expiry.
+                                            </div>
                                         </div>
                                     ) : (
                                         <div className="opacity-80">No active pass</div>
@@ -577,6 +580,8 @@ export default function DimensionPassStore({ embedded = false }) {
                     {/* OFF-CHAIN CARDS (always visible) */}
                     <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                         {LOCAL_OFFERINGS.map((o) => {
+                            const isCurrentTier =
+                                !!activePass && Number(activePass.durationDays) === o.durationDays;
                             const glow =
                                 o.accent === "cyan"
                                     ? "inset 0 0 0 1px rgba(0,255,255,.22), 0 0 30px rgba(0,255,255,.10)"
@@ -605,7 +610,7 @@ export default function DimensionPassStore({ embedded = false }) {
                                         <div className="flex items-center justify-between">
                                             <div className="text-xs uppercase tracking-widest opacity-70">PASS</div>
                                             <div className="text-[10px] uppercase tracking-widest px-2 py-1 rounded-full border border-white/15 bg-white/10">
-                                                {o.tier}
+                                                {isCurrentTier ? `${o.tier} / ACTIVE` : o.tier}
                                             </div>
                                         </div>
 
@@ -628,7 +633,7 @@ export default function DimensionPassStore({ embedded = false }) {
                                         </div>
 
                                         <button
-                                            disabled={loading || hasSubmittedPending}
+                                            disabled={loading || hasSubmittedPending || isCurrentTier}
                                             onClick={() => buyPass(o.durationDays)}
                                             className="mt-4 w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase disabled:opacity-60"
                                         >
@@ -636,6 +641,8 @@ export default function DimensionPassStore({ embedded = false }) {
                                                 ? "PROCESSING…"
                                                 : hasSubmittedPending
                                                     ? "CONFIRM PENDING PAYMENT"
+                                                    : isCurrentTier
+                                                        ? "CURRENT PASS ACTIVE"
                                                     : "BUY"}
                                         </button>
                                     </div>
