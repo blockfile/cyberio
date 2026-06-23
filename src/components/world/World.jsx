@@ -3,7 +3,7 @@ import "./world.css";
 import roadCellsList from "./road_cells.json";   // road layout (built by scripts/buildRoads.py)
 import { WalletContext } from "../../context/WalletConnect";
 import { io } from "socket.io-client";
-import { SOCKET_URL } from "../../config/endpoints";
+import { SOCKET_URL, API_BASE_URL } from "../../config/endpoints";
 import CyberLanding from "../pages/CyberLanding";
 // in-world tool panels (open as HUD overlays when a building is clicked)
 import Inventory from "../pages/inventory";
@@ -260,7 +260,8 @@ const SHOPS = [
   { name: "INVENTORY",   building: "server_hall", tx: 4,  ty: 13, color: "#49b6ff", panel: "inventory" }, // W of plaza
   { name: "MARKETPLACE", building: "cyber_mall",  tx: 19, ty: 18, color: "#ff5ea8", panel: "market" },    // SE near hub
   { name: "CARD SHOP",   building: "club_neon",   tx: 3,  ty: 3,  color: "#ffd24a", panel: "draw" },      // NW — draw/buy cards
-  { name: "EARN",        building: "tower_bank",  tx: 29, ty: 3,  color: "#9b7bff", panel: "earn" },      // NE — play-to-earn
+  // EARN is no longer a building — with an active Dimension Pass you earn by dueling
+  // city NPCs (walk near a wanderer = auto-duel; right-click a loiterer = duel).
   // ARENA is a PORTAL at a road end (built below), not a building.
 ];
 const shopSigns = [];
@@ -467,7 +468,8 @@ const npcAgents = [];
 for (let i = 0; i < N_WANDER; i++) {
   const [tx, ty] = WALK_SPAWN[Math.floor(ar() * WALK_SPAWN.length)];
   npcAgents.push({ char: NPC_WALK_CHARS[Math.floor(ar() * NPC_WALK_CHARS.length)],
-    tx, ty, speed: 0.85 + ar() * 1.0 });     // tiles/sec — some stroll, some hurry
+    tx, ty, speed: 0.85 + ar() * 1.0,        // tiles/sec — some stroll, some hurry
+    earn: i % 2 === 0 });                    // ~half are EARN opponents (walk near to auto-duel)
 }
 // shop "doorstep" tiles = nearest walkable tile to each shop; ~1/3 of pedestrians are
 // shoppers who path toward a shop, browse, then move on — feels like customers.
@@ -495,14 +497,23 @@ export default function World() {
     return null;
   });
   const [superseded, setSuperseded] = useState(false); // this wallet became active in another tab
-  // Lite FX: weak/flickering GPUs can disable the heavy blend/blur/glow effects (persisted per device)
+  // Lite FX (heavy blend/blur/glow effects OFF) — DEFAULT ON; only full effects if the user opted in.
   const [liteFx, setLiteFx] = useState(() => {
-    try { return localStorage.getItem("cyb_lite_fx") === "1"; } catch (e) { return false; }
+    try { return localStorage.getItem("cyb_lite_fx") !== "0"; } catch (e) { return true; }
   });
   useEffect(() => {
     document.body.classList.toggle("lite-fx", liteFx);
     try { localStorage.setItem("cyb_lite_fx", liteFx ? "1" : "0"); } catch (e) { /* ignore */ }
   }, [liteFx]);
+  // EARN MODE — with an active Dimension Pass, duel city NPCs to earn (toggle, upper-right)
+  const [passActive, setPassActive] = useState(false);
+  const [earnOn, setEarnOn] = useState(false);
+  const earnOnRef = useRef(false);
+  const passActiveRef = useRef(false);
+  const earnSpentRef = useRef(new Set());        // walking-NPC indices already auto-dueled this session
+  useEffect(() => { earnOnRef.current = earnOn; }, [earnOn]);
+  useEffect(() => { passActiveRef.current = passActive; }, [passActive]);
+  useEffect(() => { if (!passActive) setEarnOn(false); }, [passActive]);
   const loadingRef = useRef(false);             // freezes movement while a transition plays
   const [view, setView] = useState({ s: 0.5, x: 0, y: 0 });
 
@@ -560,6 +571,20 @@ export default function World() {
   const walletAddr = walletCtx.wallet ? String(walletCtx.wallet) : "";
   const shortAddr = walletAddr ? `${walletAddr.slice(0, 4)}…${walletAddr.slice(-4)}` : "";
 
+  // poll Dimension Pass status — the EARN toggle only works while a pass is active
+  useEffect(() => {
+    if (!walletAddr) { setPassActive(false); return; }
+    let alive = true;
+    const check = () =>
+      fetch(`${API_BASE_URL}/api/store/pass-status?wallet=${encodeURIComponent(walletAddr)}`)
+        .then((r) => r.json())
+        .then((j) => { if (alive) setPassActive(!!j.hasActive); })
+        .catch(() => {});
+    check();
+    const id = setInterval(check, 60000);
+    return () => { alive = false; clearInterval(id); };
+  }, [walletAddr]);
+
   // ---- session persistence: remember city/arena so a browser refresh restores it (per-tab) ----
   const initialViewRef = useRef(null);
   if (initialViewRef.current === null) {
@@ -610,7 +635,7 @@ export default function World() {
     const DIRS = [[1, 0, "e"], [-1, 0, "w"], [0, 1, "s"], [0, -1, "n"]];
     const G = npcAgents.map((a, i) => {
       const el = walkRefs.current[i];
-      return { ...a, ntx: a.tx, nty: a.ty, t: Math.random(), dir: "s", _dir: null,
+      return { ...a, idx: i, ntx: a.tx, nty: a.ty, t: Math.random(), dir: "s", _dir: null,
         el, sprite: el ? el.firstChild : null };
     });
     const pick = (g) => {
@@ -640,6 +665,14 @@ export default function World() {
     let raf, last = performance.now();
     const tick = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      // EARN: with the toggle on + a pass active (and no duel already open), walking near an
+      // unspent earn NPC auto-starts a duel (walking = 2× reward). Compute the player tile once.
+      const earnActive = earnOnRef.current && passActiveRef.current && !shopRef.current && !loadingRef.current;
+      let ptx = 0, pty = 0;
+      if (earnActive) {
+        const P = playerPosRef.current;
+        if (P) { const pa = (P.x - OX) / TW, pb = (P.y - TH - OY) / TH; ptx = (pa + pb) / 2; pty = (pb - pa) / 2; }
+      }
       for (const g of G) {
         if (!g.el) continue;
         const paused = g.pauseUntil && now < g.pauseUntil;
@@ -659,6 +692,12 @@ export default function World() {
         if (g.sprite && g._dir !== g.dir) {
           g._dir = g.dir;
           g.sprite.style.backgroundImage = `url(${asset("npc" + g.char + "_walk_" + g.dir)})`;
+        }
+        // auto-duel when the player walks near an unspent earn NPC
+        if (earnActive && g.earn && !earnSpentRef.current.has(g.idx) &&
+            Math.hypot(ptx - fx, pty - fy) <= 1.4) {
+          earnSpentRef.current.add(g.idx);
+          transitionTo({ name: "EARN DUEL", panel: "earn", color: "#9b7bff", tier: "walking" });
         }
       }
       raf = requestAnimationFrame(tick);
@@ -934,14 +973,13 @@ export default function World() {
     };
   }, [connected, walletAddr]);
 
-  const onDown = (e) => { movedRef.current = false; drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }; };
+  const onDown = (e) => { movedRef.current = false; drag.current = { x: e.clientX, y: e.clientY }; };
+  // mouse drag no longer pans (the camera follows the avatar) — we only track movement so a
+  // drag isn't mistaken for a click-to-move / building tap.
   const onMove = (e) => {
     const d = drag.current;
     if (!d) return;
-    const dx = e.clientX - d.x, dy = e.clientY - d.y;
-    if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true;
-    const nx = d.vx + dx, ny = d.vy + dy;
-    setView((v) => ({ ...v, x: nx, y: ny }));
+    if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 4) movedRef.current = true;
   };
   const onUp = () => { drag.current = null; };
   const onWheel = useCallback((e) => {
@@ -974,8 +1012,29 @@ export default function World() {
       <div className="world-sheen" />
       <header className="world-hud">
         <h1>CYBER CITY</h1>
-        <span>{active || "drag to pan · scroll / +− to zoom"}</span>
+        <span>{active || "scroll / +− to zoom · click to move"}</span>
       </header>
+
+      {/* upper-right statuses: EARN mode (needs an active Dimension Pass) */}
+      {connected && (
+        <div className="world-earn-ui">
+          {passActive ? (
+            <button
+              className={`world-earn-toggle${earnOn ? " on" : ""}`}
+              onClick={() => setEarnOn((v) => !v)}
+              title={earnOn
+                ? "EARN mode ON — walk near a wanderer to auto-duel, or right-click a loiterer"
+                : "Turn EARN mode on (duel NPCs for tokens)"}
+            >
+              {earnOn ? "⚔ EARN: ON" : "EARN: OFF"}
+            </button>
+          ) : (
+            <span className="world-earn-locked" title="Buy a Dimension Pass to enable Earn mode">
+              🔒 EARN · PASS REQUIRED
+            </span>
+          )}
+        </div>
+      )}
       {connected && !shop && (
         <MapStatusPanel
           mapName="CYBER CITY"
@@ -1057,12 +1116,25 @@ export default function World() {
           );
         })}
         {/* NPCs — standby loiterers (breathing idle) + speech bubble */}
-        {npcStand.map((p) => (
-          <div key={p.key} className="world-standby" style={{ left: p.x, top: p.y, zIndex: p.z }}>
-            <img className="world-npc idle" src={asset(p.src)} alt="" draggable={false} />
-            <div className="npc-bubble" />
-          </div>
-        ))}
+        {npcStand.map((p) => {
+          const earnable = earnOn && passActive;
+          return (
+            <div
+              key={p.key}
+              className={`world-standby${earnable ? " earnable" : ""}`}
+              style={{ left: p.x, top: p.y, zIndex: p.z }}
+              onContextMenu={earnable ? (e) => {
+                e.preventDefault(); e.stopPropagation();
+                transitionTo({ name: "EARN DUEL", panel: "earn", color: "#9b7bff", tier: "static" });
+              } : undefined}
+              title={earnable ? "Right-click to duel for earn (lower reward)" : undefined}
+            >
+              <img className="world-npc idle" src={asset(p.src)} alt="" draggable={false} />
+              <div className="npc-bubble" />
+              {earnable && <div className="npc-earn-tag">⚔ EARN</div>}
+            </div>
+          );
+        })}
         {/* NPCs — wandering pedestrians: real walk-cycle sprites moved by the engine,
             colliding with buildings/trees/fences/water via the walkable grid */}
         {npcAgents.map((a, i) => (
@@ -1178,7 +1250,7 @@ export default function World() {
               </div>
               <div className="world-panel-body">
                 {Comp ? (
-                  <Comp embedded challengeId={shop.challengeId} />
+                  <Comp embedded challengeId={shop.challengeId} tier={shop.tier} />
                 ) : (
                   <div className="shop-body">
                     <p>Welcome to the {shop.name.toLowerCase()}.</p>

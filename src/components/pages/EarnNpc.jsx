@@ -53,7 +53,7 @@ const fadeInUp = {
     exit: { opacity: 0, y: -12, transition: { duration: 0.2 } },
 };
 
-export default function EarnNpc({ embedded = false }) {
+export default function EarnNpc({ embedded = false, tier = "static" }) {
     const { wallet } = useContext(WalletContext);
     const navigate = useNavigate();
 
@@ -314,8 +314,16 @@ export default function EarnNpc({ embedded = false }) {
     const startEarn = () => {
         if (!wallet) return openInfo("Wallet Required", "Connect your wallet first.");
         socket.emit("hello", { wallet });
-        socket.emit("earnNpc:start", { wallet });
+        socket.emit("earnNpc:start", { wallet, tier });   // tier: "static" (1×) | "walking" (2×)
     };
+
+    // in-city earn: opened from an NPC encounter → begin the duel immediately (no lobby step)
+    useEffect(() => {
+        if (!embedded || !wallet) return;
+        const t = setTimeout(() => startEarn(), 200); // let the socket + listeners settle first
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [embedded, wallet]);
 
     const handleCardSelect = (card) => {
         if (status !== "dueling") return;

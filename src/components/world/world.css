@@ -859,3 +859,29 @@ body.lite-fx .world-duelhud,
 body.lite-fx .panel-loader,
 body.lite-fx .ls-root,
 body.lite-fx .arena-duel-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* ===== EARN mode — upper-right toggle ===== */
+.world-earn-ui { position: fixed; top: 16px; right: 16px; z-index: 99999; }
+.world-earn-toggle {
+  cursor: pointer; font-weight: 900; letter-spacing: 0.1em; font-size: 12px; padding: 9px 14px; border-radius: 9px;
+  color: #cfe9ff; background: rgba(14, 18, 30, 0.85); border: 1px solid rgba(120, 200, 255, 0.5);
+  text-shadow: 0 0 6px #2cf; transition: filter 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+.world-earn-toggle:hover { filter: brightness(1.15); transform: translateY(-1px); }
+.world-earn-toggle.on {
+  color: #0a1e16; background: linear-gradient(180deg, #b89bff, #9b7bff);
+  border-color: rgba(190, 160, 255, 0.9); box-shadow: 0 0 14px rgba(155, 123, 255, 0.6); text-shadow: none;
+}
+.world-earn-locked {
+  display: inline-block; font-weight: 800; letter-spacing: 0.08em; font-size: 11px; padding: 9px 12px; border-radius: 9px;
+  color: rgba(255, 255, 255, 0.55); background: rgba(14, 18, 30, 0.8); border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ===== static (loitering) NPCs become right-clickable earn opponents when EARN is on ===== */
+.world-standby.earnable { pointer-events: auto; cursor: pointer; }
+.world-standby.earnable .world-npc { filter: drop-shadow(0 0 8px rgba(155, 123, 255, 0.9)); }
+.npc-earn-tag {
+  position: absolute; left: 50%; top: -18px; transform: translateX(-50%); white-space: nowrap;
+  font-size: 9px; font-weight: 900; letter-spacing: 0.08em; color: #fff; padding: 2px 6px; border-radius: 6px;
+  background: rgba(155, 123, 255, 0.92); box-shadow: 0 0 10px rgba(155, 123, 255, 0.7); pointer-events: none;
+}

@@ -37,10 +37,18 @@ const CARD_META = require("../util/cardMetadata.json");
 // ===== CONFIG =====
 const ROUNDS_TO_WIN = Number(process.env.EARN_ROUNDS_TO_WIN || 2);
 
-// P2E rules (fixed)
-const MATCHES_PER_DAY = Number(process.env.EARN_MATCHES_PER_DAY || 10);
-const WIN_PAYOUT = Number(process.env.EARN_WIN_PAYOUT || 1000);
-const DAILY_CAP = Number(process.env.EARN_DAILY_CAP || 10000);
+// ───────── EARN / P2E rewards — tweak these freely (or via .env) ─────────
+const MATCHES_PER_DAY = Number(process.env.EARN_MATCHES_PER_DAY || 0); // 0 = UNLIMITED matches/day
+const DAILY_CAP       = Number(process.env.EARN_DAILY_CAP || 30000);   // max tokens earnable per day
+// per-win token reward range by opponent type (every win lands inside its range)
+const EARN_REWARDS = {
+  static:  { min: Number(process.env.EARN_STATIC_MIN  || 500),  max: Number(process.env.EARN_STATIC_MAX  || 1000) }, // loiterers (right-click)
+  walking: { min: Number(process.env.EARN_WALKING_MIN || 1000), max: Number(process.env.EARN_WALKING_MAX || 1500) }, // wanderers (auto-duel)
+};
+const rangeFor  = (tier) => EARN_REWARDS[tier === "walking" ? "walking" : "static"];
+const rollWin   = (tier) => { const { min, max } = rangeFor(tier); return Math.floor(min + Math.random() * (Math.max(min, max) - min + 1)); };
+const winMaxFor = (tier) => rangeFor(tier).max;
+// ─────────────────────────────────────────────────────────────────────────
 
 // requirements
 const LOW_POWER_THRESHOLD = Number(process.env.EARN_LOW_POWER_THRESHOLD || 5);
@@ -291,7 +299,7 @@ async function checkDailyLock(wallet) {
     };
   }
 
-  if (Number(rec.matchesPlayed || 0) >= MATCHES_PER_DAY) {
+  if (MATCHES_PER_DAY > 0 && Number(rec.matchesPlayed || 0) >= MATCHES_PER_DAY) {
     // set lock if not set
     const until = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await EarnDaily.updateOne({ wallet, day: rec.day }, { $set: { lockedUntil: until } });
@@ -311,8 +319,10 @@ async function checkDailyLock(wallet) {
  * Win payout is FIXED = 1000, but capped by DAILY_CAP.
  * Idempotency is per sessionId.
  */
-async function computeAndPayDailyCappedWinReward(wallet, sessionId) {
+async function computeAndPayDailyCappedWinReward(wallet, sessionId, tier = "static") {
   const day = todayKey();
+  // random reward within the tier's range (walking pays the higher band) — capped by DAILY_CAP
+  const basePayout = rollWin(tier);
 
   const rec = await getOrCreateEarnDaily(wallet);
   const earned = Number(rec.total || 0);
@@ -326,7 +336,7 @@ async function computeAndPayDailyCappedWinReward(wallet, sessionId) {
       dailyCap: DAILY_CAP,
       earnedToday: earned,
       remainingToday: 0,
-      winPayout: WIN_PAYOUT,
+      winPayout: basePayout,
     };
   }
 
@@ -340,11 +350,11 @@ async function computeAndPayDailyCappedWinReward(wallet, sessionId) {
       dailyCap: DAILY_CAP,
       earnedToday: earned,
       remainingToday: remaining,
-      winPayout: WIN_PAYOUT,
+      winPayout: basePayout,
     };
   }
 
-  const amount = Math.min(WIN_PAYOUT, remaining);
+  const amount = Math.min(basePayout, remaining);
 
   let txid = null;
   try {
@@ -370,7 +380,7 @@ async function computeAndPayDailyCappedWinReward(wallet, sessionId) {
     dailyCap: DAILY_CAP,
     earnedToday: earnedAfter,
     remainingToday: computeRemainingToday(DAILY_CAP, earnedAfter),
-    winPayout: WIN_PAYOUT,
+    winPayout: basePayout,
   };
 }
 
@@ -451,9 +461,10 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
   });
 
   // START
-  socket.on("earnNpc:start", async ({ wallet }) => {
+  socket.on("earnNpc:start", async ({ wallet, tier }) => {
     try {
       wallet = assertWallet(wallet);
+      const earnTier = tier === "walking" ? "walking" : "static"; // walking = 2× reward
       socket.data.wallet = wallet;
 
       // ✅ PASS CHECK
@@ -523,6 +534,7 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
       sessions.set(wallet, {
         sessionId,
         wallet,
+        tier: earnTier,
         roundsToWin: ROUNDS_TO_WIN,
         selfScore: 0,
         opponentScore: 0,
@@ -549,7 +561,7 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
           earnedToday,
           remainingToday: computeRemainingToday(DAILY_CAP, earnedToday),
 
-          winPayout: WIN_PAYOUT,
+          winPayout: winMaxFor(earnTier),
           matchesPerDay: MATCHES_PER_DAY,
           matchesPlayedToday,
           remainingMatchesToday: Math.max(0, MATCHES_PER_DAY - matchesPlayedToday),
@@ -683,7 +695,7 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
             matchesPlayedToday: Number(recBefore.matchesPlayed || 0),
             remainingMatchesToday: Math.max(0, MATCHES_PER_DAY - Number(recBefore.matchesPlayed || 0)),
             passExpiresAt: s.passExpiresAt,
-            winPayout: WIN_PAYOUT,
+            winPayout: winMaxFor(s?.tier),
             poolBalance: 0,
           },
         });
@@ -701,8 +713,8 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
       let payout = { amount: 0, txid: null, reason: null };
 
       if (finalSelfWon) {
-        // ✅ fixed 1000 payout, capped by daily cap
-        payout = await computeAndPayDailyCappedWinReward(wallet, s.sessionId);
+        // base payout (walking = 2×), capped by daily cap
+        payout = await computeAndPayDailyCappedWinReward(wallet, s.sessionId, s.tier);
         if (payout.amount <= 0) {
           payout.reason = payout.reason || "No payout available (cap reached).";
         }
@@ -717,13 +729,13 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
           dailyCap: DAILY_CAP,
           earnedToday: Number(recAfterMatch.total || 0),
           remainingToday: computeRemainingToday(DAILY_CAP, Number(recAfterMatch.total || 0)),
-          winPayout: WIN_PAYOUT,
+          winPayout: winMaxFor(s?.tier),
         };
       }
 
-      // After match, apply cooldown if matches reached limit
+      // After match, apply cooldown only if a match limit is set (0 = unlimited)
       let lockedUntil = recAfterMatch.lockedUntil ? new Date(recAfterMatch.lockedUntil) : null;
-      if (Number(recAfterMatch.matchesPlayed || 0) >= MATCHES_PER_DAY) {
+      if (MATCHES_PER_DAY > 0 && Number(recAfterMatch.matchesPlayed || 0) >= MATCHES_PER_DAY) {
         lockedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await EarnDaily.updateOne({ wallet, day }, { $set: { lockedUntil } });
       }
@@ -749,7 +761,7 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
 
           passExpiresAt: s.passExpiresAt,
           lockedUntil: lockedUntil || null,
-          winPayout: WIN_PAYOUT,
+          winPayout: winMaxFor(s?.tier),
           poolBalance: 0,
         },
       });
