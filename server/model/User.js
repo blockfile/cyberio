@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
   walletAddress: { type: String, required: true, unique: true },
+  nickname: { type: String, default: "" }, // editable only while a Dimension Pass is active
   cards: {
     type: [
       {

@@ -8,6 +8,12 @@ function shortWallet(wallet) {
   return text ? `${text.slice(0, 4)}…${text.slice(-4)}` : "OFFLINE";
 }
 
+// whole days remaining (rounded up) — reflects stacked/extended passes, not the last plan bought
+function daysLeft(expiresAt, now) {
+  const ms = new Date(expiresAt).getTime() - now;
+  return Math.max(1, Math.ceil(ms / 86400000));
+}
+
 function remainingLabel(expiresAt, now) {
   const remaining = new Date(expiresAt).getTime() - now;
   if (!expiresAt || remaining <= 0) return "EXPIRED";
@@ -86,7 +92,11 @@ export default function MapStatusPanel({ mapName, playerCount, presenceConnected
         <div className="map-status-item map-status-item--pass">
           <span className="map-status-label">DIMENSION PASS</span>
           <strong className={activePass ? "is-active" : ""}>
-            {passLoading ? "CHECKING" : activePass ? `${activePass.durationDays} DAY ACTIVE` : "INACTIVE"}
+            {passLoading
+              ? "CHECKING"
+              : activePass
+                ? `${daysLeft(activePass.expiresAt, now)} DAY${daysLeft(activePass.expiresAt, now) > 1 ? "S" : ""} ACTIVE`
+                : "INACTIVE"}
           </strong>
           <small>
             {activePass

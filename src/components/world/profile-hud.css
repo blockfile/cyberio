@@ -1,0 +1,144 @@
+/* ============================================================
+   ProfileHUD — top-left identity card (avatar, name, pass, chars)
+   ============================================================ */
+.profile-hud {
+  position: fixed;
+  left: 16px;
+  top: 16px;
+  z-index: 99999;
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  padding: 10px 14px 10px 10px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(16, 20, 34, 0.94), rgba(10, 12, 22, 0.94));
+  border: 1px solid rgba(120, 200, 255, 0.45);
+  box-shadow: 0 0 22px rgba(40, 120, 220, 0.28), inset 0 0 22px rgba(40, 90, 180, 0.12);
+  backdrop-filter: blur(8px);
+  font-family: "Silkscreen", "Press Start 2P", ui-monospace, monospace;
+  color: #eaf2ff;
+  max-width: min(340px, calc(100vw - 32px));
+}
+
+/* avatar */
+.ph-avatar-wrap {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid rgba(120, 200, 255, 0.55);
+  background: radial-gradient(circle at 50% 30%, rgba(60, 120, 220, 0.35), rgba(8, 10, 18, 0.9));
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.5);
+}
+.ph-avatar-wrap.is-pass {
+  border-color: #ffd24a;
+  box-shadow: 0 0 16px rgba(255, 200, 60, 0.5), inset 0 0 14px rgba(0, 0, 0, 0.45);
+}
+.ph-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 8%; /* show head / upper body of the full-body portrait */
+  image-rendering: pixelated;
+}
+
+/* body */
+.ph-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ph-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ph-name {
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  font-size: 15px;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(120, 200, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+/* pass badge */
+.ph-badge {
+  display: inline-block;
+  width: fit-content;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: rgba(180, 200, 230, 0.75);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.ph-badge.on {
+  color: #1a1405;
+  background: linear-gradient(180deg, #ffe27a, #ffc23a);
+  border-color: #ffd24a;
+  box-shadow: 0 0 12px rgba(255, 200, 60, 0.4);
+}
+
+/* nickname edit */
+.ph-edit { display: flex; align-items: center; gap: 6px; }
+.ph-input {
+  width: 150px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(120, 200, 255, 0.6);
+  border-radius: 7px;
+  padding: 5px 8px;
+  outline: none;
+}
+.ph-input:focus { border-color: #7fe0ff; box-shadow: 0 0 10px rgba(80, 200, 255, 0.4); }
+.ph-icon {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 7px;
+  border: 1px solid rgba(120, 200, 255, 0.45);
+  background: rgba(20, 26, 42, 0.9);
+  color: #cfe9ff;
+  transition: background 0.12s, transform 0.12s;
+}
+.ph-icon:hover { background: rgba(40, 60, 100, 0.95); transform: translateY(-1px); }
+.ph-save { color: #8effc4; border-color: rgba(80, 220, 150, 0.5); }
+.ph-cancel { color: #ff9fb0; border-color: rgba(255, 120, 150, 0.4); }
+.ph-edit-btn { width: 22px; height: 22px; font-size: 11px; }
+.ph-err { font-size: 10px; color: #ff8da0; letter-spacing: 0.03em; max-width: 220px; }
+
+/* character switcher */
+.ph-chars-row { display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+.ph-hint { font-size: 8px; letter-spacing: 0.12em; color: rgba(150, 180, 220, 0.6); white-space: nowrap; }
+.ph-chars { display: flex; gap: 6px; }
+.ph-char {
+  width: 30px; height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 200, 255, 0.3);
+  background: rgba(8, 12, 22, 0.8);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.ph-char img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.ph-char.sel { border-color: #7fe0ff; box-shadow: 0 0 10px rgba(80, 200, 255, 0.5); }
+.ph-char:hover { border-color: rgba(150, 220, 255, 0.7); }
+
+@media (max-width: 640px) {
+  .profile-hud { padding: 8px 10px 8px 8px; gap: 9px; }
+  .ph-avatar-wrap { width: 52px; height: 52px; }
+  .ph-name { font-size: 13px; max-width: 140px; }
+  .ph-input { width: 116px; }
+}

@@ -15,7 +15,9 @@ import DimensionPassStore from "../pages/DimensionPassStore";
 import ArenaMap from "./ArenaMap";
 import { AnimatePresence } from "framer-motion";
 import LoadingScreen, { PanelLoader } from "./LoadingScreen";
+import EncounterIntro from "./EncounterIntro";
 import MapStatusPanel from "./MapStatusPanel";
+import ProfileHUD from "./ProfileHUD";
 
 // HD background scenes for the transition loading screen
 import lsCity from "../assets/images/bg.jpg";
@@ -411,7 +413,7 @@ objs.sort((a, b) => a.z - b.z);
 const npcStand = [];
 const addStand = (n, d, tx, ty) => {
   const { x, y } = iso(tx, ty);
-  npcStand.push({ key: `ns${npcStand.length}`, src: `npc${n}_${d}`, x, y: y + TH,
+  npcStand.push({ key: `ns${npcStand.length}`, src: `npc${n}_${d}`, char: n, x, y: y + TH,
     z: 1000 + Math.round((tx + ty) * 10) + 6 });
 };
 // plaza loiterers
@@ -511,8 +513,11 @@ export default function World() {
   const earnOnRef = useRef(false);
   const passActiveRef = useRef(false);
   const earnSpentRef = useRef(new Set());        // walking-NPC indices already auto-dueled this session
+  const [encounter, setEncounter] = useState(null); // { npcChar, tier } — Pokémon-style intro before a duel
+  const encounterRef = useRef(false);
   useEffect(() => { earnOnRef.current = earnOn; }, [earnOn]);
   useEffect(() => { passActiveRef.current = passActive; }, [passActive]);
+  useEffect(() => { encounterRef.current = !!encounter; }, [encounter]);
   useEffect(() => { if (!passActive) setEarnOn(false); }, [passActive]);
   const loadingRef = useRef(false);             // freezes movement while a transition plays
   const [view, setView] = useState({ s: 0.5, x: 0, y: 0 });
@@ -667,7 +672,7 @@ export default function World() {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       // EARN: with the toggle on + a pass active (and no duel already open), walking near an
       // unspent earn NPC auto-starts a duel (walking = 2× reward). Compute the player tile once.
-      const earnActive = earnOnRef.current && passActiveRef.current && !shopRef.current && !loadingRef.current;
+      const earnActive = earnOnRef.current && passActiveRef.current && !shopRef.current && !loadingRef.current && !encounterRef.current;
       let ptx = 0, pty = 0;
       if (earnActive) {
         const P = playerPosRef.current;
@@ -697,7 +702,7 @@ export default function World() {
         if (earnActive && g.earn && !earnSpentRef.current.has(g.idx) &&
             Math.hypot(ptx - fx, pty - fy) <= 1.4) {
           earnSpentRef.current.add(g.idx);
-          transitionTo({ name: "EARN DUEL", panel: "earn", color: "#9b7bff", tier: "walking" });
+          setEncounter({ npcChar: String(g.char || "1"), tier: "walking" }); // Pokémon-style intro → duel
         }
       }
       raf = requestAnimationFrame(tick);
@@ -754,7 +759,7 @@ export default function World() {
     let raf, last = performance.now();
     const loop = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      if (shopRef.current || loadingRef.current) { raf = requestAnimationFrame(loop); return; } // frozen while a HUD/arena/transition is open
+      if (shopRef.current || loadingRef.current || encounterRef.current) { raf = requestAnimationFrame(loop); return; } // frozen during HUD/arena/transition/encounter
       const k = keysRef.current;
       let dx = 0, dy = 0;
       if (k.has("up")) dy -= 1; if (k.has("down")) dy += 1;
@@ -1125,7 +1130,7 @@ export default function World() {
               style={{ left: p.x, top: p.y, zIndex: p.z }}
               onContextMenu={earnable ? (e) => {
                 e.preventDefault(); e.stopPropagation();
-                transitionTo({ name: "EARN DUEL", panel: "earn", color: "#9b7bff", tier: "static" });
+                setEncounter({ npcChar: String(p.char || "1"), tier: "static" }); // intro → duel
               } : undefined}
               title={earnable ? "Right-click to duel for earn (lower reward)" : undefined}
             >
@@ -1188,23 +1193,14 @@ export default function World() {
       {/* not connected → cyberpunk connect gate over the LIVE city */}
       {!connected && <CyberLanding overlay onConnect={walletCtx.connectWallet} />}
 
-      {/* character-select HUD (after wallet connected) */}
+      {/* top-left profile HUD: avatar, display name, pass badge + nickname edit, character switcher */}
       {connected && (
-        <div className="world-charbar">
-          <div className="charbar-head">
-            <span className="charbar-title">CHARACTER</span>
-            <span className="charbar-addr">{shortAddr}</span>
-          </div>
-          <div className="charbar-row">
-            {["1", "2", "3"].map((id) => (
-              <button key={id} className={`charbar-opt ${charId === id ? "sel" : ""}`}
-                onClick={() => pickChar(id)} title={`Character ${id}`}>
-                <img src={asset(`player${id}_s`)} alt={`Character ${id}`} draggable={false} />
-              </button>
-            ))}
-          </div>
-          <span className="charbar-hint">move with WASD</span>
-        </div>
+        <ProfileHUD
+          wallet={walletAddr}
+          charId={charId}
+          onPickChar={pickChar}
+          passActive={passActive}
+        />
       )}
 
       {/* in-world HUD panel — mounts the real tool component for the clicked building */}
@@ -1250,7 +1246,7 @@ export default function World() {
               </div>
               <div className="world-panel-body">
                 {Comp ? (
-                  <Comp embedded challengeId={shop.challengeId} tier={shop.tier} />
+                  <Comp embedded challengeId={shop.challengeId} tier={shop.tier} onClose={() => setShop(null)} />
                 ) : (
                   <div className="shop-body">
                     <p>Welcome to the {shop.name.toLowerCase()}.</p>
@@ -1276,6 +1272,20 @@ export default function World() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Pokémon-style encounter intro before an earn duel */}
+      {encounter && (
+        <EncounterIntro
+          npcChar={encounter.npcChar}
+          playerChar={charId}
+          tier={encounter.tier}
+          onStart={() => {
+            const t = encounter.tier;
+            setEncounter(null);
+            transitionTo({ name: "EARN DUEL", panel: "earn", color: t === "walking" ? "#9b7bff" : "#37e0a0", tier: t });
+          }}
+        />
       )}
 
       {/* transition loaders: quick animated icon for tool panels, full scene for the arena jump */}

@@ -1,0 +1,96 @@
+/* ============================================================
+   Encounter intro — Pokémon-style battle wipe + VS dialog
+   ============================================================ */
+.enc-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483500;
+  overflow: hidden;
+  --accent: #37e0a0;
+  font-family: "Silkscreen", "Press Start 2P", "VT323", ui-monospace, monospace;
+}
+
+/* white flash bursts */
+.enc-flash {
+  position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none;
+  animation: encFlash 0.9s ease-out forwards;
+}
+@keyframes encFlash {
+  0% { opacity: 0; } 8% { opacity: 0.95; } 16% { opacity: 0; }
+  30% { opacity: 0.7; } 40% { opacity: 0; } 100% { opacity: 0; }
+}
+
+/* closing horizontal bars (alternating sides) */
+.enc-bars { position: absolute; inset: 0; }
+.enc-bars span {
+  position: absolute; left: 0; right: 0; height: calc(100% / 6 + 1px);
+  background: #05060a; transform: translateX(-110%);
+  animation: encBarL 0.55s cubic-bezier(0.4, 0.1, 0.2, 1) forwards;
+}
+.enc-bars span:nth-child(1) { top: 0; }
+.enc-bars span:nth-child(2) { top: calc(1 * 100% / 6); transform: translateX(110%); animation-name: encBarR; }
+.enc-bars span:nth-child(3) { top: calc(2 * 100% / 6); }
+.enc-bars span:nth-child(4) { top: calc(3 * 100% / 6); transform: translateX(110%); animation-name: encBarR; }
+.enc-bars span:nth-child(5) { top: calc(4 * 100% / 6); }
+.enc-bars span:nth-child(6) { top: calc(5 * 100% / 6); transform: translateX(110%); animation-name: encBarR; }
+@keyframes encBarL { to { transform: translateX(0); } }
+@keyframes encBarR { to { transform: translateX(0); } }
+
+/* VS screen */
+.enc-vs {
+  position: absolute; inset: 0; background: #05060a;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  animation: encFade 0.25s ease-out;
+  background-image:
+    radial-gradient(120% 90% at 50% 30%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%);
+}
+@keyframes encFade { from { opacity: 0; } to { opacity: 1; } }
+
+.enc-fighters {
+  display: flex; align-items: center; justify-content: center;
+  gap: clamp(20px, 8vw, 90px); width: 100%;
+}
+.enc-fighter { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.enc-left  { animation: encSlideL 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.enc-right { animation: encSlideR 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes encSlideL { from { transform: translateX(-70px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes encSlideR { from { transform: translateX(70px);  opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.enc-sprite {
+  width: clamp(96px, 16vw, 156px); height: auto; image-rendering: pixelated;
+  filter: drop-shadow(0 6px 4px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px var(--accent));
+}
+/* HD generated portraits: size by height so both fighters match (the small pixel
+   fallback drops this class and falls back to the width-based rule above) */
+.enc-foe-art { width: auto; height: clamp(150px, 30vh, 240px); }
+.enc-name { font-weight: 900; letter-spacing: 0.1em; font-size: 12px; padding: 4px 10px; border-radius: 6px; }
+.enc-you { color: #9be8ff; background: rgba(0, 180, 255, 0.12); border: 1px solid rgba(0, 180, 255, 0.4); }
+.enc-foe { color: #fff; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--accent); }
+.enc-badge {
+  font-size: clamp(30px, 6vw, 56px); font-weight: 900; color: #fff;
+  text-shadow: 0 0 22px var(--accent), 0 0 4px var(--accent);
+  animation: encPop 0.4s 0.18s both;
+}
+@keyframes encPop { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.enc-dialog {
+  margin-top: clamp(20px, 5vh, 48px); width: min(560px, 90vw); text-align: center;
+  background: linear-gradient(180deg, rgba(20, 25, 38, 0.97), rgba(10, 13, 22, 0.98));
+  border: 1px solid var(--accent); border-radius: 12px; padding: 18px 22px;
+  box-shadow: 0 0 40px -12px var(--accent); animation: encFade 0.3s 0.28s both;
+}
+.enc-line { font-size: 14px; color: #eaf2ff; letter-spacing: 0.04em; }
+.enc-line b { color: var(--accent); }
+.enc-sub { margin-top: 8px; font-size: 11px; color: rgba(255, 255, 255, 0.7); }
+.enc-fight {
+  margin-top: 16px; cursor: pointer; font-weight: 900; letter-spacing: 0.12em; font-size: 14px;
+  padding: 11px 28px; border-radius: 10px; color: #0a1e16;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 65%, #fff), var(--accent));
+  border: 1px solid var(--accent); box-shadow: 0 0 18px var(--accent);
+  transition: filter 0.12s, transform 0.12s;
+}
+.enc-fight:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .enc-bars span, .enc-flash, .enc-left, .enc-right, .enc-badge, .enc-dialog, .enc-vs { animation: none; }
+  .enc-bars span { transform: translateX(0); }
+}

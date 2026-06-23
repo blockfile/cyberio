@@ -53,7 +53,7 @@ const fadeInUp = {
     exit: { opacity: 0, y: -12, transition: { duration: 0.2 } },
 };
 
-export default function EarnNpc({ embedded = false, tier = "static" }) {
+export default function EarnNpc({ embedded = false, tier = "static", onClose = null }) {
     const { wallet } = useContext(WalletContext);
     const navigate = useNavigate();
 
@@ -928,33 +928,25 @@ export default function EarnNpc({ embedded = false, tier = "static" }) {
                                         Remaining today:{" "}
                                         <span className="font-bold">{resultModal.payout?.remainingToday ?? rules.remainingToday ?? 0}</span>
                                     </div>
-                                    <div className="mt-1 text-sm opacity-90">
-                                        Matches:{" "}
-                                        <span className="font-bold">{resultModal.payout?.matchesPlayedToday ?? rules.matchesPlayedToday ?? 0}</span> /{" "}
-                                        <span className="font-bold">{resultModal.payout?.matchesPerDay ?? rules.matchesPerDay ?? 10}</span>
-                                    </div>
-                                    <div className="mt-1 text-sm opacity-90">
-                                        Pool: <span className="font-bold">{resultModal.payout?.poolBalance ?? rules.poolBalance ?? 0}</span>
-                                    </div>
+                                    {(resultModal.payout?.matchesPerDay ?? rules.matchesPerDay ?? 0) > 0 && (
+                                        <div className="mt-1 text-sm opacity-90">
+                                            Matches:{" "}
+                                            <span className="font-bold">{resultModal.payout?.matchesPlayedToday ?? rules.matchesPlayedToday ?? 0}</span> /{" "}
+                                            <span className="font-bold">{resultModal.payout?.matchesPerDay ?? rules.matchesPerDay}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            <div className="px-5 pb-5 space-y-3">
-                                <button
-                                    className="w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase"
-                                    onClick={() => setResultModal((m) => ({ ...m, open: false }))}
-                                >
-                                    Close
-                                </button>
-
+                            <div className="px-5 pb-5">
                                 <button
                                     className="w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase"
                                     onClick={() => {
                                         setResultModal((m) => ({ ...m, open: false }));
-                                        startEarn();
+                                        if (embedded && typeof onClose === "function") onClose();
                                     }}
                                 >
-                                    Play Again
+                                    Close
                                 </button>
                             </div>
                         </motion.div>
