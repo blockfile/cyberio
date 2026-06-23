@@ -462,7 +462,7 @@ function findPath(sx, sy, dx, dy) {
 let aseed = 1337;
 const ar = () => (aseed = (aseed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 const NPC_WALK_CHARS = [1, 2, 3, 4, 5, 6];   // characters that have walk-cycle sheets
-const N_WANDER = 64;
+const N_WANDER = 30;
 const npcAgents = [];
 for (let i = 0; i < N_WANDER; i++) {
   const [tx, ty] = WALK_SPAWN[Math.floor(ar() * WALK_SPAWN.length)];
