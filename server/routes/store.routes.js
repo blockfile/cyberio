@@ -1,6 +1,5 @@
 const express = require("express");
 const crypto = require("crypto");
-const bs58 = require("bs58");
 const { Connection, PublicKey } = require("@solana/web3.js");
 const {
   getAssociatedTokenAddress,
@@ -12,6 +11,7 @@ const {
 
 const DimensionPass = require("../model/DimensionPass");
 const PassPurchaseIntent = require("../model/PassPurchaseIntent");
+const { verifyPassPaymentTransaction } = require("../util/passPayment");
 
 const router = express.Router();
 
@@ -21,21 +21,12 @@ const router = express.Router();
 const RPC = process.env.SOLANA_RPC;
 const CYBERIO_MINT = process.env.SD_TOKEN_MINT;
 const TREASURY_PUBLIC_KEY = process.env.FEE_WALLET;
-const TOKEN_PROGRAM = (process.env.TOKEN_PROGRAM || "tokenkeg").toLowerCase();
-const CONFIGURED_DECIMALS = Number(
-  process.env.SD_DECIMALS ||
-    process.env.REACT_APP_TOKEN_DECIMALS ||
-    process.env.WAGER_DECIMALS ||
-    6
-);
 
 if (!RPC) console.warn("⚠️ SOLANA_RPC missing");
 if (!CYBERIO_MINT) console.warn("⚠️ CYBERIO_MINT missing");
 if (!TREASURY_PUBLIC_KEY) console.warn("⚠️ TREASURY_PUBLIC_KEY missing");
 
 const connection = new Connection(RPC, "confirmed");
-
-const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
 function assertWallet(w) {
   try {
@@ -63,18 +54,6 @@ function getPriceForDuration(durationDays) {
   return null;
 }
 
-function resolveConfiguredTokenProgramId() {
-  if (
-    TOKEN_PROGRAM === "token2022" ||
-    TOKEN_PROGRAM === "token-2022" ||
-    TOKEN_PROGRAM === TOKEN_2022_PROGRAM_ID.toBase58().toLowerCase()
-  ) {
-    return TOKEN_2022_PROGRAM_ID;
-  }
-
-  return TOKEN_PROGRAM_ID;
-}
-
 async function resolveOnChainTokenProgramIdForMint(mintPk) {
   const info = await connection.getAccountInfo(mintPk);
   if (!info) throw new Error("Mint account not found on-chain");
@@ -86,16 +65,8 @@ async function resolveOnChainTokenProgramIdForMint(mintPk) {
 }
 
 async function resolvePurchaseTokenConfig(mintPk) {
-  const configuredTokenProgramId = resolveConfiguredTokenProgramId();
-
-  if (Number.isFinite(CONFIGURED_DECIMALS) && CONFIGURED_DECIMALS >= 0) {
-    return {
-      tokenProgramId: configuredTokenProgramId,
-      decimals: CONFIGURED_DECIMALS,
-      source: "env",
-    };
-  }
-
+  // The mint account owner is authoritative. An env default can silently select
+  // Tokenkeg for a Token-2022 mint and produce transactions that can never run.
   const tokenProgramId = await resolveOnChainTokenProgramIdForMint(mintPk);
   const mintInfo = await getMint(connection, mintPk, "confirmed", tokenProgramId);
   return {
@@ -253,18 +224,20 @@ router.post("/pass/confirm", async (req, res) => {
     const intent = await PassPurchaseIntent.findOne({ escrowId }).lean();
     if (!intent) throw new Error("Purchase intent not found (expired or invalid).");
 
+    // Bind the request to its intent before returning an idempotent success.
+    if (intent.wallet !== wallet) throw new Error("Wallet mismatch.");
+    if (Number(intent.durationDays) !== durationDays) throw new Error("Duration mismatch.");
+    if (String(intent.amountRaw) !== amountRawClient) throw new Error("Amount mismatch.");
+
     if (intent.status !== "PENDING") {
       // idempotent success
       if (intent.status === "CONFIRMED") {
-        const pass = await DimensionPass.findOne({ wallet }).lean();
+        const pass = await DimensionPass.findOne({ wallet: intent.wallet }).lean();
         return res.json({ success: true, pass });
       }
       throw new Error(`Intent is not pending (status=${intent.status}).`);
     }
 
-    if (intent.wallet !== wallet) throw new Error("Wallet mismatch.");
-    if (Number(intent.durationDays) !== durationDays) throw new Error("Duration mismatch.");
-    if (String(intent.amountRaw) !== amountRawClient) throw new Error("Amount mismatch.");
     if (new Date(intent.expiresAt) <= nowUtc()) throw new Error("Intent expired. Create a new intent.");
 
     // ---- Verify TX on-chain ----
@@ -275,60 +248,14 @@ router.post("/pass/confirm", async (req, res) => {
 
     if (!tx) throw new Error("Transaction not found/confirmed yet.");
 
-    // (A) verify memo instruction
-    const hasMemo = (tx.transaction.message.instructions || []).some((ix) => {
-      try {
-        // parsed memo is often in ix.parsed
-        if (ix.programId?.toBase58?.() === MEMO_PROGRAM_ID.toBase58()) {
-          // parsed "memo" sometimes: ix.parsed === intent.memo
-          const parsed = ix.parsed;
-          if (typeof parsed === "string") return parsed === intent.memo;
-          if (parsed?.type === "memo" && parsed?.info?.memo) return parsed.info.memo === intent.memo;
-        }
-      } catch {}
-      return false;
+    verifyPassPaymentTransaction(tx, {
+      wallet: intent.wallet,
+      memo: intent.memo,
+      treasuryAta: intent.treasuryAta,
+      mint: intent.mint,
+      tokenProgramId: intent.tokenProgramId,
+      amountRaw: intent.amountRaw,
     });
-
-    if (!hasMemo) {
-      throw new Error("Memo check failed. Tx does not include the correct purchase memo.");
-    }
-
-    // (B) verify token transfer to treasuryAta with exact amountRaw
-    const expectedTreasuryAta = intent.treasuryAta;
-    const expectedMint = intent.mint;
-    const expectedAmountRaw = BigInt(intent.amountRaw);
-
-    let transferOk = false;
-
-    // parsed token instructions approach
-    for (const ix of tx.transaction.message.instructions || []) {
-      // parsed SPL transferChecked often appears here:
-      // ix.program === 'spl-token' or 'spl-token-2022'
-      if (!ix.parsed) continue;
-
-      const p = ix.parsed;
-      if (p.type !== "transferChecked" && p.type !== "transfer") continue;
-
-      const info = p.info || {};
-      const dest = info.destination;
-      const mint = info.mint;
-
-      // amount might be in "tokenAmount" or "amount"
-      let raw = null;
-      if (info.tokenAmount?.amount != null) raw = BigInt(info.tokenAmount.amount);
-      else if (info.amount != null) raw = BigInt(info.amount);
-
-      if (!dest || !mint || raw == null) continue;
-
-      if (dest === expectedTreasuryAta && mint === expectedMint && raw === expectedAmountRaw) {
-        transferOk = true;
-        break;
-      }
-    }
-
-    if (!transferOk) {
-      throw new Error("Transfer check failed. Expected payment to treasury ATA not found in tx.");
-    }
 
     // ---- Grant / extend pass ----
     const now = nowUtc();
