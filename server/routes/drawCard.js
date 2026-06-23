@@ -16,10 +16,10 @@ const TREASURY_PUBKEY = new PublicKey(
   process.env.TREASURY_PUBKEY || "8yUGx6tMGsCxSdVj2Fk8FyaDkg4doZ32xnkNkzKSwHe5"
 );
 const SD_TOKEN_MINT = new PublicKey(
-  process.env.SD_TOKEN_MINT || "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump"
+  process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT || "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump"
 );
-// price in whole SD tokens (e.g. 20)
-const DRAW_PRICE_SD = parseInt(process.env.DRAW_PRICE_SD || "10", 10);
+// price in whole CYBERIO tokens (e.g. 10)
+const DRAW_PRICE_SD = parseInt(process.env.DRAW_PRICE_CYBERIO || process.env.DRAW_PRICE_SD || "10", 10);
 
 const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";

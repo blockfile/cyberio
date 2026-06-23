@@ -3,8 +3,13 @@ const { PublicKey } = require("@solana/web3.js");
 
 const DimensionPass = require("../model/DimensionPass");
 const User = require("../model/User"); // non-NFT: player cards live here
+const EarnDaily = require("../model/EarnDaily");
 
 const router = express.Router();
+
+function todayKeyUtc() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC) — matches the earn socket
+}
 
 function assertWalletBase58(w) {
   const s = String(w ?? "").trim();
@@ -66,6 +71,28 @@ router.get("/eligibility", async (req, res) => {
       eligible: false,
       error: e?.message || "Eligibility check failed",
     });
+  }
+});
+
+/**
+ * GET /api/earn/daily?wallet=
+ * Read-only daily earn status for the HUD (earned today vs the daily cap).
+ */
+router.get("/daily", async (req, res) => {
+  try {
+    const wallet = assertWalletBase58(req.query.wallet);
+    const cap = Number(process.env.EARN_DAILY_CAP || 30000);
+    const rec = await EarnDaily.findOne({ wallet, day: todayKeyUtc() }).lean();
+    const earned = Math.max(0, Number(rec?.total || 0));
+    return res.json({
+      success: true,
+      earnedToday: earned,
+      dailyCap: cap,
+      remaining: Math.max(0, cap - earned),
+      matchesPlayed: Number(rec?.matchesPlayed || 0),
+    });
+  } catch (e) {
+    return res.status(400).json({ success: false, error: e?.message || "Daily status failed" });
   }
 });
 

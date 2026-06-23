@@ -93,7 +93,7 @@ const TREASURY_PUBKEY = treasuryKeypair.publicKey.toBase58();
 const MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
 /** ✅ SPL WAGER CONFIG (SERVER) */
-const WAGER_MINT = process.env.WAGER_MINT; // same mint client uses
+const WAGER_MINT = process.env.WAGER_MINT || process.env.CYBERIO_TOKEN_MINT || "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump"; // same mint client uses
 const WAGER_DECIMALS = parseInt(process.env.WAGER_DECIMALS || "6", 10);
 
 /** ─ RAKE SETTINGS ─ */

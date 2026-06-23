@@ -38,6 +38,7 @@ function attachWorldSocket(io, socket) {
       const p = {
         id: socket.id,
         wallet,
+        name: String(data.name || ""), // client-decided display name (nickname while pass active, else short wallet)
         char: String(data.char || "1"),
         x: Number(data.x) || 0,
         y: Number(data.y) || 0,
@@ -65,6 +66,14 @@ function attachWorldSocket(io, socket) {
       if (!p) return;
       p.char = String(data.char || p.char);
       socket.to(room).emit(`${room}:charChanged`, { id: socket.id, char: p.char });
+    });
+
+    // live display-name update (nickname set/changed, or pass expired → reverts to wallet)
+    socket.on(`${room}:name`, (data = {}) => {
+      const p = players.get(socket.id);
+      if (!p) return;
+      p.name = String(data.name || "");
+      socket.to(room).emit(`${room}:nameChanged`, { id: socket.id, name: p.name });
     });
 
     socket.on(`${room}:leave`, leave);

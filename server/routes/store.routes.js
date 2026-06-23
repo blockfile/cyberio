@@ -23,7 +23,7 @@ const router = express.Router();
  * CONFIG
  */
 const RPC = process.env.SOLANA_RPC;
-const CYBERIO_MINT = process.env.SD_TOKEN_MINT;
+const CYBERIO_MINT = process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT;
 const TREASURY_PUBLIC_KEY = process.env.FEE_WALLET;
 
 if (!RPC) console.warn("⚠️ SOLANA_RPC missing");

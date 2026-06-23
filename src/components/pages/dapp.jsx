@@ -458,7 +458,7 @@ export default function Dapp() {
   // Status display
   const showWallet = wallet ? shortWallet(wallet) : "-";
   const showCards = wallet && cardCount != null ? String(cardCount) : wallet ? "..." : "-";
-  const showSd = wallet && sdBalance != null ? `$SD ${sdBalance}` : wallet ? "..." : "$SD -";
+  const showSd = wallet && sdBalance != null ? `$CYBERIO ${sdBalance}` : wallet ? "..." : "$CYBERIO -";
   const showSol = wallet && solBalance != null ? `${solBalance} SOL` : wallet ? "..." : "-";
   const earnProgress =
     earnEligibility.requiredLowPower > 0

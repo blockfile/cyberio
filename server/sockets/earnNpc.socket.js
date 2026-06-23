@@ -55,12 +55,12 @@ const LOW_POWER_THRESHOLD = Number(process.env.EARN_LOW_POWER_THRESHOLD || 5);
 const LOW_POWER_MIN_COUNT = Number(process.env.EARN_LOW_POWER_MIN_COUNT || 2);
 
 // payouts config (token mint)
-const TOKEN_MINT = process.env.SD_TOKEN_MINT || process.env.NPC_TOKEN_MINT;
+const TOKEN_MINT = process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT || process.env.NPC_TOKEN_MINT;
 const RPC = process.env.SOLANA_RPC;
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY;
 
 if (!RPC) console.warn("⚠️ SOLANA_RPC is missing");
-if (!TOKEN_MINT) console.warn("⚠️ TOKEN_MINT (SD_TOKEN_MINT or NPC_TOKEN_MINT) is missing");
+if (!TOKEN_MINT) console.warn("⚠️ TOKEN_MINT (CYBERIO_TOKEN_MINT or NPC_TOKEN_MINT) is missing");
 if (!TREASURY_PRIVATE_KEY) console.warn("⚠️ TREASURY_PRIVATE_KEY is missing");
 
 const connection = new Connection(RPC, "confirmed");

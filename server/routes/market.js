@@ -12,7 +12,7 @@ const CARD_METADATA = require("../util/cardMetadata.json");
 
 const RPC_URL = process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com";
 const SD_TOKEN_MINT = new PublicKey(
-  process.env.SD_TOKEN_MINT || "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump"
+  process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT || "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump"
 );
 const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";

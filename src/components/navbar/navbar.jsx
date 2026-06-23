@@ -71,7 +71,7 @@ export default function Navbar() {
         </div>
 
         <div className="cyNav__pill cyNav__pill--yellow">
-          <span className="cyNav__mono">$SD</span>
+          <span className="cyNav__mono">$CYBERIO</span>
           <b className="cyNav__mono">{sdLabel}</b>
         </div>
 
@@ -172,7 +172,7 @@ export default function Navbar() {
                 </div>
 
                 <div className="cyNav__pill cyNav__pill--yellow">
-                  <span className="cyNav__mono">$SD</span>
+                  <span className="cyNav__mono">$CYBERIO</span>
                   <b className="cyNav__mono">{sdLabel}</b>
                 </div>
 

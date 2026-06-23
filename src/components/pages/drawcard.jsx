@@ -58,8 +58,8 @@ const RPC_ENDPOINT =
 const TREASURY_ADDRESS = "8yUGx6tMGsCxSdVj2Fk8FyaDkg4doZ32xnkNkzKSwHe5";
 const SD_TOKEN_MINT =
   (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
-  "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump";
-const DRAW_PRICE_SD = 10; // whole CYBERIO tokens — MUST match server DRAW_PRICE_SD
+  "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
+const DRAW_PRICE_SD = 10; // whole CYBERIO tokens — MUST match server DRAW_PRICE_CYBERIO
 const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
@@ -238,7 +238,7 @@ export default function DrawCard({ embedded = false }) {
               throw new Error("Unlock and connect your wallet, then try again.");
             }
 
-            // 2) Send SD transfer with memo to treasury
+            // 2) Send CYBERIO transfer with memo to treasury
             const mintPk = new PublicKey(SD_TOKEN_MINT);
             const sender = new PublicKey(walletAddress);
             const treasury = new PublicKey(TREASURY_ADDRESS);
@@ -638,7 +638,7 @@ export default function DrawCard({ embedded = false }) {
                   PRICE
                 </div>
                 <div className="text-yellow-300 text-2xl font-extrabold tracking-widest">
-                  {DRAW_PRICE_SD} $SD
+                  {DRAW_PRICE_SD} $CYBERIO
                 </div>
               </div>
               <div className="h-10 w-px bg-white/10" />
@@ -656,7 +656,7 @@ export default function DrawCard({ embedded = false }) {
                   ? "Processing..."
                   : userData?.newPlayer && userData?.freeCard > 0
                     ? `Draw Free (${userData.freeCard} left)`
-                    : `Draw for ${DRAW_PRICE_SD} $SD`}
+                    : `Draw for ${DRAW_PRICE_SD} $CYBERIO`}
               </button>
             </div>
           </div>
@@ -696,7 +696,7 @@ export default function DrawCard({ embedded = false }) {
                     ? "Processing..."
                     : userData?.newPlayer && userData?.freeCard > 0
                       ? `Draw Free (${userData.freeCard} left)`
-                      : `Draw for ${DRAW_PRICE_SD} $SD`}
+                      : `Draw for ${DRAW_PRICE_SD} $CYBERIO`}
                 </button>
               </div>
 
@@ -729,7 +729,7 @@ export default function DrawCard({ embedded = false }) {
                 />
                 <Step
                   n={2}
-                  label="Send SD with that MEMO to the Treasury."
+                  label="Send CYBERIO with that MEMO to the Treasury."
                   active={!!activeMemo}
                 />
                 <Step
@@ -810,7 +810,7 @@ export default function DrawCard({ embedded = false }) {
                           <span className="font-bold text-yellow-300">
                             {it.priceSD}
                           </span>{" "}
-                          $SD
+                          $CYBERIO
                         </span>
                         <span className="px-2 py-1 rounded bg-white/10 text-white/80 border border-white/10">
                           Locked:{" "}

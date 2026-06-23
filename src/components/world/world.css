@@ -38,9 +38,10 @@
 .world-hud {
   position: fixed;
   top: 0; left: 0; right: 0;
-  z-index: 99999;
+  z-index: 99990; /* below the ProfileHUD / EARN toggle (99999) */
   display: flex;
   align-items: baseline;
+  justify-content: center; /* center the instruction so it clears the top-left ProfileHUD */
   gap: 16px;
   padding: 12px 18px;
   color: #7cf;
@@ -852,25 +853,43 @@ body.lite-fx .world-lightpool { animation: none !important; filter: none !import
 /* mix-blend-mode is a major flicker source on some GPUs — flatten it everywhere in the world */
 body.lite-fx .world-viewport,
 body.lite-fx .world-viewport * { mix-blend-mode: normal !important; }
-/* expensive backdrop blur on panels / loaders / duel HUD */
+/* expensive backdrop blur on panels / loaders / duel HUD — and the always-on HUD,
+   which is the worst case because it re-blurs the moving map behind it every frame */
 body.lite-fx .world-panel-overlay,
 body.lite-fx .world-panel,
 body.lite-fx .world-duelhud,
 body.lite-fx .panel-loader,
 body.lite-fx .ls-root,
-body.lite-fx .arena-duel-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+body.lite-fx .arena-duel-overlay,
+body.lite-fx .profile-hud,
+body.lite-fx .map-status-panel { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* drop the always-on HUD glows + pulses in performance mode */
+body.lite-fx .profile-hud,
+body.lite-fx .map-status-panel,
+body.lite-fx .world-earn-toggle { box-shadow: none !important; }
+body.lite-fx .map-status-live.is-online i,
+body.lite-fx .ph-avatar-wrap { animation: none !important; }
+
+/* drop a few ambient loops in performance mode (walking, hologram + water stay). */
+body.lite-fx .world-npc.idle,
+body.lite-fx .player-ring,
+body.lite-fx .world-dest { animation: none !important; }
 
 /* ===== EARN mode — upper-right toggle ===== */
 .world-earn-ui { position: fixed; top: 16px; right: 16px; z-index: 99999; }
 .world-earn-toggle {
-  cursor: pointer; font-weight: 900; letter-spacing: 0.1em; font-size: 12px; padding: 9px 14px; border-radius: 9px;
-  color: #cfe9ff; background: rgba(14, 18, 30, 0.85); border: 1px solid rgba(120, 200, 255, 0.5);
+  cursor: pointer; font-weight: 900; letter-spacing: 0.1em; font-size: 12px; padding: 10px 16px; border-radius: 4px;
+  color: #cfe9ff; background: rgba(14, 18, 30, 0.88); border: 1px solid rgba(120, 200, 255, 0.55);
   text-shadow: 0 0 6px #2cf; transition: filter 0.12s, box-shadow 0.12s, transform 0.12s;
+  box-shadow: 0 0 16px rgba(40, 120, 220, 0.3);
+  --cf-color: #7fe0ff; --cfL: 9px;
 }
 .world-earn-toggle:hover { filter: brightness(1.15); transform: translateY(-1px); }
 .world-earn-toggle.on {
   color: #0a1e16; background: linear-gradient(180deg, #b89bff, #9b7bff);
-  border-color: rgba(190, 160, 255, 0.9); box-shadow: 0 0 14px rgba(155, 123, 255, 0.6); text-shadow: none;
+  border-color: rgba(190, 160, 255, 0.9); box-shadow: 0 0 16px rgba(155, 123, 255, 0.7); text-shadow: none;
+  --cf-color: #efe7ff;
 }
 .world-earn-locked {
   display: inline-block; font-weight: 800; letter-spacing: 0.08em; font-size: 11px; padding: 9px 12px; border-radius: 9px;

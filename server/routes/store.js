@@ -20,8 +20,8 @@ module.exports = function makeStoreRouter({
 }) {
   const router = express.Router();
 
-  const MINT = process.env.SD_TOKEN_MINT;
-  const DECIMALS = Number(process.env.SD_DECIMALS || 6);
+  const MINT = process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT;
+  const DECIMALS = Number(process.env.CYBERIO_DECIMALS || process.env.SD_DECIMALS || 6);
 
   const PASS_PRICE_7 = Number(process.env.PASS_PRICE_7 || 5000);
   const PASS_PRICE_15 = Number(process.env.PASS_PRICE_15 || 9000);
@@ -69,7 +69,7 @@ module.exports = function makeStoreRouter({
       const priceUi = priceForDays(days);
       if (!priceUi) return res.status(400).json({ success: false, error: "Invalid durationDays" });
 
-      if (!MINT) return res.status(500).json({ success: false, error: "SD_TOKEN_MINT missing" });
+      if (!MINT) return res.status(500).json({ success: false, error: "CYBERIO_TOKEN_MINT missing" });
 
       const mintPk = new PublicKey(MINT);
       const tokenProgramId = await resolveTokenProgramIdForMint(MINT);

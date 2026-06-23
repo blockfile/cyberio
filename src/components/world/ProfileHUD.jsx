@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { API_BASE_URL } from "../../config/endpoints";
 import "./profile-hud.css";
 
@@ -11,25 +11,15 @@ const shortWallet = (w) => {
 /**
  * Top-left identity HUD: HD avatar, display name (nickname while a Dimension Pass is
  * active, otherwise the shortened wallet), a pass badge, inline nickname editing
- * (pass-gated), and the character switcher.
+ * (pass-gated), and the character switcher. The nickname is owned by World (so the
+ * on-map nameplate stays in sync); edits are reported up via onNicknameSaved.
  */
-export default function ProfileHUD({ wallet, charId = "1", onPickChar, passActive = false }) {
-  const [nickname, setNickname] = useState("");
+export default function ProfileHUD({ wallet, charId = "1", onPickChar, passActive = false, nickname = "", onNicknameSaved, balance = null }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const loadProfile = useCallback(async () => {
-    if (!wallet) { setNickname(""); return; }
-    try {
-      const r = await fetch(`${API_BASE_URL}/api/user/${encodeURIComponent(wallet)}`, { cache: "no-store" });
-      const d = await r.json();
-      setNickname(d?.nickname || "");
-    } catch { /* ignore */ }
-  }, [wallet]);
-
-  useEffect(() => { loadProfile(); }, [loadProfile]);
   // a pass that just expired should hide the edit affordance immediately
   useEffect(() => { if (!passActive) setEditing(false); }, [passActive]);
 
@@ -46,7 +36,7 @@ export default function ProfileHUD({ wallet, charId = "1", onPickChar, passActiv
       });
       const d = await r.json();
       if (!r.ok || d.error) throw new Error(d.error || "Could not save");
-      setNickname(d.nickname);
+      onNicknameSaved?.(d.nickname);
       setEditing(false);
     } catch (e) {
       setErr(e.message || "Could not save");
@@ -56,7 +46,7 @@ export default function ProfileHUD({ wallet, charId = "1", onPickChar, passActiv
   };
 
   return (
-    <div className="profile-hud">
+    <div className={`profile-hud cyber-frame${passActive ? " is-pass" : ""}`}>
       <div className={`ph-avatar-wrap${passActive ? " is-pass" : ""}`}>
         <img
           className="ph-avatar"
@@ -97,6 +87,12 @@ export default function ProfileHUD({ wallet, charId = "1", onPickChar, passActiv
             {passActive ? "◆ DIMENSION PASS" : "◇ NO PASS"}
           </div>
         )}
+
+        <div className="ph-balance" title="Your CYBERIO balance">
+          <span className="ph-coin">⬡</span>
+          <b>{balance != null ? balance : "—"}</b>
+          <span className="ph-coin-unit">CYBERIO</span>
+        </div>
 
         <div className="ph-chars-row">
           <div className="ph-chars" role="group" aria-label="Choose character">

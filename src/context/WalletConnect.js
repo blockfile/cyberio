@@ -21,7 +21,7 @@ const RPC_ENDPOINT =
 
 const TOKEN_MINT =
   (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
-  "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump";
+  "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
 
 const LS_KEY = "CYBERIO_SELECTED_WALLET";
 

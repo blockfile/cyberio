@@ -1,0 +1,53 @@
+/* ============================================================
+   .cyber-frame — reusable cyberpunk panel chrome
+   Adds glowing corner brackets + a faint scanline overlay to any
+   panel, without touching its own background. Crisp at any size.
+   Tune per panel with --cf-color / --cfL (bracket length).
+   ============================================================ */
+.cyber-frame {
+  position: relative;
+  --cf-color: #7fe0ff;
+  --cfW: 2px;   /* bracket thickness */
+  --cfL: 14px;  /* bracket arm length */
+}
+
+/* four L-shaped corner brackets (8 thin bars drawn as backgrounds) */
+.cyber-frame::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
+  z-index: 4;
+  background-image:
+    linear-gradient(var(--cf-color), var(--cf-color)), linear-gradient(var(--cf-color), var(--cf-color)),
+    linear-gradient(var(--cf-color), var(--cf-color)), linear-gradient(var(--cf-color), var(--cf-color)),
+    linear-gradient(var(--cf-color), var(--cf-color)), linear-gradient(var(--cf-color), var(--cf-color)),
+    linear-gradient(var(--cf-color), var(--cf-color)), linear-gradient(var(--cf-color), var(--cf-color));
+  background-repeat: no-repeat;
+  background-position:
+    top left, top left,
+    top right, top right,
+    bottom left, bottom left,
+    bottom right, bottom right;
+  background-size:
+    var(--cfL) var(--cfW), var(--cfW) var(--cfL),
+    var(--cfL) var(--cfW), var(--cfW) var(--cfL),
+    var(--cfL) var(--cfW), var(--cfW) var(--cfL),
+    var(--cfL) var(--cfW), var(--cfW) var(--cfL);
+  filter: drop-shadow(0 0 4px var(--cf-color));
+}
+
+/* faint CRT scanlines */
+.cyber-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: inherit;
+  background: repeating-linear-gradient(to bottom, rgba(140, 205, 255, 0.05) 0 1px, transparent 1px 3px);
+  opacity: 0.55;
+}
+
+body.lite-fx .cyber-frame::before { filter: none; }
+body.lite-fx .cyber-frame::after { display: none; } /* drop scanline overlay layer */

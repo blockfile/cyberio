@@ -1,5 +1,6 @@
-import React, { useState, useRef, useCallback, useEffect, useContext } from "react";
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import "./world.css";
+import "./cyber-frame.css";
 import roadCellsList from "./road_cells.json";   // road layout (built by scripts/buildRoads.py)
 import { WalletContext } from "../../context/WalletConnect";
 import { io } from "socket.io-client";
@@ -507,6 +508,8 @@ export default function World() {
     document.body.classList.toggle("lite-fx", liteFx);
     try { localStorage.setItem("cyb_lite_fx", liteFx ? "1" : "0"); } catch (e) { /* ignore */ }
   }, [liteFx]);
+  // nickname (editable only while a pass is active; displayed in the ProfileHUD + on-map nameplate)
+  const [nickname, setNickname] = useState("");
   // EARN MODE — with an active Dimension Pass, duel city NPCs to earn (toggle, upper-right)
   const [passActive, setPassActive] = useState(false);
   const [earnOn, setEarnOn] = useState(false);
@@ -520,7 +523,6 @@ export default function World() {
   useEffect(() => { encounterRef.current = !!encounter; }, [encounter]);
   useEffect(() => { if (!passActive) setEarnOn(false); }, [passActive]);
   const loadingRef = useRef(false);             // freezes movement while a transition plays
-  const [view, setView] = useState({ s: 0.5, x: 0, y: 0 });
 
   // Transition to a destination. The arena map jump (and exit to city) gets the full
   // cinematic LoadingScreen; tool panels get a quick PanelLoader (animated icon only).
@@ -567,8 +569,8 @@ export default function World() {
   const portalArmedRef = useRef(true);           // re-arm portal transport when leaving its range
   const [remoteIds, setRemoteIds] = useState([]);// which remote players to render
   const [presenceConnected, setPresenceConnected] = useState(false);
-  const sRef = useRef(view.s);
-  useEffect(() => { sRef.current = view.s; }, [view.s]);
+  const sRef = useRef(0.5);       // target zoom — the rAF camera-follow reads this
+  const sCurRef = useRef(0.5);    // eased current zoom → smooth wheel zoom
 
   // connected wallet → the player's chosen character becomes a controllable avatar
   const walletCtx = useContext(WalletContext) || {};
@@ -589,6 +591,27 @@ export default function World() {
     const id = setInterval(check, 60000);
     return () => { alive = false; clearInterval(id); };
   }, [walletAddr]);
+
+  // load the stored nickname (shown only while a pass is active)
+  useEffect(() => {
+    if (!walletAddr) { setNickname(""); return; }
+    let alive = true;
+    fetch(`${API_BASE_URL}/api/user/${encodeURIComponent(walletAddr)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((u) => { if (alive) setNickname(u?.nickname || ""); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [walletAddr]);
+
+  // on-map + HUD display name: nickname while a pass is active, otherwise the short wallet
+  const displayName = passActive && nickname ? nickname : (shortAddr || "GUEST");
+  const displayNameRef = useRef(displayName);
+  useEffect(() => { displayNameRef.current = displayName; }, [displayName]);
+  // tell the room when my display name changes (nickname edit, or pass expiry → reverts)
+  useEffect(() => {
+    const s = socketRef.current;
+    if (s && s.connected) s.emit("world:name", { name: displayName });
+  }, [displayName]);
 
   // ---- session persistence: remember city/arena so a browser refresh restores it (per-tab) ----
   const initialViewRef = useRef(null);
@@ -730,6 +753,21 @@ export default function World() {
   }, []);
 
   // ---- PLAYER: WASD-controlled avatar for the connected wallet's chosen character ----
+  // Set the camera transform before the first paint so the scene isn't briefly un-centered
+  // (the rAF loop owns it after this, and React re-renders never touch it).
+  useLayoutEffect(() => {
+    if (!connected || !sceneRef.current) return;
+    let sx = 11, sy = 11, best = 1e9;
+    for (const [tx, ty] of WALK_SPAWN) {
+      const d = Math.abs(tx - 11) + Math.abs(ty - 11);
+      if (d < best) { best = d; sx = tx; sy = ty; }
+    }
+    const s0 = iso(sx, sy), px = s0.x, py = s0.y + TH, s = sRef.current;
+    sCurRef.current = s;
+    sceneRef.current.style.transform =
+      `translate(-50%, -50%) translate3d(${-s * (px - SCENE_W / 2)}px, ${-s * (py - SCENE_H / 2)}px, 0) scale(${s})`;
+  }, [connected]);
+
   // Free 2D movement with tile-based collision (same walkable grid), directional walk
   // sprite, and a camera that follows the avatar. Driven straight to the DOM (no re-render).
   useEffect(() => {
@@ -753,8 +791,13 @@ export default function World() {
     };
     const KEY = { ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down",
       ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right" };
-    const kd = (e) => { const m = KEY[e.code]; if (m) { e.preventDefault(); keysRef.current.add(m); } };
-    const ku = (e) => { const m = KEY[e.code]; if (m) keysRef.current.delete(m); };
+    // don't hijack WASD/arrows while typing in a field (e.g. the nickname editor)
+    const isTyping = (e) => {
+      const t = e.target || document.activeElement;
+      return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+    };
+    const kd = (e) => { if (isTyping(e)) return; const m = KEY[e.code]; if (m) { e.preventDefault(); keysRef.current.add(m); } };
+    const ku = (e) => { if (isTyping(e)) return; const m = KEY[e.code]; if (m) keysRef.current.delete(m); };
     window.addEventListener("keydown", kd); window.addEventListener("keyup", ku);
     let raf, last = performance.now();
     const loop = (now) => {
@@ -815,8 +858,12 @@ export default function World() {
           }
         }
       }
-      if (sceneRef.current) {                           // camera follows the player
-        const s = sRef.current;
+      if (sceneRef.current) {                           // camera follows the player (eased zoom)
+        const sTarget = sRef.current;
+        let s = sCurRef.current;
+        s += (sTarget - s) * 0.18;                      // glide toward the target zoom
+        if (Math.abs(sTarget - s) < 0.0015) s = sTarget;
+        sCurRef.current = s;
         const camx = -s * (P.x - SCENE_W / 2), camy = -s * (P.y - SCENE_H / 2);
         const tf = `translate(-50%, -50%) translate3d(${camx}px, ${camy}px, 0) scale(${s})`;
         if (P._camtf !== tf) { P._camtf = tf; sceneRef.current.style.transform = tf; }
@@ -875,7 +922,7 @@ export default function World() {
       portalArmedRef.current = true;
       if (s) {
         const P2 = playerPosRef.current;
-        s.emit("world:join", { wallet: walletAddr, char: charIdRef.current,
+        s.emit("world:join", { wallet: walletAddr, name: displayNameRef.current, char: charIdRef.current,
           x: P2 ? P2.x : 0, y: P2 ? P2.y : 0, dir: P2 ? P2.dir : "s" });
       }
     }
@@ -889,7 +936,7 @@ export default function World() {
     socket.on("connect", () => {
       setPresenceConnected(true);
       const P = playerPosRef.current;
-      socket.emit("world:join", { wallet: walletAddr, char: charIdRef.current,
+      socket.emit("world:join", { wallet: walletAddr, name: displayNameRef.current, char: charIdRef.current,
         x: P ? P.x : 0, y: P ? P.y : 0, dir: P ? P.dir : "s" });
     });
     // another tab/window took over this wallet → stop here (no reconnect) and tell the user
@@ -905,7 +952,7 @@ export default function World() {
     });
     const addRemote = (o) => {
       if (!o || o.id === socket.id) return;
-      remotesRef.current.set(o.id, { char: String(o.char || "1"), wallet: o.wallet || "",
+      remotesRef.current.set(o.id, { char: String(o.char || "1"), wallet: o.wallet || "", name: o.name || "",
         dx: o.x, dy: o.y, tx: o.x, ty: o.y, dir: o.dir || "s", moving: false, _dir: null, _char: null, _mv: null });
       setRemoteIds([...remotesRef.current.keys()]);
     };
@@ -918,6 +965,10 @@ export default function World() {
     socket.on("world:charChanged", (m) => {
       const r = remotesRef.current.get(m.id);
       if (r) { r.char = String(m.char); r._char = null; }
+    });
+    socket.on("world:nameChanged", (m) => {
+      const r = remotesRef.current.get(m.id);
+      if (r) { r.name = String(m.name || ""); setRemoteIds([...remotesRef.current.keys()]); }
     });
     socket.on("world:left", (m) => {
       remotesRef.current.delete(m.id);
@@ -987,11 +1038,12 @@ export default function World() {
     if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 4) movedRef.current = true;
   };
   const onUp = () => { drag.current = null; };
-  const onWheel = useCallback((e) => {
-    setView((v) => ({ ...v, s: Math.min(1.6, Math.max(0.22, v.s * (e.deltaY < 0 ? 1.12 : 0.89))) }));
-  }, []);
-  const zoom = (f) => setView((v) => ({ ...v, s: Math.min(1.6, Math.max(0.22, v.s * f)) }));
-  const reset = () => setView({ s: 0.5, x: 0, y: 0 });
+  // zoom updates the target scale ref directly — the rAF camera-follow eases toward it.
+  // No setView → the big scene tree never re-renders on a wheel tick (that was extra jank).
+  const clampZoom = (s) => Math.min(1.6, Math.max(0.22, s));
+  const onWheel = useCallback((e) => { sRef.current = clampZoom(sRef.current * (e.deltaY < 0 ? 1.12 : 0.89)); }, []);
+  const zoom = (f) => { sRef.current = clampZoom(sRef.current * f); };
+  const reset = () => { sRef.current = 0.5; };
   const guardClick = (cb) => (e) => { if (movedRef.current) return; e.stopPropagation(); cb(); };
 
   // click a tile → walk the avatar there (BFS path on the walkable grid; WASD can override)
@@ -1025,7 +1077,7 @@ export default function World() {
         <div className="world-earn-ui">
           {passActive ? (
             <button
-              className={`world-earn-toggle${earnOn ? " on" : ""}`}
+              className={`world-earn-toggle cyber-frame${earnOn ? " on" : ""}`}
               onClick={() => setEarnOn((v) => !v)}
               title={earnOn
                 ? "EARN mode ON — walk near a wanderer to auto-duel, or right-click a loiterer"
@@ -1057,9 +1109,11 @@ export default function World() {
           title={liteFx ? "Lite FX is ON — tap for full effects" : "Tap if the screen flickers (Lite FX / performance mode)"}
         >FX</button>
       </div>
+      {/* transform is owned imperatively by the rAF camera-follow loop (sceneRef.style.transform);
+          keeping it out of React's inline style means re-renders (zoom, presence, proximity) can't
+          fight the camera and snap the view — that flicker was the "showing map every scroll". */}
       <div className="world-scene world-scene--big" ref={sceneRef} onClick={onWorldClick}
-        style={{ width: SCENE_W, height: SCENE_H,
-          transform: `translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${view.s})` }}>
+        style={{ width: SCENE_W, height: SCENE_H }}>
         {/* thick raised base slab under the whole map (purple platform side) */}
         <img className="world-floor" src={asset("base_slab")} alt="" draggable={false}
           style={{ left: 80, top: 328, zIndex: -1 }} />
@@ -1168,7 +1222,7 @@ export default function World() {
         {remoteIds.map((id) => {
           const r = remotesRef.current.get(id);
           if (!r) return null;
-          const nm = r.wallet ? `${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}` : "anon";
+          const nm = r.name || (r.wallet ? `${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}` : "anon");
           return (
             <div key={id} className="world-remote" title={nm}
               ref={(el) => { if (el) remoteNodes.current[id] = el; else delete remoteNodes.current[id]; }}>
@@ -1184,7 +1238,7 @@ export default function World() {
             <div className="world-player" ref={playerRef}>
               <div className="world-walker-sprite player-sprite" />
               <div className="player-ring" />
-              <div className="player-name">{shortAddr}</div>
+              <div className="player-name">{displayName}</div>
             </div>
           </>
         )}
@@ -1200,6 +1254,9 @@ export default function World() {
           charId={charId}
           onPickChar={pickChar}
           passActive={passActive}
+          nickname={nickname}
+          onNicknameSaved={setNickname}
+          balance={walletCtx.sdBalance}
         />
       )}
 

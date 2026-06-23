@@ -51,7 +51,7 @@ const RPC_ENDPOINT =
   "https://api.mainnet-beta.solana.com";
 const SD_TOKEN_MINT =
   (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
-  "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump";
+  "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
 const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
@@ -174,7 +174,7 @@ function CardTile({
               <>
                 Qty: <span className="font-mono">{card.quantity}</span>
                 <span className="ml-2">
-                  $SD{" "}
+                  $CYBERIO{" "}
                   <span className="font-mono">
                     {Number(card.priceSD).toFixed(2)}
                   </span>{" "}
@@ -186,7 +186,7 @@ function CardTile({
               <>
                 Qty: <span className="font-mono">{card.quantity}</span>
                 <span className="ml-2">
-                  $SD{" "}
+                  $CYBERIO{" "}
                   <span className="font-mono">
                     {Number(card.priceSD).toFixed(2)}
                   </span>{" "}
@@ -220,8 +220,8 @@ function CardTile({
                 value={priceValue ?? ""}
                 onChange={(e) => onPriceChange?.(e.target.value)}
                 className="h-10 bg-black/40 border border-white/10 rounded px-3 w-full"
-                placeholder="Price in $SD"
-                title="Price in SD"
+                placeholder="Price in $CYBERIO"
+                title="Price in CYBERIO"
               />
             </div>
           ) : (
@@ -776,7 +776,7 @@ export default function Market({ embedded = false }) {
                     className="flex flex-col md:flex-row gap-2 md:items-center md:gap-4 py-2 border-t border-white/10 first:border-t-0"
                   >
                     <div className="text-sm flex-1">
-                      #{it.cardId} · {it.name} — Qty {it.quantity} — $SD{" "}
+                      #{it.cardId} · {it.name} — Qty {it.quantity} — $CYBERIO{" "}
                       {Number(it.priceSD).toFixed(2)} each
                     </div>
                     <input
