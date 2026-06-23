@@ -822,3 +822,40 @@
   filter: drop-shadow(0 0 8px #2cf);
 }
 @keyframes fountainFlow { to { background-position: calc(var(--fw) * -5) 0; } }
+
+/* ===== Lite FX toggle button ===== */
+.world-fx-toggle { font-size: 13px !important; font-weight: 900; letter-spacing: 0.04em; }
+.world-fx-toggle.on {
+  color: #0a1e16;
+  background: linear-gradient(180deg, #6ff0c0, #37e0a0);
+  border-color: rgba(120, 255, 210, 0.9);
+  box-shadow: 0 0 12px rgba(55, 224, 160, 0.55);
+  text-shadow: none;
+}
+
+/* ===== Lite FX mode — disable GPU-heavy effects that flicker on weak GPUs ===== */
+/* drop per-sprite + per-building glow filters (heavy blurred repaints while moving) */
+body.lite-fx .world-walker-sprite,
+body.lite-fx .player-sprite,
+body.lite-fx .remote-sprite,
+body.lite-fx .world-building img,
+body.lite-fx .world-obj img,
+body.lite-fx [class*="-sprite"] { filter: none !important; }
+/* stop the animated neon/glow loops */
+body.lite-fx .fx-neon img,
+body.lite-fx .fx-portal img,
+body.lite-fx .fx-lamp img,
+body.lite-fx .fx-stop img,
+body.lite-fx .fx-flicker img,
+body.lite-fx .world-shop-sign,
+body.lite-fx .world-lightpool { animation: none !important; filter: none !important; }
+/* mix-blend-mode is a major flicker source on some GPUs — flatten it everywhere in the world */
+body.lite-fx .world-viewport,
+body.lite-fx .world-viewport * { mix-blend-mode: normal !important; }
+/* expensive backdrop blur on panels / loaders / duel HUD */
+body.lite-fx .world-panel-overlay,
+body.lite-fx .world-panel,
+body.lite-fx .world-duelhud,
+body.lite-fx .panel-loader,
+body.lite-fx .ls-root,
+body.lite-fx .arena-duel-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }

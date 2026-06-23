@@ -495,6 +495,14 @@ export default function World() {
     return null;
   });
   const [superseded, setSuperseded] = useState(false); // this wallet became active in another tab
+  // Lite FX: weak/flickering GPUs can disable the heavy blend/blur/glow effects (persisted per device)
+  const [liteFx, setLiteFx] = useState(() => {
+    try { return localStorage.getItem("cyb_lite_fx") === "1"; } catch (e) { return false; }
+  });
+  useEffect(() => {
+    document.body.classList.toggle("lite-fx", liteFx);
+    try { localStorage.setItem("cyb_lite_fx", liteFx ? "1" : "0"); } catch (e) { /* ignore */ }
+  }, [liteFx]);
   const loadingRef = useRef(false);             // freezes movement while a transition plays
   const [view, setView] = useState({ s: 0.5, x: 0, y: 0 });
 
@@ -978,6 +986,11 @@ export default function World() {
         <button onClick={() => zoom(1.2)} title="Zoom in">+</button>
         <button onClick={() => zoom(0.8)} title="Zoom out">−</button>
         <button onClick={reset} title="Reset view">⟳</button>
+        <button
+          onClick={() => setLiteFx((v) => !v)}
+          className={`world-fx-toggle${liteFx ? " on" : ""}`}
+          title={liteFx ? "Lite FX is ON — tap for full effects" : "Tap if the screen flickers (Lite FX / performance mode)"}
+        >FX</button>
       </div>
       <div className="world-scene world-scene--big" ref={sceneRef} onClick={onWorldClick}
         style={{ width: SCENE_W, height: SCENE_H,

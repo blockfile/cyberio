@@ -54,6 +54,20 @@ Buildings: cyber_mall, hospital, police, hotel, arcade, data_tower, ramen, apart
 weapon_market, clinic. Props: fountain_plaza, taxi. Raw pre-floodfill copies in `scripts/_bldg_raw/`.
 
 ## Changelog
+- **v48 — wallet-gate GPU compatibility fix (flickering/disappearing content on some PCs).**
+  Reviewed `D:\video.mp4` frame-by-frame: the `CyberLanding` panel remained mounted, but its
+  text/button compositor layer intermittently disappeared while the translucent panel background
+  remained. This ruled out missing assets and wallet reconnect/unmount loops and pointed to a
+  Windows/Chrome GPU compositing problem caused by nested translucent effects over the continuously
+  animated city. Updated `src/components/pages/cyber-landing.css`: removed both nested
+  `backdrop-filter` blurs and the scanline `mix-blend-mode`; replaced them with darker, stable
+  semi-opaque gradients; disabled the overlay grid mask; changed the panel entrance from a
+  transform+opacity animation to opacity-only; replaced the animated clip-path logo glitch with
+  static cyan/magenta offsets; and removed the infinite connect-button shadow pulse. The neon look
+  remains, but the wallet gate no longer depends on fragile GPU backdrop sampling or continuous
+  layer recomposition. Verified with a successful optimized production build
+  (`main.df778140.js`, `main.8354a0ed.css`); only the project's existing unrelated ESLint warnings
+  remain.
 - **v47 — DELETED the dormant NFT files (reversible).** Removed the now-unused NFT card code:
   DELETED FILES (all were git-tracked → restorable):
     · server/routes/walletNfts.js        (NFT card sync/list router)
