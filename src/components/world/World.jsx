@@ -15,6 +15,7 @@ import DimensionPassStore from "../pages/DimensionPassStore";
 import ArenaMap from "./ArenaMap";
 import { AnimatePresence } from "framer-motion";
 import LoadingScreen, { PanelLoader } from "./LoadingScreen";
+import MapStatusPanel from "./MapStatusPanel";
 
 // HD background scenes for the transition loading screen
 import lsCity from "../assets/images/bg.jpg";
@@ -541,6 +542,7 @@ export default function World() {
   const nearKeysRef = useRef("");                // signature of last in-range set (avoid re-renders)
   const portalArmedRef = useRef(true);           // re-arm portal transport when leaving its range
   const [remoteIds, setRemoteIds] = useState([]);// which remote players to render
+  const [presenceConnected, setPresenceConnected] = useState(false);
   const sRef = useRef(view.s);
   useEffect(() => { sRef.current = view.s; }, [view.s]);
 
@@ -833,14 +835,21 @@ export default function World() {
     const socket = io(SOCKET_URL, { transports: ["websocket"], reconnection: true });
     socketRef.current = socket;
     socket.on("connect", () => {
+      setPresenceConnected(true);
       const P = playerPosRef.current;
       socket.emit("world:join", { wallet: walletAddr, char: charIdRef.current,
         x: P ? P.x : 0, y: P ? P.y : 0, dir: P ? P.dir : "s" });
     });
     // another tab/window took over this wallet → stop here (no reconnect) and tell the user
     socket.on("session:superseded", () => {
+      setPresenceConnected(false);
       setSuperseded(true);
       try { socket.disconnect(); } catch (e) { /* ignore */ }
+    });
+    socket.on("disconnect", () => {
+      setPresenceConnected(false);
+      remotesRef.current.clear();
+      setRemoteIds([]);
     });
     const addRemote = (o) => {
       if (!o || o.id === socket.id) return;
@@ -912,6 +921,7 @@ export default function World() {
       clearInterval(moveTimer); cancelAnimationFrame(raf);
       try { socket.emit("world:leave"); socket.disconnect(); } catch (e) { /* ignore */ }
       socketRef.current = null;
+      setPresenceConnected(false);
       remotesRef.current.clear(); setRemoteIds([]);
     };
   }, [connected, walletAddr]);
@@ -957,6 +967,13 @@ export default function World() {
         <h1>CYBER CITY</h1>
         <span>{active || "drag to pan · scroll / +− to zoom"}</span>
       </header>
+      {connected && !shop && (
+        <MapStatusPanel
+          mapName="CYBER CITY"
+          playerCount={presenceConnected ? remoteIds.length + 1 : 0}
+          presenceConnected={presenceConnected}
+        />
+      )}
       <div className="world-zoom-ui">
         <button onClick={() => zoom(1.2)} title="Zoom in">+</button>
         <button onClick={() => zoom(0.8)} title="Zoom out">−</button>

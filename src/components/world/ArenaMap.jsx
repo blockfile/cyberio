@@ -3,6 +3,7 @@ import { io } from "socket.io-client";
 import { SOCKET_URL } from "../../config/endpoints";
 import "./arena.css";
 import Play from "../pages/play";
+import MapStatusPanel from "./MapStatusPanel";
 
 // A large WALKABLE, MULTIPLAYER isometric arena the city portal transports you into.
 // Camera follows the player (the map is too big to fit on screen). Everyone shares the
@@ -35,6 +36,7 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
   const charIdRef = useRef(charId);
   const exitArmedRef = useRef(false);               // arm once you step away from the exit portal
   const [remoteIds, setRemoteIds] = useState([]);
+  const [presenceConnected, setPresenceConnected] = useState(false);
   const [duelTarget, setDuelTarget] = useState(null);
   const [pendingInvite, setPendingInvite] = useState(null);
   const [incomingInvite, setIncomingInvite] = useState(null);
@@ -161,8 +163,15 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
     const socket = io(SOCKET_URL, { transports: ["websocket"], reconnection: true });
     socketRef.current = socket;
     socket.on("connect", () => {
+      setPresenceConnected(true);
       const P = playerPosRef.current;
       socket.emit("arena:join", { wallet, char: charIdRef.current, x: P ? P.x : 0, y: P ? P.y : 0, dir: P ? P.dir : "s" });
+    });
+    socket.on("disconnect", () => {
+      setPresenceConnected(false);
+      remotesRef.current.clear();
+      setRemoteIds([]);
+      setBusyIds(new Set());
     });
     const addRemote = (o) => {
       if (!o || o.id === socket.id) return;
@@ -243,7 +252,7 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
     return () => {
       clearInterval(moveTimer); cancelAnimationFrame(raf);
       try { socket.emit("arena:leave"); socket.disconnect(); } catch (e) { /* ignore */ }
-      socketRef.current = null; remotesRef.current.clear(); setRemoteIds([]);
+      socketRef.current = null; setPresenceConnected(false); remotesRef.current.clear(); setRemoteIds([]);
     };
   }, [wallet]);
 
@@ -274,6 +283,15 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
         <span className="arena-title">⚔ ARENA</span>
         <span className="arena-subtitle">walk into the EXIT portal to leave</span>
       </div>
+
+      {!activeDuel && (
+        <MapStatusPanel
+          mapName="ARENA"
+          variant="arena"
+          playerCount={presenceConnected ? remoteIds.length + 1 : 0}
+          presenceConnected={presenceConnected}
+        />
+      )}
 
       <div className="arena-fit">
         <div className="arena-iso" ref={sceneRef} onClick={onSceneClick} style={{ width: SCENE_W, height: SCENE_H }}>
