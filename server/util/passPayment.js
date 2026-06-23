@@ -69,4 +69,27 @@ function verifyPassPaymentTransaction(tx, expected) {
   return true;
 }
 
-module.exports = { verifyPassPaymentTransaction };
+async function getParsedTransactionWithRetry(fetchTransaction, options = {}) {
+  const attempts = Math.max(1, Number(options.attempts) || 8);
+  const configuredDelay = Number(options.delayMs);
+  const delayMs = Number.isFinite(configuredDelay) ? Math.max(0, configuredDelay) : 1000;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const tx = await fetchTransaction();
+      if (tx) return tx;
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < attempts && delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  if (lastError) throw lastError;
+  return null;
+}
+
+module.exports = { getParsedTransactionWithRetry, verifyPassPaymentTransaction };

@@ -1,5 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
+const bs58 = require("bs58");
 const { Connection, PublicKey } = require("@solana/web3.js");
 const {
   getAssociatedTokenAddress,
@@ -11,7 +12,10 @@ const {
 
 const DimensionPass = require("../model/DimensionPass");
 const PassPurchaseIntent = require("../model/PassPurchaseIntent");
-const { verifyPassPaymentTransaction } = require("../util/passPayment");
+const {
+  getParsedTransactionWithRetry,
+  verifyPassPaymentTransaction,
+} = require("../util/passPayment");
 
 const router = express.Router();
 
@@ -62,6 +66,16 @@ async function resolveOnChainTokenProgramIdForMint(mintPk) {
   if (info.owner.equals(TOKEN_PROGRAM_ID)) return TOKEN_PROGRAM_ID;
 
   throw new Error(`Unsupported mint owner program: ${info.owner.toBase58()}`);
+}
+
+function assertTxid(value) {
+  const txid = String(value || "").trim();
+  try {
+    if (bs58.decode(txid).length !== 64) throw new Error("bad length");
+    return txid;
+  } catch {
+    throw new Error("Invalid transaction signature.");
+  }
 }
 
 async function resolvePurchaseTokenConfig(mintPk) {
@@ -120,6 +134,69 @@ router.get("/pass-status", async (req, res) => {
     });
   } catch (e) {
     return res.status(400).json({ hasActive: false, error: e.message || "Bad request" });
+  }
+});
+
+/**
+ * Recover purchases whose token transaction was submitted but not confirmed by
+ * the app yet. Only non-sensitive intent fields are returned.
+ */
+router.get("/pass/pending/:wallet", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const wallet = assertWallet(req.params.wallet);
+    const pending = await PassPurchaseIntent.find({
+      wallet,
+      status: "PENDING",
+      expiresAt: { $gt: nowUtc() },
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({
+      success: true,
+      pending: pending.map((intent) => ({
+        escrowId: intent.escrowId,
+        durationDays: intent.durationDays,
+        priceUi: intent.priceUi,
+        amountRaw: intent.amountRaw,
+        memo: intent.memo,
+        submittedTxid: intent.submittedTxid || "",
+        createdAt: intent.createdAt,
+        expiresAt: intent.expiresAt,
+      })),
+    });
+  } catch (e) {
+    return res.status(400).json({ success: false, error: e.message || "Pending lookup failed" });
+  }
+});
+
+/** Save the signature before RPC confirmation so refreshes are recoverable. */
+router.post("/pass/submit", async (req, res) => {
+  try {
+    const wallet = assertWallet(req.body.wallet);
+    const escrowId = String(req.body.escrowId || "").trim();
+    const txid = assertTxid(req.body.txid);
+    if (!escrowId) throw new Error("Missing escrowId.");
+
+    const intent = await PassPurchaseIntent.findOne({ escrowId });
+    if (!intent) throw new Error("Purchase intent not found (expired or invalid).");
+    if (intent.wallet !== wallet) throw new Error("Wallet mismatch.");
+    if (intent.status === "CONFIRMED") return res.json({ success: true, confirmed: true });
+    if (intent.status !== "PENDING") throw new Error(`Intent is not pending (status=${intent.status}).`);
+    if (new Date(intent.expiresAt) <= nowUtc()) throw new Error("Intent expired. Create a new intent.");
+    if (intent.submittedTxid && intent.submittedTxid !== txid) {
+      throw new Error("This purchase already has a different transaction signature.");
+    }
+
+    intent.submittedTxid = txid;
+    // Once payment may have been sent, keep recovery available for 24 hours.
+    intent.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await intent.save();
+
+    return res.json({ success: true, pending: true });
+  } catch (e) {
+    return res.status(400).json({ success: false, error: e.message || "Submit failed" });
   }
 });
 
@@ -214,15 +291,15 @@ router.post("/pass/confirm", async (req, res) => {
   try {
     const wallet = assertWallet(req.body.wallet);
     const durationDays = Number(req.body.durationDays);
-    const txid = String(req.body.txid || "").trim();
     const escrowId = String(req.body.escrowId || "").trim();
     const amountRawClient = String(req.body.amountRaw || "").trim();
 
-    if (!txid) throw new Error("Missing txid.");
     if (!escrowId) throw new Error("Missing escrowId.");
 
-    const intent = await PassPurchaseIntent.findOne({ escrowId }).lean();
+    const intent = await PassPurchaseIntent.findOne({ escrowId });
     if (!intent) throw new Error("Purchase intent not found (expired or invalid).");
+
+    const txid = assertTxid(req.body.txid || intent.submittedTxid || intent.confirmedTxid);
 
     // Bind the request to its intent before returning an idempotent success.
     if (intent.wallet !== wallet) throw new Error("Wallet mismatch.");
@@ -239,27 +316,63 @@ router.post("/pass/confirm", async (req, res) => {
     }
 
     if (new Date(intent.expiresAt) <= nowUtc()) throw new Error("Intent expired. Create a new intent.");
+    if (intent.submittedTxid && intent.submittedTxid !== txid) {
+      throw new Error("This purchase already has a different transaction signature.");
+    }
+    if (!intent.submittedTxid) {
+      intent.submittedTxid = txid;
+      intent.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await intent.save();
+    }
 
     // ---- Verify TX on-chain ----
-    const tx = await connection.getParsedTransaction(txid, {
-      commitment: "confirmed",
-      maxSupportedTransactionVersion: 0,
-    });
+    const tx = await getParsedTransactionWithRetry(
+      () =>
+        connection.getParsedTransaction(txid, {
+          commitment: "confirmed",
+          maxSupportedTransactionVersion: 0,
+        }),
+      { attempts: 8, delayMs: 1000 }
+    );
 
-    if (!tx) throw new Error("Transaction not found/confirmed yet.");
+    if (!tx) {
+      return res.status(202).json({
+        success: false,
+        pending: true,
+        error: "Payment was submitted and is still awaiting Solana confirmation. Retry confirmation; do not pay again.",
+      });
+    }
 
-    verifyPassPaymentTransaction(tx, {
-      wallet: intent.wallet,
-      memo: intent.memo,
-      treasuryAta: intent.treasuryAta,
-      mint: intent.mint,
-      tokenProgramId: intent.tokenProgramId,
-      amountRaw: intent.amountRaw,
-    });
+    try {
+      verifyPassPaymentTransaction(tx, {
+        wallet: intent.wallet,
+        memo: intent.memo,
+        treasuryAta: intent.treasuryAta,
+        mint: intent.mint,
+        tokenProgramId: intent.tokenProgramId,
+        amountRaw: intent.amountRaw,
+      });
+    } catch (verificationError) {
+      await PassPurchaseIntent.updateOne(
+        { escrowId, status: "PENDING" },
+        { $set: { status: "FAILED" } }
+      );
+      verificationError.code = "PAYMENT_INVALID";
+      throw verificationError;
+    }
 
     // ---- Grant / extend pass ----
     const now = nowUtc();
     const existing = await DimensionPass.findOne({ wallet });
+
+    // A repeated confirmation for the same escrow must never extend twice.
+    if (existing?.lastEscrowId === escrowId) {
+      await PassPurchaseIntent.updateOne(
+        { escrowId },
+        { $set: { status: "CONFIRMED", confirmedTxid: txid } }
+      );
+      return res.json({ success: true, pass: existing });
+    }
 
     const base = existing?.expiresAt && new Date(existing.expiresAt) > now ? new Date(existing.expiresAt) : now;
     const newExpiresAt = addDays(base, durationDays);
@@ -285,7 +398,11 @@ router.post("/pass/confirm", async (req, res) => {
 
     return res.json({ success: true, pass });
   } catch (e) {
-    return res.status(400).json({ success: false, error: e.message || "Confirm failed" });
+    return res.status(400).json({
+      success: false,
+      code: e.code || "CONFIRM_FAILED",
+      error: e.message || "Confirm failed",
+    });
   }
 });
 

@@ -22,6 +22,9 @@ const PassPurchaseIntentSchema = new mongoose.Schema(
       index: true,
     },
 
+    // Saved as soon as the wallet returns a signature. This lets the user
+    // recover confirmation after an RPC delay, refresh, or temporary UI error.
+    submittedTxid: { type: String, default: "" },
     confirmedTxid: { type: String, default: "" },
     expiresAt: { type: Date, required: true }, // intent expiration (e.g. now+10m)
   },

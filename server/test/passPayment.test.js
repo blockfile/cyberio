@@ -1,6 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { verifyPassPaymentTransaction } = require("../util/passPayment");
+const {
+  getParsedTransactionWithRetry,
+  verifyPassPaymentTransaction,
+} = require("../util/passPayment");
 
 const MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -76,4 +79,33 @@ test("rejects a payment with the wrong authority, amount, destination, or memo",
     mutate(tx);
     assert.throws(() => verifyPassPaymentTransaction(tx, expected));
   }
+});
+
+test("retries a temporarily unavailable parsed transaction", async () => {
+  let calls = 0;
+  const tx = transaction();
+  const result = await getParsedTransactionWithRetry(
+    async () => {
+      calls += 1;
+      return calls < 3 ? null : tx;
+    },
+    { attempts: 4, delayMs: 0 }
+  );
+
+  assert.equal(result, tx);
+  assert.equal(calls, 3);
+});
+
+test("returns null after transaction lookup retries are exhausted", async () => {
+  let calls = 0;
+  const result = await getParsedTransactionWithRetry(
+    async () => {
+      calls += 1;
+      return null;
+    },
+    { attempts: 3, delayMs: 0 }
+  );
+
+  assert.equal(result, null);
+  assert.equal(calls, 3);
 });

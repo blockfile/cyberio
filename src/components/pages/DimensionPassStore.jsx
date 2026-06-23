@@ -38,6 +38,26 @@ const LOCAL_OFFERINGS = [
     { tier: "TIER 1", durationDays: 30, price: 35, image: TIER1, accent: "fuchsia" },
 ];
 
+const pendingStorageKey = (wallet) => `cyberio:pending-pass:${wallet || "unknown"}`;
+
+function readPendingSignatures(wallet) {
+    if (!wallet) return {};
+    try {
+        return JSON.parse(window.localStorage.getItem(pendingStorageKey(wallet)) || "{}") || {};
+    } catch {
+        return {};
+    }
+}
+
+function writePendingSignatures(wallet, signatures) {
+    if (!wallet) return;
+    try {
+        window.localStorage.setItem(pendingStorageKey(wallet), JSON.stringify(signatures));
+    } catch {
+        // Recovery also exists on the server; localStorage is an extra safeguard.
+    }
+}
+
 async function safeJson(url, init) {
     const res = await fetch(url, init);
     const ct = (res.headers.get("content-type") || "").toLowerCase();
@@ -59,7 +79,11 @@ async function safeJson(url, init) {
         throw new Error(`Invalid JSON.\nURL: ${url}\nHTTP: ${res.status}\nPreview: ${preview}`);
     }
 
-    if (!res.ok && json?.error) throw new Error(json.error);
+    if (!res.ok && json?.error) {
+        const error = new Error(json.error);
+        error.data = json;
+        throw error;
+    }
     return json;
 }
 
@@ -87,6 +111,8 @@ export default function DimensionPassStore({ embedded = false }) {
     const [loading, setLoading] = useState(false);
     const [activePass, setActivePass] = useState(null);
     const [notice, setNotice] = useState(null);
+    const [pendingPasses, setPendingPasses] = useState([]);
+    const [signatureInputs, setSignatureInputs] = useState({});
 
     const solanaConnection = useMemo(() => new Connection(SOLANA_RPC, "confirmed"), []);
 
@@ -104,18 +130,127 @@ export default function DimensionPassStore({ embedded = false }) {
         }
     }
 
+    async function fetchPendingPasses() {
+        if (!wallet) {
+            setPendingPasses([]);
+            setSignatureInputs({});
+            return [];
+        }
+
+        const j = await safeJson(`${API_BASE}/api/store/pass/pending/${wallet}`);
+        const pending = j?.pending || [];
+        const local = readPendingSignatures(wallet);
+        setPendingPasses(pending);
+        setSignatureInputs((current) => {
+            const next = { ...current };
+            pending.forEach((intent) => {
+                next[intent.escrowId] =
+                    next[intent.escrowId] || intent.submittedTxid || local[intent.escrowId] || "";
+            });
+            return next;
+        });
+        return pending;
+    }
+
+    function rememberSignature(escrowId, signature) {
+        const local = readPendingSignatures(wallet);
+        local[escrowId] = signature;
+        writePendingSignatures(wallet, local);
+        setSignatureInputs((current) => ({ ...current, [escrowId]: signature }));
+    }
+
+    function forgetSignature(escrowId) {
+        const local = readPendingSignatures(wallet);
+        delete local[escrowId];
+        writePendingSignatures(wallet, local);
+        setSignatureInputs((current) => {
+            const next = { ...current };
+            delete next[escrowId];
+            return next;
+        });
+    }
+
+    async function requestPassConfirmation(intent, txid) {
+        return safeJson(`${API_BASE}/api/store/pass/confirm`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                wallet,
+                durationDays: intent.durationDays,
+                txid,
+                escrowId: intent.escrowId,
+                amountRaw: intent.amountRaw,
+            }),
+        });
+    }
+
+    async function finalizePendingPass(intent, signatureOverride) {
+        const txid = String(
+            signatureOverride || signatureInputs[intent.escrowId] || intent.submittedTxid || ""
+        ).trim();
+        if (!txid) {
+            setNotice("Paste the transaction signature before retrying confirmation.");
+            return;
+        }
+
+        setLoading(true);
+        setNotice("Checking the submitted payment. No new payment will be sent.");
+        rememberSignature(intent.escrowId, txid);
+        try {
+            const result = await requestPassConfirmation(intent, txid);
+            if (result?.pending) {
+                setNotice(result.error || "Payment is still confirming. Retry shortly; do not pay again.");
+                await fetchPendingPasses();
+                return;
+            }
+            if (!result?.success) throw new Error(result?.error || "Pass confirmation failed.");
+
+            forgetSignature(intent.escrowId);
+            setNotice(`Success! Pass active until ${new Date(result.pass.expiresAt).toLocaleString()}`);
+            await Promise.all([fetchActivePass(), fetchPendingPasses()]);
+        } catch (error) {
+            const message = getPurchaseErrorMessage(error);
+            if (error?.data?.code === "PAYMENT_INVALID") {
+                forgetSignature(intent.escrowId);
+                setNotice(`Payment verification failed and no pass was granted. ${message}`);
+            } else {
+                setNotice(
+                    `Payment signature saved, but confirmation is not complete: ${message}\nDo not pay again. Retry confirmation below.`
+                );
+            }
+            await fetchPendingPasses().catch(() => { });
+        } finally {
+            setLoading(false);
+        }
+    }
+
     useEffect(() => {
         fetchActivePass().catch(() => { });
+        fetchPendingPasses().catch(() => { });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [wallet]);
 
     async function buyPass(durationDays) {
+        let intent = null;
+        let submittedSignature = "";
         try {
             if (!wallet) throw new Error("Connect your wallet first.");
             if (!walletProvider) throw new Error("Wallet provider unavailable. Please reconnect your wallet.");
 
             setNotice(null);
             setLoading(true);
+
+            // Never send another payment while a prior submitted purchase can
+            // still be recovered.
+            const currentPending = await fetchPendingPasses();
+            const localSignatures = readPendingSignatures(wallet);
+            const recoverable = currentPending.find(
+                (item) => item.submittedTxid || localSignatures[item.escrowId]
+            );
+            if (recoverable) {
+                setNotice("A previous payment is awaiting confirmation. Retry it below; do not pay again.");
+                return;
+            }
 
             // 1) get intent from server
             const intentJson = await safeJson(`${API_BASE}/api/store/pass/intent`, {
@@ -125,7 +260,7 @@ export default function DimensionPassStore({ embedded = false }) {
             });
 
             if (!intentJson?.success) throw new Error(intentJson?.error || "Failed creating purchase intent.");
-            const intent = intentJson.intent;
+            intent = intentJson.intent;
 
             const mintPk = new PublicKey(intent.mint);
             const ownerPk = new PublicKey(wallet);
@@ -232,31 +367,63 @@ export default function DimensionPassStore({ embedded = false }) {
                 throw new Error("Selected wallet does not support transaction signing.");
             }
             if (!signature) throw new Error("No signature returned by wallet.");
+            submittedSignature = String(signature);
+            rememberSignature(intent.escrowId, submittedSignature);
+
+            // Persist the signature before waiting on Solana RPC. If the page
+            // refreshes or indexing is delayed, the purchase remains recoverable.
+            try {
+                await safeJson(`${API_BASE}/api/store/pass/submit`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        wallet,
+                        escrowId: intent.escrowId,
+                        txid: submittedSignature,
+                    }),
+                });
+            } catch (submitError) {
+                console.warn("Pass signature could not be persisted yet:", submitError);
+            }
 
             // 7) confirm with server
-            const confirmJson = await safeJson(`${API_BASE}/api/store/pass/confirm`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    wallet,
-                    durationDays,
-                    txid: signature,
-                    escrowId: intent.escrowId,
-                    amountRaw: intent.amountRaw,
-                }),
-            });
+            const confirmJson = await requestPassConfirmation(intent, submittedSignature);
+
+            if (confirmJson?.pending) {
+                setNotice(confirmJson.error || "Payment is confirming. Do not pay again; retry below.");
+                await fetchPendingPasses();
+                return;
+            }
 
             if (!confirmJson?.success) throw new Error(confirmJson?.error || "Pass confirmation failed.");
 
+            forgetSignature(intent.escrowId);
             setNotice(`Success! Pass active until ${new Date(confirmJson.pass.expiresAt).toLocaleString()}`);
-            await fetchActivePass();
+            await Promise.all([fetchActivePass(), fetchPendingPasses()]);
         } catch (e) {
             console.error("Pass purchase failed:", e);
-            setNotice(getPurchaseErrorMessage(e));
+            const message = getPurchaseErrorMessage(e);
+            if (submittedSignature && intent) {
+                if (e?.data?.code === "PAYMENT_INVALID") {
+                    forgetSignature(intent.escrowId);
+                    setNotice(`Payment verification failed and no pass was granted. ${message}`);
+                } else {
+                    setNotice(
+                        `Payment signature saved, but confirmation is not complete: ${message}\nDo not pay again. Retry confirmation below.`
+                    );
+                }
+                await fetchPendingPasses().catch(() => { });
+            } else {
+                setNotice(message);
+            }
         } finally {
             setLoading(false);
         }
     }
+
+    const hasSubmittedPending = pendingPasses.some(
+        (intent) => intent.submittedTxid || signatureInputs[intent.escrowId]
+    );
 
     return (
         <div className="min-h-screen w-full text-white font-silkscreen relative overflow-hidden">
@@ -334,7 +501,9 @@ export default function DimensionPassStore({ embedded = false }) {
                                 ) : (
                                     <button
                                         type="button"
-                                        onClick={() => fetchActivePass().catch(() => { })}
+                                        onClick={() =>
+                                            Promise.all([fetchActivePass(), fetchPendingPasses()]).catch(() => { })
+                                        }
                                         className="w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase"
                                     >
                                         REFRESH STATUS
@@ -349,6 +518,61 @@ export default function DimensionPassStore({ embedded = false }) {
                             </div>
                         </div>
                     </div>
+
+                    {pendingPasses.length > 0 ? (
+                        <div className="mt-6 rounded-2xl border border-amber-300/30 bg-amber-300/5 backdrop-blur-md p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <div className="text-xs uppercase tracking-widest text-amber-200">Pending pass payment</div>
+                                    <div className="mt-1 text-sm text-white/75">
+                                        If tokens were sent, retry confirmation here. This never sends another payment.
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={loading}
+                                    onClick={() => fetchPendingPasses().catch((error) => setNotice(getPurchaseErrorMessage(error)))}
+                                    className="rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-3 py-2 text-xs font-bold tracking-widest uppercase disabled:opacity-60"
+                                >
+                                    Refresh
+                                </button>
+                            </div>
+
+                            <div className="mt-4 space-y-3">
+                                {pendingPasses.map((intent) => (
+                                    <div key={intent.escrowId} className="rounded-xl border border-white/10 bg-black/25 p-3">
+                                        <div className="flex flex-wrap justify-between gap-2 text-sm">
+                                            <span>{intent.durationDays} days / {intent.priceUi} CYBERIO</span>
+                                            <span className="text-white/55">
+                                                Recovery until {new Date(intent.expiresAt).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="mt-3 flex flex-col md:flex-row gap-2">
+                                            <input
+                                                value={signatureInputs[intent.escrowId] || ""}
+                                                onChange={(event) =>
+                                                    setSignatureInputs((current) => ({
+                                                        ...current,
+                                                        [intent.escrowId]: event.target.value,
+                                                    }))
+                                                }
+                                                placeholder="Paste transaction signature"
+                                                className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm font-mono outline-none focus:border-amber-200/60"
+                                            />
+                                            <button
+                                                type="button"
+                                                disabled={loading || !(signatureInputs[intent.escrowId] || intent.submittedTxid)}
+                                                onClick={() => finalizePendingPass(intent)}
+                                                className="rounded-xl border border-emerald-300/30 bg-emerald-300/15 hover:bg-emerald-300/25 px-4 py-2 text-sm font-bold tracking-widest uppercase disabled:opacity-50"
+                                            >
+                                                Retry confirmation
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
 
                     {/* OFF-CHAIN CARDS (always visible) */}
                     <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -404,11 +628,15 @@ export default function DimensionPassStore({ embedded = false }) {
                                         </div>
 
                                         <button
-                                            disabled={loading}
+                                            disabled={loading || hasSubmittedPending}
                                             onClick={() => buyPass(o.durationDays)}
                                             className="mt-4 w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase disabled:opacity-60"
                                         >
-                                            {loading ? "PROCESSING…" : "BUY"}
+                                            {loading
+                                                ? "PROCESSING…"
+                                                : hasSubmittedPending
+                                                    ? "CONFIRM PENDING PAYMENT"
+                                                    : "BUY"}
                                         </button>
                                     </div>
                                 </div>
