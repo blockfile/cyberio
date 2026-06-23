@@ -1,0 +1,6 @@
+roundabout_tileset 635a04ad-35aa-45e4-ab7a-a522f4082119
+park_tileset       a4ea541f-ac8d-477f-9d89-bece84bea043
+mapref             d3318fb1-e9cd-484b-b0f1-eaa0a2c8d98e
+lamp               53845d2f-e232-42bc-8cdd-179f28399046
+stoplight          b75bf8e5-1cef-41d1-9c73-0b078cdab634
+parktree           b5a8efc3-5cec-4dbd-8f65-d16514a3a30a

@@ -1,0 +1,8 @@
+tower_neon 65b2d2cb-6c6c-4c4a-85a4-ff2c90c700bc
+tower_bank c4779ee0-73b7-46fe-8ea6-e7dd9ebf6ec6
+club_neon c33d1938-f0d3-49f1-abf8-66859c8b0c42
+noodle_bar 89fa98fb-369d-4a4c-947c-fb9c57a81537
+office_glass 00625b06-bc09-42f1-a502-128c363236a1
+capsule_hotel 3d3aeba0-0f14-4d65-9f83-e1b0162ca5f4
+market_hall 040e9dd6-a736-4d50-bc6d-e5b817414140
+power_plant 20a8ff92-69b2-4822-b5b8-7c6099a561b2

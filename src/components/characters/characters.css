@@ -1,0 +1,88 @@
+.char-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100vh;
+  padding: 16px;
+  box-sizing: border-box;
+  background: #0b0f1a;
+  color: #e6f1ff;
+  font-family: system-ui, sans-serif;
+}
+
+.char-demo__bar h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  letter-spacing: 1px;
+}
+
+.char-demo__bar p {
+  margin: 0 0 10px;
+  opacity: 0.8;
+  font-size: 13px;
+}
+
+.char-demo__picker {
+  display: flex;
+  gap: 10px;
+}
+
+.char-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border: 2px solid #1e2b45;
+  border-radius: 10px;
+  background: #121a2b;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.char-pick:hover {
+  transform: translateY(-2px);
+}
+
+.char-pick.is-active {
+  border-color: #38e1ff;
+  box-shadow: 0 0 12px rgba(56, 225, 255, 0.4);
+}
+
+.char-pick img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.char-pick span {
+  font-size: 12px;
+}
+
+.char-demo__stage {
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+  border: 2px solid #1e2b45;
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    linear-gradient(#0e1626 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, #0e1626 1px, transparent 1px) 0 0 / 32px 32px,
+    #0a0e18;
+}
+
+.char-demo__actor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.char-sprite {
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}

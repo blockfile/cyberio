@@ -2,8 +2,7 @@ const express = require("express");
 const { PublicKey } = require("@solana/web3.js");
 
 const DimensionPass = require("../model/DimensionPass");
-const NftAssetDb = require("../model/NftAssetDb");
-const { computeNftStatsFromDoc } = require("../util/nftStats");
+const User = require("../model/User"); // non-NFT: player cards live here
 
 const router = express.Router();
 
@@ -42,18 +41,13 @@ router.get("/eligibility", async (req, res) => {
     const pass = await DimensionPass.findOne({ wallet }).lean();
     const hasActivePass = !!(pass?.expiresAt && new Date(pass.expiresAt) > nowUtc());
 
-    // If no pass => eligible false, but still return counts
-    // 2) NFT rule (read only) — use YOUR SYNCED collection
-    const nftDocs = await NftAssetDb.find(
-      { ownerWallet: wallet },
-      { power: 1, skill: 1, attributes: 1, raw: 1 }
-    )
-      .lean()
-      .exec();
-
-    const lowPowerCount = nftDocs.filter(
-      (doc) => computeNftStatsFromDoc(doc).power < POWER_THRESHOLD
-    ).length;
+    // 2) Card rule (read only) — count low-power cards (by quantity) from the player's DB cards
+    const user = await User.findOne({ walletAddress: wallet }).lean();
+    const cards = (user && user.cards) || [];
+    const lowPowerCount = cards.reduce(
+      (n, c) => n + ((Number(c.power) || 0) < POWER_THRESHOLD ? Math.max(1, Number(c.count) || 1) : 0),
+      0
+    );
 
     const eligible = hasActivePass && lowPowerCount >= REQUIRED_LOW_POWER;
 

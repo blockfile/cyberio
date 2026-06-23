@@ -1,0 +1,8 @@
+apartment_a 0b72eca3-d102-403c-8bfd-b0511e382631
+apartment_b 0edbc485-d9bd-4308-9721-57f73dff121e
+weapon_market 369485e0-7e06-4219-a3d7-9aa2d113a72f
+data_tower ff393844-06be-48e8-aa7d-6a10422be0d5
+clinic ERR
+police ERR
+hospital ERR
+arcade ERR

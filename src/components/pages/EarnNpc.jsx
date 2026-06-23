@@ -16,6 +16,7 @@ import { SOCKET_URL } from "../../config/endpoints";
 
 import duelfield from "../assets/images/duelfield.jpg";
 import backImage from "../assets/images/back.png";
+import { nftArt } from "./cardArt";
 
 import "./EarnNpc.css";
 
@@ -30,7 +31,7 @@ function importAll(r) {
 }
 const monsterImages = importAll(require.context("../assets/images/cards", false, /\.webp$/i));
 
-const imgSrc = (cid) => monsterImages[String(cid)] || backImage;
+const imgSrc = (cid) => nftArt(cid) || monsterImages[String(cid)] || backImage;
 
 const cardImageSrc = (cardOrCid) => {
     if (!cardOrCid) return backImage;
@@ -52,7 +53,7 @@ const fadeInUp = {
     exit: { opacity: 0, y: -12, transition: { duration: 0.2 } },
 };
 
-export default function EarnNpc() {
+export default function EarnNpc({ embedded = false }) {
     const { wallet } = useContext(WalletContext);
     const navigate = useNavigate();
 
@@ -414,13 +415,15 @@ export default function EarnNpc() {
                     {hudOpen ? "Hide HUD" : "Show HUD"}
                 </button>
 
-                <button
-                    onClick={() => navigate(-1)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md
-                     bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs"
-                >
-                    ← Back
-                </button>
+                {!embedded && (
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md
+                         bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs"
+                    >
+                        ← Back
+                    </button>
+                )}
             </div>
 
             {/* Ribbon */}

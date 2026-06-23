@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "phaser-editor": {
+      "type": "stdio",
+      "command": "node.exe",
+      "args": [
+        "C:\\Program Files\\Phaser Studio Inc\\Phaser Editor 5\\resources\\app\\src\\js\\chatbot\\mcp\\server.js"
+      ]
+    }
+  }
+}

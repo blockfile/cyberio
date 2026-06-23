@@ -1,0 +1,9 @@
+cyber_mall 55ae0334-219c-4f67-b584-038974bb2b80
+hospital 4c1169f7-4160-4be7-8d09-e6408cea340d
+police 8cb97dbb-c9c9-4acc-a940-73e592ebf916
+hotel 5fffe0af-d099-4a14-8175-652b491b66c1
+arcade a54f2386-3afc-4702-a1a4-9b0c3a00753f
+data_tower 51d9b2e9-c82e-4390-959f-607460ef7fdd
+ramen 3bc58926-ca63-491f-9c78-ce487d4ae419
+apartment_a cc1b9e7d-9eaf-4602-bee7-5495b0763b19
+server_hall 21edce14-33a3-487b-8384-d37fe8febef5

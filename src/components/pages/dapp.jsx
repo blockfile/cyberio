@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../navbar/navbar";
 import { WalletContext } from "../../context/WalletConnect";
 import { API_BASE_URL } from "../../config/endpoints";
+import CyberLanding from "./CyberLanding";
 import "./dapp-hud.css";
 
 // ✅ background
@@ -470,6 +471,11 @@ export default function Dapp() {
       : earnEligibility.eligible
         ? 100
         : 0;
+
+  // Not connected → cyberpunk landing / connect screen
+  if (!wallet) {
+    return <CyberLanding onConnect={connectWallet} />;
+  }
 
   return (
     <div className="dapp-hud">
@@ -958,7 +964,6 @@ export default function Dapp() {
         <div className="dapp-hud__bottombar mono">
           <span>TIP:</span> Use arrow keys / swipe. Press Enter or the mode button to launch.
         </div>
-
         <span className="corner corner--tl" aria-hidden="true" />
         <span className="corner corner--tr" aria-hidden="true" />
         <span className="corner corner--bl" aria-hidden="true" />

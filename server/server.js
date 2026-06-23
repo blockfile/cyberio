@@ -35,8 +35,7 @@ const { buildDeckFromDb, getCardPowerFromSocket } = require("./util/deck");
 const User = require("./model/User");
 const Match = require("./model/Match");
 
-// wallet NFT + inventory routes
-const walletNftsRouter = require("./routes/walletNfts");
+// inventory routes (NFT card router removed — non-NFT build; see plan.md "v47")
 const inventoryRouter = require("./routes/inventory");
 const earnNpcRouter = require("./routes/earnNpc");
 const storeRoutes = require("./routes/store.routes");
@@ -65,6 +64,7 @@ const io = socketio(server, {
 });
 
 const { attachEarnNpcSocket } = require("../server/sockets/earnNpc.socket");
+const { attachWorldSocket } = require("../server/sockets/world.socket");
 
 /** ─ SOLANA / TREASURY & ENV ─ */
 const SOLANA_RPC = process.env.SOLANA_RPC;
@@ -136,12 +136,13 @@ app.use(express.json());
 
 /** REST routes */
 app.use("/api/user", require("./routes/user"));
-app.use("/api/wallet-nfts", walletNftsRouter);
 app.use("/api/inventory", inventoryRouter);
 app.use("/api/earnNpc", earnNpcRouter);
 app.use("/api/store", storeRoutes);
 app.use("/api/wallet-nfts", walletNftsRoutes);
 app.use("/api/earn", earnRoutes);
+app.use("/api/market", require("./routes/market"));
+app.use("/api/draw-card", require("./routes/drawCard"));
 
 /** ─ Mongo connection ─ */
 mongoose
@@ -175,6 +176,10 @@ const NEED_MIN_CARDS = 3;
 const queues = { quick: [], friendly: [] };
 const rooms = new Map();
 const roomState = new Map();
+// direct PvP challenges: challengeId -> first play-socket id waiting for its opponent
+const friendlyChallenges = new Map();
+// direct PvP WAGER challenges: challengeId -> { socketId, bet } (first player waiting)
+const betChallenges = new Map();
 
 /** ─ IDEMPOTENCY ─ */
 const usedTxids = new Set();
@@ -705,6 +710,8 @@ function drawThree(cards) {
       cid: nft.cid,
       image: nft.image || null,
       name: nft.name || null,
+      power: nft.power != null ? nft.power : null,
+      skill: nft.skill || null,
     });
   }
 
@@ -760,6 +767,7 @@ function getFullCardFromSocket(sock, uid, cid, power) {
 io.on("connection", (socket) => {
   console.log("🟢 Player connected:", socket.id);
   attachEarnNpcSocket(io, socket, { buildDeckFromDb });
+  attachWorldSocket(io, socket);
 
   socket.on("hello", ({ wallet }) => {
     socket.wallet = wallet;
@@ -880,6 +888,8 @@ io.on("connection", (socket) => {
           const stillHere = io.sockets.sockets.get(cand.id);
           if (!stillHere) continue;
           if (cand.id === socket.id) continue;
+          // never match the same wallet against itself (e.g. two tabs/browsers)
+          if (cand.wallet && socket.wallet && cand.wallet === socket.wallet) continue;
 
           if ((cand.userCards?.length || 0) < NEED_MIN_CARDS) {
             cand.emit?.("insufficientDeck", {
@@ -971,6 +981,132 @@ io.on("connection", (socket) => {
     } catch (e) {
       console.error("findMatch error:", e?.message || e);
       socket.emit("paymentError", { reason: "Server error finding match." });
+    }
+  });
+
+  // ── DIRECT PvP CHALLENGE: pair two SPECIFIC players (no queue, no bet) ──
+  // Both clients open the duel with the same challengeId; the 2nd to arrive triggers the match.
+  async function startFriendlyMatch(socket, opponent) {
+    const room = `${socket.id}#${opponent.id}`;
+    socket.join(room); opponent.join(room);
+    rooms.set(socket.id, room); rooms.set(opponent.id, room);
+    socket.opponent = opponent; opponent.opponent = socket;
+    socket.mode = "friendly"; opponent.mode = "friendly";
+    initSocketRound(socket); initSocketRound(opponent);
+    const aFirst = socket.id < opponent.id;
+    roomState.set(room, {
+      mode: "friendly", payments: {}, timer: null, deadline: null,
+      gameStarted: true, gameOver: false, matchId: null,
+      lockedBetAmountRaw: undefined, betMint: WAGER_MINT, betDecimals: WAGER_DECIMALS,
+      playerAId: aFirst ? socket.id : opponent.id,
+      playerBId: aFirst ? opponent.id : socket.id,
+      walletA: aFirst ? socket.wallet : opponent.wallet,
+      walletB: aFirst ? opponent.wallet : socket.wallet,
+      pending: {}, resolving: false, history: [],
+      wins: { [socket.wallet]: 0, [opponent.wallet]: 0 },
+      roundEndAt: null, roundTicker: null, oppDropTicker: null,
+      oppReconnectDeadline: null, phase: "dueling", escrowRefunded: false,
+    });
+    opponent.emit("matchFound", { opponentWallet: socket.wallet, isFirst: true, mode: "friendly" });
+    socket.emit("matchFound", { opponentWallet: opponent.wallet, isFirst: false, mode: "friendly" });
+    try {
+      const state = roomState.get(room);
+      const matchDoc = await Match.create({ player1: state.walletA, player2: state.walletB, bet: 0, totalPot: 0, rounds: [] });
+      state.matchId = matchDoc._id;
+    } catch (e) { console.error("friendly challenge match doc failed:", e?.message || e); }
+    dealHands(room);
+  }
+
+  socket.on("joinFriendlyChallenge", async ({ challengeId, wallet } = {}) => {
+    try {
+      if (!challengeId || !wallet) return;
+      socket.wallet = wallet;
+      socket.challengeId = challengeId;
+      const { cardIds, cardPowersMap } = await buildDeckFromDb(wallet);
+      socket.userCards = cardIds; socket.cardPowers = cardPowersMap;
+      if ((socket.userCards?.length || 0) < NEED_MIN_CARDS) {
+        socket.emit("insufficientDeck", { you: socket.userCards?.length || 0, need: NEED_MIN_CARDS });
+        return;
+      }
+      const waitingId = friendlyChallenges.get(challengeId);
+      const waiting = waitingId && io.sockets.sockets.get(waitingId);
+      if (waiting && waiting.id !== socket.id && waiting.wallet === socket.wallet) {
+        socket.emit("matchCanceled", { reason: "You can't duel yourself (same wallet)." });
+        return;
+      }
+      if (waiting && waiting.id !== socket.id && (waiting.userCards?.length || 0) >= NEED_MIN_CARDS) {
+        friendlyChallenges.delete(challengeId);
+        await startFriendlyMatch(waiting, socket);
+      } else {
+        friendlyChallenges.set(challengeId, socket.id);
+      }
+    } catch (e) {
+      console.error("joinFriendlyChallenge error:", e?.message || e);
+      socket.emit("paymentError", { reason: "Could not start the challenge duel." });
+    }
+  });
+
+  // ── DIRECT PvP BET CHALLENGE: pair two SPECIFIC players into a wager (quick) room ──
+  // Reuses the normal escrow + winner-takes-pot payout; both jump straight to payment
+  // because the wager is already agreed (challenger set it, opponent accepted).
+  async function startBetMatch(a, b, bet) {
+    const room = `${a.id}#${b.id}`;
+    a.join(room); b.join(room);
+    rooms.set(a.id, room); rooms.set(b.id, room);
+    a.opponent = b; b.opponent = a;
+    a.mode = "quick"; b.mode = "quick";
+    a.bet = bet; b.bet = bet;
+    initSocketRound(a); initSocketRound(b);
+    const aFirst = a.id < b.id;
+    roomState.set(room, {
+      mode: "quick", payments: {}, timer: null, deadline: null,
+      gameStarted: false, gameOver: false, matchId: null,
+      lockedBetAmountRaw: undefined, betMint: WAGER_MINT, betDecimals: WAGER_DECIMALS,
+      acceptedBet: bet,
+      playerAId: aFirst ? a.id : b.id,
+      playerBId: aFirst ? b.id : a.id,
+      walletA: aFirst ? a.wallet : b.wallet,
+      walletB: aFirst ? b.wallet : a.wallet,
+      pending: {}, resolving: false, history: [],
+      wins: { [a.wallet]: 0, [b.wallet]: 0 },
+      roundEndAt: null, roundTicker: null, oppDropTicker: null,
+      oppReconnectDeadline: null, phase: "confirming", escrowRefunded: false,
+    });
+    b.emit("matchFound", { opponentWallet: a.wallet, isFirst: true, mode: "quick" });
+    a.emit("matchFound", { opponentWallet: b.wallet, isFirst: false, mode: "quick" });
+    // wager already agreed → jump both straight to the confirm/payment step
+    b.emit("acceptProposal", { bet });
+    a.emit("acceptProposal", { bet });
+  }
+
+  socket.on("joinBetChallenge", async ({ challengeId, wallet, bet } = {}) => {
+    try {
+      if (!challengeId || !wallet) return;
+      const betTokens = Math.max(0, Math.floor(Number(bet) || 0));
+      if (betTokens <= 0) { socket.emit("paymentError", { reason: "Invalid wager amount." }); return; }
+      socket.wallet = wallet;
+      socket.challengeId = challengeId;
+      const { cardIds, cardPowersMap } = await buildDeckFromDb(wallet);
+      socket.userCards = cardIds; socket.cardPowers = cardPowersMap;
+      if ((socket.userCards?.length || 0) < NEED_MIN_CARDS) {
+        socket.emit("insufficientDeck", { you: socket.userCards?.length || 0, need: NEED_MIN_CARDS });
+        return;
+      }
+      const waiting = betChallenges.get(challengeId);
+      const waitingSock = waiting && io.sockets.sockets.get(waiting.socketId);
+      if (waitingSock && waitingSock.id !== socket.id && waitingSock.wallet === socket.wallet) {
+        socket.emit("matchCanceled", { reason: "You can't duel yourself (same wallet)." });
+        return;
+      }
+      if (waitingSock && waitingSock.id !== socket.id && (waitingSock.userCards?.length || 0) >= NEED_MIN_CARDS) {
+        betChallenges.delete(challengeId);
+        await startBetMatch(waitingSock, socket, waiting.bet || betTokens);
+      } else {
+        betChallenges.set(challengeId, { socketId: socket.id, bet: betTokens });
+      }
+    } catch (e) {
+      console.error("joinBetChallenge error:", e?.message || e);
+      socket.emit("paymentError", { reason: "Could not start the bet duel." });
     }
   });
 
@@ -1358,6 +1494,12 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", async () => {
     removeFromQueues(socket);
+    if (socket.challengeId && friendlyChallenges.get(socket.challengeId) === socket.id)
+      friendlyChallenges.delete(socket.challengeId);
+    if (socket.challengeId) {
+      const bc = betChallenges.get(socket.challengeId);
+      if (bc && bc.socketId === socket.id) betChallenges.delete(socket.challengeId);
+    }
 
     const room = rooms.get(socket.id);
     if (room) {
@@ -1435,6 +1577,7 @@ io.on("connection", (socket) => {
                 image: choice.image || null,
                 name: choice.name || null,
                 skill: choice.skill || null,
+                power: choice.power != null ? choice.power : null,
               };
               s.emit("ackPlayed", { uid: choice.uid, cid: choice.cid, auto: true });
               s.opponent?.emit("opponentPlayedCard");

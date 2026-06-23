@@ -255,18 +255,21 @@ function getProviderName(p) {
   return p.name || p.providerName || "Wallet";
 }
 
+// non-NFT: card count comes from the player's DB cards (sum of quantities)
 async function fetchCachedCardCount(address) {
-  const res = await fetch(`${API_BASE_URL}/api/wallet-nfts/${address}`);
-  const json = await res.json();
-  return json?.count ?? json?.items?.length ?? 0;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/inventory/${address}`);
+    const json = await res.json();
+    const cards = json?.cards || [];
+    return cards.reduce((n, c) => n + (Number(c.count) || 1), 0);
+  } catch {
+    return 0;
+  }
 }
 
-async function syncWalletNfts(address) {
-  await fetch(`${API_BASE_URL}/api/wallet-nfts/sync`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ walletAddress: address }),
-  });
+// non-NFT: nothing to sync from chain anymore (kept as a no-op so callers don't break)
+async function syncWalletNfts(/* address */) {
+  return;
 }
 
 // Some wallets use "accountChanged", some use "publicKeyChanged"
@@ -511,34 +514,20 @@ export const WalletProvider = ({ children }) => {
     [providers, connectWithProvider]
   );
 
-  // Auto-connect on mount (trusted)
+  // NOTE: auto-connect on mount is intentionally DISABLED so refreshing the page never
+  // pops the wallet (Phantom). The wallet connects only when the user clicks "Connect Wallet".
+  // We just pre-select the last-used provider for the UI (no connect / no prompt).
   useEffect(() => {
     if (!providers.length) return;
     if (autoConnectAttempted.current) return;
     autoConnectAttempted.current = true;
 
     const last = (() => {
-      try {
-        return localStorage.getItem(LS_KEY);
-      } catch {
-        return null;
-      }
+      try { return localStorage.getItem(LS_KEY); } catch { return null; }
     })();
-
-    const preferred =
-      providers.find((p) => getProviderName(p) === last) || providers[0];
-
-    // Set provider name early for UI
-    pickProvider(preferred);
-
-    (async () => {
-      try {
-        await connectWithProvider(preferred, { onlyIfTrusted: true });
-      } catch {
-        // ignore
-      }
-    })();
-  }, [providers, connectWithProvider, pickProvider]);
+    const preferred = providers.find((p) => getProviderName(p) === last) || providers[0];
+    pickProvider(preferred); // UI only — does not connect
+  }, [providers, pickProvider]);
 
   // Provider event wiring
   useEffect(() => {

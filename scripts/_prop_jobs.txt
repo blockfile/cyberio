@@ -1,0 +1,4 @@
+taxi 5aa3ce0f-0646-48b6-9ffc-341cc843fb96
+fountain_plaza 6e7b3e11-a47f-4552-ab72-964dcdc330d3
+weapon_market d6d95511-b061-4bea-8619-242adbbaa2b9
+clinic f1175279-7cca-4d42-85cd-571f532c2a53

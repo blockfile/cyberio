@@ -10,27 +10,45 @@ const User = require("../model/User");
 const Listing = require("../model/Listing");
 const CARD_METADATA = require("../util/cardMetadata.json");
 
-const RPC_URL = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
+const RPC_URL = process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com";
 const SD_TOKEN_MINT = new PublicKey(
-  "DrDzsdounCCy7wpjWKgpKUcmYB4xDzwkSPGw6jX52SoY"
+  process.env.SD_TOKEN_MINT || "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump"
 );
 const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 const MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
 // ---------- helpers ----------
-const rarityById = (id) => {
-  const n = Number(id);
-  if (n >= 36) return "Mythical";
-  if (n >= 21) return "Rare";
+// rarity from badge-derived power: Common 1-7 · Rare 8-9 · Legendary 10
+const rarityByPower = (power) => {
+  const p = Number(power) || 0;
+  if (p >= 10) return "Legendary";
+  if (p >= 8) return "Rare";
   return "Common";
 };
 const decorate = (arr) =>
-  arr.map((l) => ({ ...l, rarity: rarityById(l.cardId) }));
+  arr.map((l) => ({ ...l, rarity: rarityByPower(l.power) }));
+
+// Abandoned-lock TTL: if a buyer locks a listing (intent) but never finalizes or cancels,
+// release it back to the market after this long so the card isn't stuck. ("pending" = a buy
+// is actively being verified, so those are NOT swept.)
+const LOCK_TTL_MS = Number(process.env.MARKET_LOCK_TTL_MS || 5 * 60 * 1000); // default 5 min
+async function releaseStaleLocks() {
+  try {
+    await Listing.updateMany(
+      { status: "locked", lockedAt: { $lt: new Date(Date.now() - LOCK_TTL_MS) } },
+      { $set: { status: "active", holdBuyer: null, pendingMemo: null, lockedAt: null } }
+    );
+  } catch (e) {
+    console.error("releaseStaleLocks error:", e?.message || e);
+  }
+}
 
 // ---------- routes ----------
 
 // GET /api/market/listings?exclude=<wallet>
 router.get("/listings", async (req, res) => {
+  await releaseStaleLocks();
   const exclude = req.query.exclude || "";
   const [others, mine] = await Promise.all([
     Listing.find({
@@ -98,7 +116,7 @@ router.post("/list", async (req, res) => {
       createdCount: created.length,
       listings: created.map((l) => ({
         ...l.toObject(),
-        rarity: rarityById(cardId),
+        rarity: rarityByPower(meta.power),
       })),
     });
   } catch (e) {
@@ -150,6 +168,7 @@ router.post("/cancel", async (req, res) => {
 // POST /api/market/intent { buyerWallet, listingId }
 // Locks listing and returns a memo string that must be included in the token transfer.
 router.post("/intent", async (req, res) => {
+  await releaseStaleLocks();
   const { buyerWallet, listingId } = req.body;
   if (!buyerWallet || !listingId)
     return res.status(400).json({ error: "Missing fields" });
@@ -212,6 +231,7 @@ router.post("/intent-cancel", async (req, res) => {
 
 // GET /api/market/pending?wallet=<buyer>
 router.get("/pending", async (req, res) => {
+  await releaseStaleLocks();
   const wallet = req.query.wallet;
   const q = { status: "locked" };
   if (wallet) q.holdBuyer = wallet;
@@ -321,15 +341,25 @@ router.post("/buy", async (req, res) => {
     const buyerPk = new PublicKey(buyerWallet);
     const sellerPk = new PublicKey(listing.sellerWallet);
 
-    const buyerAta = await getAssociatedTokenAddress(SD_TOKEN_MINT, buyerPk);
-    const sellerAta = await getAssociatedTokenAddress(SD_TOKEN_MINT, sellerPk);
+    // detect classic SPL vs Token-2022 so the ATAs match what the buyer sent to
+    const mintAcc = await connection.getAccountInfo(SD_TOKEN_MINT);
+    const tokenProgPk =
+      mintAcc && mintAcc.owner.toBase58() === TOKEN_2022_PROGRAM_ID
+        ? new PublicKey(TOKEN_2022_PROGRAM_ID)
+        : new PublicKey(TOKEN_PROGRAM_ID);
+
+    const buyerAta = await getAssociatedTokenAddress(SD_TOKEN_MINT, buyerPk, false, tokenProgPk);
+    const sellerAta = await getAssociatedTokenAddress(SD_TOKEN_MINT, sellerPk, false, tokenProgPk);
 
     // Verify a transferChecked buyerAta -> sellerAta for expected amount
     const ok = tx.transaction.message.instructions.some((ix) => {
       const p = ix?.parsed;
       const programId = ix.programId?.toString?.() || ix.program;
       if (!p) return false;
-      if (programId !== TOKEN_PROGRAM_ID && ix.program !== "spl-token")
+      if (
+        programId !== TOKEN_PROGRAM_ID && programId !== TOKEN_2022_PROGRAM_ID &&
+        ix.program !== "spl-token" && ix.program !== "spl-token-2022"
+      )
         return false;
 
       if (p.type === "transferChecked") {

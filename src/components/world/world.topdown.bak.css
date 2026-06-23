@@ -1,0 +1,105 @@
+.world-viewport {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 38%, #161a2e 0%, #090b12 80%);
+  overflow: hidden;
+  font-family: "Press Start 2P", monospace, system-ui;
+  cursor: grab;
+  user-select: none;
+}
+.world-viewport:active { cursor: grabbing; }
+
+.world-hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 99999;
+  display: flex; align-items: baseline; gap: 16px;
+  padding: 12px 18px;
+  color: #7cf;
+  background: linear-gradient(180deg, rgba(9, 11, 18, 0.92), rgba(9, 11, 18, 0));
+  pointer-events: none;
+}
+.world-hud h1 { margin: 0; font-size: 20px; letter-spacing: 2px; text-shadow: 0 0 8px #29f, 0 0 18px #b3f; }
+.world-hud span { font-size: 11px; color: #d6b3ff; text-shadow: 0 0 6px #b3f; }
+
+/* ---- stage: the tile grid, centred; transform = pan + zoom ---- */
+.td-stage {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform-origin: center center;
+  will-change: transform;
+  filter: drop-shadow(0 20px 60px rgba(0,0,0,0.55));
+}
+.td-tile {
+  position: absolute;
+  image-rendering: pixelated;
+  -webkit-user-drag: none;
+}
+
+/* ---- objects (buildings + props): anchored bottom-centre on their tile ---- */
+.td-obj {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  margin: 0; padding: 0; border: 0; background: none;
+}
+.td-obj img { display: block; image-rendering: pixelated; -webkit-user-drag: none; }
+
+.td-building { cursor: pointer; transition: filter 0.15s ease, transform 0.12s ease; }
+.td-building:hover { transform: translate(-50%, -102%) scale(1.02); filter: drop-shadow(0 0 8px #2cf) drop-shadow(0 0 18px #b3f); }
+.td-building.is-active { filter: drop-shadow(0 0 10px #ffd166) drop-shadow(0 0 22px #ff5ea8); }
+
+/* always-on neon bleed for the flashy buildings */
+.td-building.neon img { animation: neonGlow 3.4s ease-in-out infinite; }
+@keyframes neonGlow {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(120,180,255,0.5)); }
+  50%      { filter: drop-shadow(0 0 9px rgba(200,120,255,0.8)); }
+}
+/* occasional neon-sign flicker */
+.td-building.flick img { animation: neonGlow 3.4s ease-in-out infinite, signFlicker 5.5s steps(1) infinite; }
+@keyframes signFlicker {
+  0%, 88%, 92%, 100% { opacity: 1; }
+  90% { opacity: 0.45; }
+  94% { opacity: 0.8; }
+}
+
+/* fountain plaza soft cyan pulse */
+.fountain-glow img { animation: fountainPulse 2.6s ease-in-out infinite; }
+@keyframes fountainPulse {
+  0%, 100% { filter: drop-shadow(0 0 6px #2cf) brightness(1); }
+  50%      { filter: drop-shadow(0 0 16px #2ef) brightness(1.12); }
+}
+
+/* ---- moving taxis along avenues ---- */
+.td-taxi { position: absolute; width: 28px; image-rendering: pixelated; z-index: 80;
+  filter: drop-shadow(0 0 5px rgba(255,220,80,0.85)); }
+.taxi-h { left: 0; animation: driveH linear infinite; }
+.taxi-h.rev { animation: driveHrev linear infinite; }
+.taxi-v { top: 0; animation: driveV linear infinite; }
+.taxi-v.rev { animation: driveVrev linear infinite; }
+/* horizontal: car points along X (rotate 90deg makes the top-view car face sideways) */
+@keyframes driveH    { from { transform: translateX(-60px) rotate(90deg); } to { transform: translateX(var(--span)) rotate(90deg); } }
+@keyframes driveHrev { from { transform: translateX(var(--span)) rotate(-90deg); } to { transform: translateX(-60px) rotate(-90deg); } }
+/* vertical: car points along Y (no rotation = nose down) */
+@keyframes driveV    { from { transform: translateY(-60px); } to { transform: translateY(var(--span)); } }
+@keyframes driveVrev { from { transform: translateY(var(--span)) rotate(180deg); } to { transform: translateY(-60px) rotate(180deg); } }
+
+/* ---- ambience: rain + scanlines + wet sheen ---- */
+.world-sheen {
+  position: fixed; inset: 0; pointer-events: none; z-index: 90000;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 42%, rgba(130,150,255,0.06), transparent 65%),
+    linear-gradient(180deg, rgba(180,120,255,0.04), transparent 30%, transparent 70%, rgba(40,200,255,0.035));
+  mix-blend-mode: screen;
+}
+.world-scanlines {
+  position: fixed; inset: 0; pointer-events: none; z-index: 90001; opacity: 0.18;
+  background: repeating-linear-gradient(180deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.5) 3px);
+}
+.world-rain {
+  position: fixed; inset: -20% -20% -20% -20%; pointer-events: none; z-index: 90002; opacity: 0.22;
+  background-image:
+    repeating-linear-gradient(105deg, rgba(170,200,255,0.0) 0px, rgba(170,200,255,0.0) 6px, rgba(170,200,255,0.35) 7px, rgba(170,200,255,0.0) 8px);
+  background-size: 60px 60px;
+  animation: rainFall 0.5s linear infinite;
+}
+@keyframes rainFall { to { background-position: -120px 240px; } }

@@ -1,0 +1,2984 @@
+{
+  "format": "cyber-city-map-v2",
+  "note": "Recreated from the Cyber City Tile Map Creator reference screenshot. This is a renderer-compatible sprite-placement JSON, with editor metadata for the 100x100 / 32px map shown in the reference.",
+  "editor": {
+    "title": "CYBER CITY TILE MAP CREATOR",
+    "map_info": {
+      "map_name": "Cyber City",
+      "width": 100,
+      "height": 100,
+      "tile_size": "32x32",
+      "layers": 5,
+      "background": "#0D0F17"
+    },
+    "layers": [
+      "Ground",
+      "Buildings",
+      "Objects",
+      "Interactive",
+      "Effects"
+    ],
+    "categories": [
+      "Buildings",
+      "Shops",
+      "Facilities",
+      "Industrial",
+      "Decorations",
+      "Vehicles",
+      "NPC / Robots"
+    ]
+  },
+  "map": {
+    "name": "Cyber City",
+    "width_px": 1536,
+    "height_px": 1024,
+    "tile_size": 32,
+    "grid": {
+      "width": 48,
+      "height": 32
+    }
+  },
+  "assetsheets": {
+    "city_buildings": "2(1).png",
+    "shops_props": "3(1).png",
+    "street_pack": "1(1).png",
+    "med_pack": "6(1).png",
+    "industrial": "tile-B-05.png",
+    "interior_bar": "12(1).png",
+    "office": "14(1).png",
+    "food": "20(1).png"
+  },
+  "layers": [
+    {
+      "name": "water",
+      "z": 0,
+      "visible": true
+    },
+    {
+      "name": "ground",
+      "z": 1,
+      "visible": true
+    },
+    {
+      "name": "roads",
+      "z": 2,
+      "visible": true
+    },
+    {
+      "name": "buildings",
+      "z": 3,
+      "visible": true
+    },
+    {
+      "name": "props",
+      "z": 4,
+      "visible": true
+    },
+    {
+      "name": "npcs_vehicles",
+      "z": 5,
+      "visible": true
+    },
+    {
+      "name": "effects_labels",
+      "z": 6,
+      "visible": true
+    },
+    {
+      "name": "collision",
+      "z": 99,
+      "visible": false
+    }
+  ],
+  "ground_rects": [
+    {
+      "type": "concrete",
+      "x": 0,
+      "y": 0,
+      "w": 1536,
+      "h": 1024
+    },
+    {
+      "type": "water",
+      "x": 0,
+      "y": 650,
+      "w": 355,
+      "h": 374
+    },
+    {
+      "type": "sidewalk",
+      "x": 0,
+      "y": 0,
+      "w": 970,
+      "h": 250
+    },
+    {
+      "type": "industrial_floor",
+      "x": 970,
+      "y": 0,
+      "w": 566,
+      "h": 250
+    },
+    {
+      "type": "sidewalk",
+      "x": 0,
+      "y": 405,
+      "w": 680,
+      "h": 230
+    },
+    {
+      "type": "sidewalk",
+      "x": 680,
+      "y": 405,
+      "w": 320,
+      "h": 230
+    },
+    {
+      "type": "sidewalk",
+      "x": 1000,
+      "y": 405,
+      "w": 536,
+      "h": 230
+    },
+    {
+      "type": "slum_floor",
+      "x": 760,
+      "y": 635,
+      "w": 776,
+      "h": 389
+    },
+    {
+      "type": "sidewalk",
+      "x": 355,
+      "y": 705,
+      "w": 405,
+      "h": 319
+    }
+  ],
+  "roads": [
+    {
+      "name": "main_horizontal",
+      "x": 0,
+      "y": 255,
+      "w": 1536,
+      "h": 150,
+      "lanes": 4,
+      "walkable": true
+    },
+    {
+      "name": "middle_horizontal",
+      "x": 330,
+      "y": 625,
+      "w": 1206,
+      "h": 88,
+      "lanes": 2,
+      "walkable": true
+    },
+    {
+      "name": "vertical_center",
+      "x": 655,
+      "y": 0,
+      "w": 110,
+      "h": 1024,
+      "lanes": 3,
+      "walkable": true
+    },
+    {
+      "name": "vertical_right",
+      "x": 1215,
+      "y": 245,
+      "w": 100,
+      "h": 779,
+      "lanes": 2,
+      "walkable": true
+    },
+    {
+      "name": "harbor_road",
+      "x": 345,
+      "y": 705,
+      "w": 320,
+      "h": 72,
+      "lanes": 2,
+      "walkable": true
+    },
+    {
+      "name": "crosswalk_1",
+      "x": 640,
+      "y": 350,
+      "w": 135,
+      "h": 42
+    },
+    {
+      "name": "crosswalk_2",
+      "x": 1205,
+      "y": 350,
+      "w": 120,
+      "h": 42
+    },
+    {
+      "name": "crosswalk_3",
+      "x": 640,
+      "y": 620,
+      "w": 135,
+      "h": 44
+    },
+    {
+      "name": "crosswalk_4",
+      "x": 330,
+      "y": 620,
+      "w": 110,
+      "h": 42
+    }
+  ],
+  "districts": [
+    {
+      "name": "CORPORATE DISTRICT",
+      "x": 260,
+      "y": 0,
+      "w": 690,
+      "h": 250,
+      "color": "#ff49e6"
+    },
+    {
+      "name": "INDUSTRIAL ZONE",
+      "x": 970,
+      "y": 0,
+      "w": 566,
+      "h": 250,
+      "color": "#ffb13b"
+    },
+    {
+      "name": "MARKET DISTRICT",
+      "x": 0,
+      "y": 405,
+      "w": 650,
+      "h": 230,
+      "color": "#00f0ff"
+    },
+    {
+      "name": "MEDICAL CENTER",
+      "x": 690,
+      "y": 405,
+      "w": 300,
+      "h": 230,
+      "color": "#25cfff"
+    },
+    {
+      "name": "RESIDENTIAL AREA",
+      "x": 1010,
+      "y": 405,
+      "w": 526,
+      "h": 230,
+      "color": "#cc54ff"
+    },
+    {
+      "name": "CYBER BAR",
+      "x": 100,
+      "y": 640,
+      "w": 390,
+      "h": 275,
+      "color": "#c44cff"
+    },
+    {
+      "name": "SLUMS",
+      "x": 770,
+      "y": 635,
+      "w": 766,
+      "h": 389,
+      "color": "#f3a936"
+    }
+  ],
+  "sprites": [
+    {
+      "id": "b001",
+      "name": "Cyber Cafe Tower",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 296,
+        "y": 120,
+        "w": 112,
+        "h": 128
+      },
+      "pos": {
+        "x": 58,
+        "y": 34,
+        "w": 186,
+        "h": 210
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": "shop.cyber_cafe",
+      "tags": [
+        "corporate",
+        "shop"
+      ]
+    },
+    {
+      "id": "b002",
+      "name": "Data Corp Tower",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 420,
+        "y": 0,
+        "w": 105,
+        "h": 165
+      },
+      "pos": {
+        "x": 458,
+        "y": 38,
+        "w": 178,
+        "h": 232
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": "building.data_corp",
+      "tags": [
+        "corporate"
+      ]
+    },
+    {
+      "id": "b003",
+      "name": "Helipad Corporate Tower",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 520,
+        "y": 0,
+        "w": 118,
+        "h": 150
+      },
+      "pos": {
+        "x": 700,
+        "y": 30,
+        "w": 176,
+        "h": 238
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "corporate"
+      ]
+    },
+    {
+      "id": "b004",
+      "name": "Glass Office Annex",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 390,
+        "y": 130,
+        "w": 80,
+        "h": 120
+      },
+      "pos": {
+        "x": 320,
+        "y": 75,
+        "w": 126,
+        "h": 168
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "corporate"
+      ]
+    },
+    {
+      "id": "p005",
+      "name": "Corporate Neon Billboard",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 500,
+        "y": 170,
+        "w": 105,
+        "h": 65
+      },
+      "pos": {
+        "x": 405,
+        "y": 28,
+        "w": 122,
+        "h": 70
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "p006",
+      "name": "Data Corp Sign",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 610,
+        "y": 170,
+        "w": 100,
+        "h": 65
+      },
+      "pos": {
+        "x": 545,
+        "y": 165,
+        "w": 116,
+        "h": 70
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "b007",
+      "name": "Industrial Warehouse",
+      "sheet": "industrial",
+      "src": {
+        "x": 360,
+        "y": 90,
+        "w": 135,
+        "h": 110
+      },
+      "pos": {
+        "x": 1005,
+        "y": 78,
+        "w": 198,
+        "h": 145
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "industrial"
+      ]
+    },
+    {
+      "id": "b008",
+      "name": "Tank Yard",
+      "sheet": "industrial",
+      "src": {
+        "x": 510,
+        "y": 20,
+        "w": 145,
+        "h": 130
+      },
+      "pos": {
+        "x": 1268,
+        "y": 50,
+        "w": 220,
+        "h": 168
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "industrial"
+      ]
+    },
+    {
+      "id": "p009",
+      "name": "Industrial Crate Stack",
+      "sheet": "industrial",
+      "src": {
+        "x": 0,
+        "y": 0,
+        "w": 155,
+        "h": 120
+      },
+      "pos": {
+        "x": 1095,
+        "y": 16,
+        "w": 190,
+        "h": 145
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "industrial"
+      ]
+    },
+    {
+      "id": "p010",
+      "name": "Industrial Barrels",
+      "sheet": "industrial",
+      "src": {
+        "x": 530,
+        "y": 230,
+        "w": 100,
+        "h": 90
+      },
+      "pos": {
+        "x": 1375,
+        "y": 190,
+        "w": 110,
+        "h": 92
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "industrial"
+      ]
+    },
+    {
+      "id": "p011",
+      "name": "Warning Sign",
+      "sheet": "industrial",
+      "src": {
+        "x": 190,
+        "y": 0,
+        "w": 95,
+        "h": 65
+      },
+      "pos": {
+        "x": 980,
+        "y": 24,
+        "w": 105,
+        "h": 68
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "b012",
+      "name": "Ramen Shop",
+      "sheet": "shops_props",
+      "src": {
+        "x": 395,
+        "y": 205,
+        "w": 95,
+        "h": 75
+      },
+      "pos": {
+        "x": 78,
+        "y": 448,
+        "w": 158,
+        "h": 114
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": "shop.ramen",
+      "tags": [
+        "market",
+        "food"
+      ]
+    },
+    {
+      "id": "b013",
+      "name": "Gun Shop",
+      "sheet": "shops_props",
+      "src": {
+        "x": 500,
+        "y": 205,
+        "w": 95,
+        "h": 75
+      },
+      "pos": {
+        "x": 270,
+        "y": 442,
+        "w": 158,
+        "h": 116
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": "shop.weapons",
+      "tags": [
+        "market",
+        "restricted"
+      ]
+    },
+    {
+      "id": "b014",
+      "name": "Market Tech Shop",
+      "sheet": "shops_props",
+      "src": {
+        "x": 0,
+        "y": 0,
+        "w": 105,
+        "h": 125
+      },
+      "pos": {
+        "x": 462,
+        "y": 438,
+        "w": 150,
+        "h": 122
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": "shop.market_tech",
+      "tags": [
+        "market",
+        "shop"
+      ]
+    },
+    {
+      "id": "p015",
+      "name": "Ramen Neon Sign",
+      "sheet": "street_pack",
+      "src": {
+        "x": 0,
+        "y": 0,
+        "w": 85,
+        "h": 45
+      },
+      "pos": {
+        "x": 92,
+        "y": 417,
+        "w": 122,
+        "h": 56
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "p016",
+      "name": "Guns Neon Sign",
+      "sheet": "street_pack",
+      "src": {
+        "x": 90,
+        "y": 0,
+        "w": 80,
+        "h": 45
+      },
+      "pos": {
+        "x": 288,
+        "y": 417,
+        "w": 115,
+        "h": 56
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "p017",
+      "name": "Market Bench",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 120,
+        "y": 290,
+        "w": 85,
+        "h": 25
+      },
+      "pos": {
+        "x": 430,
+        "y": 560,
+        "w": 104,
+        "h": 34
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p018",
+      "name": "Market Hologram",
+      "sheet": "shops_props",
+      "src": {
+        "x": 665,
+        "y": 360,
+        "w": 70,
+        "h": 85
+      },
+      "pos": {
+        "x": 515,
+        "y": 545,
+        "w": 72,
+        "h": 90
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "hologram"
+      ]
+    },
+    {
+      "id": "b019",
+      "name": "Cybermed Clinic",
+      "sheet": "med_pack",
+      "src": {
+        "x": 35,
+        "y": 30,
+        "w": 150,
+        "h": 115
+      },
+      "pos": {
+        "x": 706,
+        "y": 430,
+        "w": 218,
+        "h": 154
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": "facility.clinic",
+      "tags": [
+        "medical"
+      ]
+    },
+    {
+      "id": "p020",
+      "name": "Medical Holo Scanner",
+      "sheet": "med_pack",
+      "src": {
+        "x": 390,
+        "y": 130,
+        "w": 180,
+        "h": 190
+      },
+      "pos": {
+        "x": 775,
+        "y": 405,
+        "w": 170,
+        "h": 132
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "medical",
+        "hologram"
+      ]
+    },
+    {
+      "id": "p021",
+      "name": "Medic Neon",
+      "sheet": "med_pack",
+      "src": {
+        "x": 390,
+        "y": 690,
+        "w": 95,
+        "h": 40
+      },
+      "pos": {
+        "x": 710,
+        "y": 390,
+        "w": 115,
+        "h": 48
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "p022",
+      "name": "Cyber ER Neon",
+      "sheet": "med_pack",
+      "src": {
+        "x": 485,
+        "y": 690,
+        "w": 110,
+        "h": 40
+      },
+      "pos": {
+        "x": 825,
+        "y": 390,
+        "w": 130,
+        "h": 48
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "b023",
+      "name": "Residential Block A",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 0,
+        "y": 0,
+        "w": 130,
+        "h": 130
+      },
+      "pos": {
+        "x": 1035,
+        "y": 422,
+        "w": 214,
+        "h": 164
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "residential"
+      ]
+    },
+    {
+      "id": "b024",
+      "name": "Residential Block B",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 130,
+        "y": 0,
+        "w": 130,
+        "h": 130
+      },
+      "pos": {
+        "x": 1262,
+        "y": 422,
+        "w": 214,
+        "h": 164
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "residential"
+      ]
+    },
+    {
+      "id": "p025",
+      "name": "Apartment Neon",
+      "sheet": "shops_props",
+      "src": {
+        "x": 655,
+        "y": 90,
+        "w": 105,
+        "h": 40
+      },
+      "pos": {
+        "x": 1174,
+        "y": 393,
+        "w": 106,
+        "h": 44
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "p026",
+      "name": "Residential Plant",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 200,
+        "y": 630,
+        "w": 55,
+        "h": 65
+      },
+      "pos": {
+        "x": 1375,
+        "y": 585,
+        "w": 62,
+        "h": 74
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": "b027",
+      "name": "Cyber Bar",
+      "sheet": "interior_bar",
+      "src": {
+        "x": 0,
+        "y": 380,
+        "w": 230,
+        "h": 190
+      },
+      "pos": {
+        "x": 118,
+        "y": 654,
+        "w": 270,
+        "h": 215
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": "shop.bar",
+      "tags": [
+        "bar",
+        "nightlife"
+      ]
+    },
+    {
+      "id": "p028",
+      "name": "Bar Patio",
+      "sheet": "interior_bar",
+      "src": {
+        "x": 230,
+        "y": 550,
+        "w": 160,
+        "h": 120
+      },
+      "pos": {
+        "x": 390,
+        "y": 665,
+        "w": 190,
+        "h": 140
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "bar"
+      ]
+    },
+    {
+      "id": "p029",
+      "name": "Harbor Bench",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 120,
+        "y": 290,
+        "w": 85,
+        "h": 25
+      },
+      "pos": {
+        "x": 405,
+        "y": 810,
+        "w": 104,
+        "h": 34
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p030",
+      "name": "Harbor Planter",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 265,
+        "y": 630,
+        "w": 55,
+        "h": 65
+      },
+      "pos": {
+        "x": 505,
+        "y": 615,
+        "w": 70,
+        "h": 78
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": "b031",
+      "name": "Slum Shack A",
+      "sheet": "industrial",
+      "src": {
+        "x": 0,
+        "y": 380,
+        "w": 140,
+        "h": 105
+      },
+      "pos": {
+        "x": 782,
+        "y": 700,
+        "w": 190,
+        "h": 142
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "slums"
+      ]
+    },
+    {
+      "id": "b032",
+      "name": "Slum Shack B",
+      "sheet": "industrial",
+      "src": {
+        "x": 150,
+        "y": 380,
+        "w": 145,
+        "h": 100
+      },
+      "pos": {
+        "x": 990,
+        "y": 708,
+        "w": 192,
+        "h": 136
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "slums"
+      ]
+    },
+    {
+      "id": "b033",
+      "name": "Slum Shack C",
+      "sheet": "industrial",
+      "src": {
+        "x": 300,
+        "y": 380,
+        "w": 160,
+        "h": 110
+      },
+      "pos": {
+        "x": 1190,
+        "y": 696,
+        "w": 212,
+        "h": 152
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "slums"
+      ]
+    },
+    {
+      "id": "b034",
+      "name": "Slum Shack D",
+      "sheet": "industrial",
+      "src": {
+        "x": 150,
+        "y": 380,
+        "w": 145,
+        "h": 100
+      },
+      "pos": {
+        "x": 870,
+        "y": 850,
+        "w": 190,
+        "h": 136
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "slums"
+      ]
+    },
+    {
+      "id": "b035",
+      "name": "Slum Shack E",
+      "sheet": "industrial",
+      "src": {
+        "x": 0,
+        "y": 380,
+        "w": 140,
+        "h": 105
+      },
+      "pos": {
+        "x": 1090,
+        "y": 850,
+        "w": 190,
+        "h": 142
+      },
+      "layer": "buildings",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "slums"
+      ]
+    },
+    {
+      "id": "p036",
+      "name": "Slum Graffiti Wall",
+      "sheet": "industrial",
+      "src": {
+        "x": 385,
+        "y": 300,
+        "w": 190,
+        "h": 80
+      },
+      "pos": {
+        "x": 805,
+        "y": 655,
+        "w": 238,
+        "h": 96
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "slums",
+        "graffiti"
+      ]
+    },
+    {
+      "id": "p037",
+      "name": "Slum Trash Pile",
+      "sheet": "industrial",
+      "src": {
+        "x": 0,
+        "y": 120,
+        "w": 135,
+        "h": 80
+      },
+      "pos": {
+        "x": 1020,
+        "y": 620,
+        "w": 150,
+        "h": 92
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "slums"
+      ]
+    },
+    {
+      "id": "p038",
+      "name": "Slum Food Cart",
+      "sheet": "industrial",
+      "src": {
+        "x": 560,
+        "y": 590,
+        "w": 95,
+        "h": 115
+      },
+      "pos": {
+        "x": 1340,
+        "y": 840,
+        "w": 110,
+        "h": 128
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": "shop:slum_food",
+      "tags": [
+        "slums",
+        "food"
+      ]
+    },
+    {
+      "id": "p039",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 300,
+        "y": 210,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p040",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 410,
+        "y": 210,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p041",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 920,
+        "y": 205,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p042",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 1040,
+        "y": 245,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p043",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 1190,
+        "y": 245,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p044",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 560,
+        "y": 410,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p045",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 650,
+        "y": 410,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p046",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 970,
+        "y": 410,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p047",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 1320,
+        "y": 410,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p048",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 615,
+        "y": 710,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p049",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 700,
+        "y": 710,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p050",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 1210,
+        "y": 610,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p051",
+      "name": "Street Lamp",
+      "sheet": "shops_props",
+      "src": {
+        "x": 295,
+        "y": 420,
+        "w": 28,
+        "h": 105
+      },
+      "pos": {
+        "x": 1440,
+        "y": 610,
+        "w": 30,
+        "h": 112
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "street"
+      ]
+    },
+    {
+      "id": "p052",
+      "name": "Street Tree",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 315,
+        "y": 285,
+        "w": 70,
+        "h": 95
+      },
+      "pos": {
+        "x": 270,
+        "y": 96,
+        "w": 78,
+        "h": 108
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": "p053",
+      "name": "Street Tree",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 315,
+        "y": 285,
+        "w": 70,
+        "h": 95
+      },
+      "pos": {
+        "x": 360,
+        "y": 204,
+        "w": 78,
+        "h": 108
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": "p054",
+      "name": "Street Tree",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 315,
+        "y": 285,
+        "w": 70,
+        "h": 95
+      },
+      "pos": {
+        "x": 905,
+        "y": 100,
+        "w": 78,
+        "h": 108
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": "p055",
+      "name": "Street Tree",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 315,
+        "y": 285,
+        "w": 70,
+        "h": 95
+      },
+      "pos": {
+        "x": 1390,
+        "y": 315,
+        "w": 78,
+        "h": 108
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": "p056",
+      "name": "Street Tree",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 315,
+        "y": 285,
+        "w": 70,
+        "h": 95
+      },
+      "pos": {
+        "x": 1035,
+        "y": 600,
+        "w": 78,
+        "h": 108
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": "p057",
+      "name": "Street Tree",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 315,
+        "y": 285,
+        "w": 70,
+        "h": 95
+      },
+      "pos": {
+        "x": 570,
+        "y": 610,
+        "w": 78,
+        "h": 108
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "plant"
+      ]
+    },
+    {
+      "id": "p058",
+      "name": "Corporate Hologram",
+      "sheet": "shops_props",
+      "src": {
+        "x": 690,
+        "y": 300,
+        "w": 75,
+        "h": 95
+      },
+      "pos": {
+        "x": 840,
+        "y": 165,
+        "w": 78,
+        "h": 100
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "hologram"
+      ]
+    },
+    {
+      "id": "p059",
+      "name": "Roadside Billboard A",
+      "sheet": "shops_props",
+      "src": {
+        "x": 655,
+        "y": 0,
+        "w": 105,
+        "h": 40
+      },
+      "pos": {
+        "x": 770,
+        "y": 285,
+        "w": 122,
+        "h": 46
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "p060",
+      "name": "Roadside Billboard B",
+      "sheet": "shops_props",
+      "src": {
+        "x": 655,
+        "y": 45,
+        "w": 105,
+        "h": 40
+      },
+      "pos": {
+        "x": 520,
+        "y": 610,
+        "w": 122,
+        "h": 46
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "p061",
+      "name": "Arcade Sign",
+      "sheet": "shops_props",
+      "src": {
+        "x": 470,
+        "y": 280,
+        "w": 80,
+        "h": 45
+      },
+      "pos": {
+        "x": 450,
+        "y": 395,
+        "w": 96,
+        "h": 52
+      },
+      "layer": "props",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "sign"
+      ]
+    },
+    {
+      "id": "p062",
+      "name": "Industrial Hologram Ad",
+      "sheet": "industrial",
+      "src": {
+        "x": 660,
+        "y": 395,
+        "w": 90,
+        "h": 120
+      },
+      "pos": {
+        "x": 1420,
+        "y": 122,
+        "w": 86,
+        "h": 116
+      },
+      "layer": "props",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "industrial",
+        "hologram"
+      ]
+    },
+    {
+      "id": "v063",
+      "name": "Yellow Taxi Westbound",
+      "sheet": "street_pack",
+      "src": {
+        "x": 395,
+        "y": 70,
+        "w": 115,
+        "h": 55
+      },
+      "pos": {
+        "x": 330,
+        "y": 292,
+        "w": 130,
+        "h": 62
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "vehicle"
+      ]
+    },
+    {
+      "id": "v064",
+      "name": "Yellow Taxi Eastbound",
+      "sheet": "street_pack",
+      "src": {
+        "x": 395,
+        "y": 70,
+        "w": 115,
+        "h": 55
+      },
+      "pos": {
+        "x": 820,
+        "y": 306,
+        "w": 128,
+        "h": 60
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "vehicle"
+      ]
+    },
+    {
+      "id": "v065",
+      "name": "Purple Car",
+      "sheet": "street_pack",
+      "src": {
+        "x": 580,
+        "y": 70,
+        "w": 145,
+        "h": 60
+      },
+      "pos": {
+        "x": 520,
+        "y": 292,
+        "w": 118,
+        "h": 52
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "vehicle"
+      ]
+    },
+    {
+      "id": "v066",
+      "name": "Police Car",
+      "sheet": "street_pack",
+      "src": {
+        "x": 510,
+        "y": 350,
+        "w": 120,
+        "h": 60
+      },
+      "pos": {
+        "x": 1245,
+        "y": 300,
+        "w": 132,
+        "h": 66
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "vehicle",
+        "police"
+      ]
+    },
+    {
+      "id": "v067",
+      "name": "Ambulance",
+      "sheet": "med_pack",
+      "src": {
+        "x": 30,
+        "y": 650,
+        "w": 150,
+        "h": 75
+      },
+      "pos": {
+        "x": 845,
+        "y": 565,
+        "w": 140,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "vehicle",
+        "medical"
+      ]
+    },
+    {
+      "id": "v068",
+      "name": "Hover Car",
+      "sheet": "street_pack",
+      "src": {
+        "x": 520,
+        "y": 90,
+        "w": 170,
+        "h": 70
+      },
+      "pos": {
+        "x": 1015,
+        "y": 315,
+        "w": 170,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "vehicle",
+        "flying"
+      ]
+    },
+    {
+      "id": "v069",
+      "name": "Drone Patrol",
+      "sheet": "street_pack",
+      "src": {
+        "x": 500,
+        "y": 130,
+        "w": 75,
+        "h": 60
+      },
+      "pos": {
+        "x": 590,
+        "y": 505,
+        "w": 72,
+        "h": 58
+      },
+      "layer": "npcs_vehicles",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "drone"
+      ]
+    },
+    {
+      "id": "v070",
+      "name": "Corporate Drone",
+      "sheet": "city_buildings",
+      "src": {
+        "x": 650,
+        "y": 620,
+        "w": 95,
+        "h": 85
+      },
+      "pos": {
+        "x": 910,
+        "y": 85,
+        "w": 82,
+        "h": 72
+      },
+      "layer": "npcs_vehicles",
+      "blocking": false,
+      "interaction": null,
+      "tags": [
+        "drone"
+      ]
+    },
+    {
+      "id": "n071",
+      "name": "Security Bot",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 420,
+        "y": 520,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n072",
+      "name": "Security Bot",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 480,
+        "y": 520,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n073",
+      "name": "Pedestrian",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 720,
+        "y": 330,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n074",
+      "name": "Medical Bot",
+      "sheet": "med_pack",
+      "src": {
+        "x": 640,
+        "y": 530,
+        "w": 50,
+        "h": 70
+      },
+      "pos": {
+        "x": 865,
+        "y": 490,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n075",
+      "name": "Clinic Visitor",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 965,
+        "y": 500,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n076",
+      "name": "Resident",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 1140,
+        "y": 520,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n077",
+      "name": "Resident",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 1310,
+        "y": 520,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n078",
+      "name": "Slum Contact",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 1120,
+        "y": 825,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": "npc:slum_contact",
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n079",
+      "name": "Slum Worker",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 900,
+        "y": 830,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n080",
+      "name": "Corporate Guard",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 330,
+        "y": 175,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    },
+    {
+      "id": "n081",
+      "name": "Industrial Worker",
+      "sheet": "street_pack",
+      "src": {
+        "x": 480,
+        "y": 10,
+        "w": 45,
+        "h": 70
+      },
+      "pos": {
+        "x": 980,
+        "y": 210,
+        "w": 45,
+        "h": 70
+      },
+      "layer": "npcs_vehicles",
+      "blocking": true,
+      "interaction": null,
+      "tags": [
+        "npc"
+      ]
+    }
+  ],
+  "collisions": [
+    {
+      "x": 0,
+      "y": 650,
+      "w": 350,
+      "h": 374,
+      "type": "water",
+      "name": "harbor_water"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 8,
+      "h": 1024,
+      "type": "boundary",
+      "name": "left"
+    },
+    {
+      "x": 1528,
+      "y": 0,
+      "w": 8,
+      "h": 1024,
+      "type": "boundary",
+      "name": "right"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 1536,
+      "h": 8,
+      "type": "boundary",
+      "name": "top"
+    },
+    {
+      "x": 0,
+      "y": 1016,
+      "w": 1536,
+      "h": 8,
+      "type": "boundary",
+      "name": "bottom"
+    },
+    {
+      "x": 0,
+      "y": 244,
+      "w": 1536,
+      "h": 10,
+      "type": "curb",
+      "name": "north_main_curb"
+    },
+    {
+      "x": 0,
+      "y": 405,
+      "w": 1536,
+      "h": 10,
+      "type": "curb",
+      "name": "south_main_curb"
+    },
+    {
+      "x": 73,
+      "y": 152,
+      "w": 156,
+      "h": 92,
+      "type": "block",
+      "name": "Cyber Cafe Tower"
+    },
+    {
+      "x": 472,
+      "y": 168,
+      "w": 150,
+      "h": 102,
+      "type": "block",
+      "name": "Data Corp Tower"
+    },
+    {
+      "x": 714,
+      "y": 163,
+      "w": 148,
+      "h": 105,
+      "type": "block",
+      "name": "Helipad Corporate Tower"
+    },
+    {
+      "x": 330,
+      "y": 169,
+      "w": 106,
+      "h": 74,
+      "type": "block",
+      "name": "Glass Office Annex"
+    },
+    {
+      "x": 1021,
+      "y": 159,
+      "w": 166,
+      "h": 64,
+      "type": "block",
+      "name": "Industrial Warehouse"
+    },
+    {
+      "x": 1286,
+      "y": 144,
+      "w": 184,
+      "h": 74,
+      "type": "block",
+      "name": "Tank Yard"
+    },
+    {
+      "x": 1110,
+      "y": 97,
+      "w": 160,
+      "h": 64,
+      "type": "block",
+      "name": "Industrial Crate Stack"
+    },
+    {
+      "x": 1384,
+      "y": 242,
+      "w": 92,
+      "h": 40,
+      "type": "block",
+      "name": "Industrial Barrels"
+    },
+    {
+      "x": 91,
+      "y": 512,
+      "w": 132,
+      "h": 50,
+      "type": "block",
+      "name": "Ramen Shop"
+    },
+    {
+      "x": 283,
+      "y": 507,
+      "w": 132,
+      "h": 51,
+      "type": "block",
+      "name": "Gun Shop"
+    },
+    {
+      "x": 474,
+      "y": 506,
+      "w": 126,
+      "h": 54,
+      "type": "block",
+      "name": "Market Tech Shop"
+    },
+    {
+      "x": 438,
+      "y": 579,
+      "w": 88,
+      "h": 15,
+      "type": "block",
+      "name": "Market Bench"
+    },
+    {
+      "x": 521,
+      "y": 595,
+      "w": 60,
+      "h": 40,
+      "type": "block",
+      "name": "Market Hologram"
+    },
+    {
+      "x": 723,
+      "y": 516,
+      "w": 184,
+      "h": 68,
+      "type": "block",
+      "name": "Cybermed Clinic"
+    },
+    {
+      "x": 789,
+      "y": 479,
+      "w": 142,
+      "h": 58,
+      "type": "block",
+      "name": "Medical Holo Scanner"
+    },
+    {
+      "x": 1052,
+      "y": 514,
+      "w": 180,
+      "h": 72,
+      "type": "block",
+      "name": "Residential Block A"
+    },
+    {
+      "x": 1279,
+      "y": 514,
+      "w": 180,
+      "h": 72,
+      "type": "block",
+      "name": "Residential Block B"
+    },
+    {
+      "x": 1380,
+      "y": 626,
+      "w": 52,
+      "h": 33,
+      "type": "block",
+      "name": "Residential Plant"
+    },
+    {
+      "x": 140,
+      "y": 774,
+      "w": 226,
+      "h": 95,
+      "type": "block",
+      "name": "Cyber Bar"
+    },
+    {
+      "x": 405,
+      "y": 743,
+      "w": 160,
+      "h": 62,
+      "type": "block",
+      "name": "Bar Patio"
+    },
+    {
+      "x": 413,
+      "y": 829,
+      "w": 88,
+      "h": 15,
+      "type": "block",
+      "name": "Harbor Bench"
+    },
+    {
+      "x": 511,
+      "y": 659,
+      "w": 58,
+      "h": 34,
+      "type": "block",
+      "name": "Harbor Planter"
+    },
+    {
+      "x": 797,
+      "y": 780,
+      "w": 160,
+      "h": 62,
+      "type": "block",
+      "name": "Slum Shack A"
+    },
+    {
+      "x": 1005,
+      "y": 784,
+      "w": 162,
+      "h": 60,
+      "type": "block",
+      "name": "Slum Shack B"
+    },
+    {
+      "x": 1207,
+      "y": 781,
+      "w": 178,
+      "h": 67,
+      "type": "block",
+      "name": "Slum Shack C"
+    },
+    {
+      "x": 885,
+      "y": 926,
+      "w": 160,
+      "h": 60,
+      "type": "block",
+      "name": "Slum Shack D"
+    },
+    {
+      "x": 1105,
+      "y": 930,
+      "w": 160,
+      "h": 62,
+      "type": "block",
+      "name": "Slum Shack E"
+    },
+    {
+      "x": 1032,
+      "y": 672,
+      "w": 126,
+      "h": 40,
+      "type": "block",
+      "name": "Slum Trash Pile"
+    },
+    {
+      "x": 1349,
+      "y": 912,
+      "w": 92,
+      "h": 56,
+      "type": "block",
+      "name": "Slum Food Cart"
+    },
+    {
+      "x": 302,
+      "y": 273,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 412,
+      "y": 273,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 922,
+      "y": 268,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 1042,
+      "y": 308,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 1192,
+      "y": 308,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 562,
+      "y": 473,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 652,
+      "y": 473,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 972,
+      "y": 473,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 1322,
+      "y": 473,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 617,
+      "y": 773,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 702,
+      "y": 773,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 1212,
+      "y": 673,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 1442,
+      "y": 673,
+      "w": 26,
+      "h": 49,
+      "type": "block",
+      "name": "Street Lamp"
+    },
+    {
+      "x": 276,
+      "y": 156,
+      "w": 66,
+      "h": 48,
+      "type": "block",
+      "name": "Street Tree"
+    },
+    {
+      "x": 366,
+      "y": 264,
+      "w": 66,
+      "h": 48,
+      "type": "block",
+      "name": "Street Tree"
+    },
+    {
+      "x": 911,
+      "y": 160,
+      "w": 66,
+      "h": 48,
+      "type": "block",
+      "name": "Street Tree"
+    },
+    {
+      "x": 1396,
+      "y": 375,
+      "w": 66,
+      "h": 48,
+      "type": "block",
+      "name": "Street Tree"
+    },
+    {
+      "x": 1041,
+      "y": 660,
+      "w": 66,
+      "h": 48,
+      "type": "block",
+      "name": "Street Tree"
+    },
+    {
+      "x": 576,
+      "y": 670,
+      "w": 66,
+      "h": 48,
+      "type": "block",
+      "name": "Street Tree"
+    },
+    {
+      "x": 846,
+      "y": 221,
+      "w": 66,
+      "h": 44,
+      "type": "block",
+      "name": "Corporate Hologram"
+    },
+    {
+      "x": 1427,
+      "y": 187,
+      "w": 72,
+      "h": 51,
+      "type": "block",
+      "name": "Industrial Hologram Ad"
+    },
+    {
+      "x": 340,
+      "y": 327,
+      "w": 110,
+      "h": 27,
+      "type": "block",
+      "name": "Yellow Taxi Westbound"
+    },
+    {
+      "x": 830,
+      "y": 340,
+      "w": 108,
+      "h": 26,
+      "type": "block",
+      "name": "Yellow Taxi Eastbound"
+    },
+    {
+      "x": 529,
+      "y": 321,
+      "w": 100,
+      "h": 23,
+      "type": "block",
+      "name": "Purple Car"
+    },
+    {
+      "x": 1256,
+      "y": 337,
+      "w": 110,
+      "h": 29,
+      "type": "block",
+      "name": "Police Car"
+    },
+    {
+      "x": 856,
+      "y": 604,
+      "w": 118,
+      "h": 31,
+      "type": "block",
+      "name": "Ambulance"
+    },
+    {
+      "x": 1029,
+      "y": 354,
+      "w": 142,
+      "h": 31,
+      "type": "block",
+      "name": "Hover Car"
+    },
+    {
+      "x": 424,
+      "y": 559,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Security Bot"
+    },
+    {
+      "x": 484,
+      "y": 559,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Security Bot"
+    },
+    {
+      "x": 724,
+      "y": 369,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Pedestrian"
+    },
+    {
+      "x": 869,
+      "y": 529,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Medical Bot"
+    },
+    {
+      "x": 969,
+      "y": 539,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Clinic Visitor"
+    },
+    {
+      "x": 1144,
+      "y": 559,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Resident"
+    },
+    {
+      "x": 1314,
+      "y": 559,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Resident"
+    },
+    {
+      "x": 1124,
+      "y": 864,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Slum Contact"
+    },
+    {
+      "x": 904,
+      "y": 869,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Slum Worker"
+    },
+    {
+      "x": 334,
+      "y": 214,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Corporate Guard"
+    },
+    {
+      "x": 984,
+      "y": 249,
+      "w": 37,
+      "h": 31,
+      "type": "block",
+      "name": "Industrial Worker"
+    }
+  ],
+  "interactive_zones": [
+    {
+      "name": "enter_cyber_cafe",
+      "x": 112,
+      "y": 210,
+      "w": 85,
+      "h": 42,
+      "action": "open_scene:cyber_cafe"
+    },
+    {
+      "name": "enter_data_corp",
+      "x": 512,
+      "y": 230,
+      "w": 80,
+      "h": 42,
+      "action": "open_scene:data_corp_lobby"
+    },
+    {
+      "name": "ramen_vendor",
+      "x": 105,
+      "y": 545,
+      "w": 105,
+      "h": 48,
+      "action": "shop:ramen"
+    },
+    {
+      "name": "weapon_shop",
+      "x": 298,
+      "y": 545,
+      "w": 96,
+      "h": 48,
+      "action": "shop:weapons"
+    },
+    {
+      "name": "clinic_reception",
+      "x": 760,
+      "y": 565,
+      "w": 110,
+      "h": 50,
+      "action": "heal_or_quest:clinic"
+    },
+    {
+      "name": "apartment_lobby",
+      "x": 1120,
+      "y": 565,
+      "w": 90,
+      "h": 50,
+      "action": "open_scene:residential_lobby"
+    },
+    {
+      "name": "cyber_bar_door",
+      "x": 198,
+      "y": 812,
+      "w": 100,
+      "h": 48,
+      "action": "open_scene:cyber_bar"
+    },
+    {
+      "name": "slum_contact",
+      "x": 1110,
+      "y": 832,
+      "w": 95,
+      "h": 62,
+      "action": "npc:slum_contact"
+    },
+    {
+      "name": "industrial_terminal",
+      "x": 1425,
+      "y": 205,
+      "w": 80,
+      "h": 70,
+      "action": "inspect:industrial_terminal"
+    }
+  ],
+  "spawn_points": [
+    {
+      "name": "player_start",
+      "x": 720,
+      "y": 520,
+      "dir": "down"
+    },
+    {
+      "name": "market_spawn",
+      "x": 300,
+      "y": 520
+    },
+    {
+      "name": "corporate_spawn",
+      "x": 600,
+      "y": 190
+    },
+    {
+      "name": "industrial_spawn",
+      "x": 1120,
+      "y": 190
+    },
+    {
+      "name": "residential_spawn",
+      "x": 1235,
+      "y": 560
+    },
+    {
+      "name": "slums_spawn",
+      "x": 1010,
+      "y": 860
+    },
+    {
+      "name": "bar_spawn",
+      "x": 310,
+      "y": 790
+    }
+  ],
+  "paths": [
+    {
+      "name": "taxi_loop",
+      "points": [
+        [
+          330,
+          320
+        ],
+        [
+          650,
+          320
+        ],
+        [
+          900,
+          320
+        ],
+        [
+          1250,
+          320
+        ],
+        [
+          1250,
+          670
+        ],
+        [
+          700,
+          670
+        ],
+        [
+          700,
+          320
+        ]
+      ]
+    },
+    {
+      "name": "corporate_patrol",
+      "points": [
+        [
+          330,
+          190
+        ],
+        [
+          520,
+          190
+        ],
+        [
+          760,
+          190
+        ],
+        [
+          880,
+          220
+        ],
+        [
+          600,
+          220
+        ]
+      ]
+    },
+    {
+      "name": "market_walk",
+      "points": [
+        [
+          105,
+          555
+        ],
+        [
+          300,
+          560
+        ],
+        [
+          475,
+          545
+        ],
+        [
+          590,
+          600
+        ],
+        [
+          320,
+          615
+        ]
+      ]
+    },
+    {
+      "name": "slum_walk",
+      "points": [
+        [
+          830,
+          825
+        ],
+        [
+          1020,
+          850
+        ],
+        [
+          1210,
+          835
+        ],
+        [
+          1370,
+          900
+        ],
+        [
+          1100,
+          920
+        ]
+      ]
+    }
+  ]
+}

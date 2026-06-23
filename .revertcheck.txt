@@ -1,0 +1,96 @@
+
+> tamagochi@0.1.0 start
+> react-scripts start
+
+Browserslist: browsers data (caniuse-lite) is 12 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+(node:9068) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:9068) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+Starting the development server...
+
+Compiled with warnings.
+
+Failed to parse source map from 'D:\projects\tamagochi\node_modules\@solana\buffer-layout\src\Layout.ts' file: Error: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\@solana\buffer-layout\src\Layout.ts'
+
+Failed to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\error.ts' file: Error: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\error.ts'
+
+Failed to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\struct.ts' file: Error: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\struct.ts'
+
+Failed to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\structs\coercions.ts' file: Error: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\structs\coercions.ts'
+
+Failed to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\structs\refinements.ts' file: Error: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\structs\refinements.ts'
+
+Failed to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\structs\types.ts' file: Error: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\structs\types.ts'
+
+Failed to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\structs\utilities.ts' file: Error: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\structs\utilities.ts'
+
+Failed to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\utils.ts' file: Error: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\utils.ts'
+
+[eslint] 
+src\components\pages\market.jsx
+  Line 2:11:  'BigInt' is already defined as a built-in global variable  no-redeclare
+
+src\components\pages\play.jsx
+  Line 11:3:    'SystemProgram' is defined but never used         no-unused-vars
+  Line 32:8:    'bs58' is defined but never used                  no-unused-vars
+  Line 290:10:  'roundWinner' is assigned a value but never used  no-unused-vars
+  Line 334:10:  'pendingCid' is assigned a value but never used   no-unused-vars
+  Line 395:9:   'CY' is assigned a value but never used           no-unused-vars
+
+src\context\BGMProvider.jsx
+  Line 60:6:  React Hook useEffect has missing dependencies: 'muted' and 'volume'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+[1m[33mWARNING[39m[22m in [1m./node_modules/@solana/buffer-layout/lib/Layout.js[39m[22m
+[1mModule Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+[1m[31mFailed[39m[22m[1m to parse source map from 'D:\projects\tamagochi\node_modules\@solana\buffer-layout\src\Layout.ts' file: [1m[31mError[39m[22m[1m: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\@solana\buffer-layout\src\Layout.ts'[39m[22m
+
+[1m[33mWARNING[39m[22m in [1m./node_modules/superstruct/dist/index.mjs[39m[22m
+[1mModule Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+[1m[31mFailed[39m[22m[1m to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\[1m[31merror[39m[22m[1m.ts' file: [1m[31mError[39m[22m[1m: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\[1m[31merror[39m[22m[1m.ts'[39m[22m
+
+[1m[33mWARNING[39m[22m in [1m./node_modules/superstruct/dist/index.mjs[39m[22m
+[1mModule Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+[1m[31mFailed[39m[22m[1m to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\struct.ts' file: [1m[31mError[39m[22m[1m: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\struct.ts'[39m[22m
+
+[1m[33mWARNING[39m[22m in [1m./node_modules/superstruct/dist/index.mjs[39m[22m
+[1mModule Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+[1m[31mFailed[39m[22m[1m to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\structs\coercions.ts' file: [1m[31mError[39m[22m[1m: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\structs\coercions.ts'[39m[22m
+
+[1m[33mWARNING[39m[22m in [1m./node_modules/superstruct/dist/index.mjs[39m[22m
+[1mModule Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+[1m[31mFailed[39m[22m[1m to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\structs\refinements.ts' file: [1m[31mError[39m[22m[1m: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\structs\refinements.ts'[39m[22m
+
+[1m[33mWARNING[39m[22m in [1m./node_modules/superstruct/dist/index.mjs[39m[22m
+[1mModule Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+[1m[31mFailed[39m[22m[1m to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\structs\types.ts' file: [1m[31mError[39m[22m[1m: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\structs\types.ts'[39m[22m
+
+[1m[33mWARNING[39m[22m in [1m./node_modules/superstruct/dist/index.mjs[39m[22m
+[1mModule Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+[1m[31mFailed[39m[22m[1m to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\structs\utilities.ts' file: [1m[31mError[39m[22m[1m: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\structs\utilities.ts'[39m[22m
+
+[1m[33mWARNING[39m[22m in [1m./node_modules/superstruct/dist/index.mjs[39m[22m
+[1mModule Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+[1m[31mFailed[39m[22m[1m to parse source map from 'D:\projects\tamagochi\node_modules\superstruct\src\utils.ts' file: [1m[31mError[39m[22m[1m: ENOENT: no such file or directory, open 'D:\projects\tamagochi\node_modules\superstruct\src\utils.ts'[39m[22m
+
+[1m[33mWARNING[39m[22m in [1m[eslint] 
+src\components\pages\market.jsx
+  Line 2:11:  'BigInt' is already defined as a built-in global variable  no-redeclare
+
+src\components\pages\play.jsx
+  Line 11:3:    'SystemProgram' is defined but never used         no-unused-vars
+  Line 32:8:    'bs58' is defined but never used                  no-unused-vars
+  Line 290:10:  'roundWinner' is assigned a value but never used  no-unused-vars
+  Line 334:10:  'pendingCid' is assigned a value but never used   no-unused-vars
+  Line 395:9:   'CY' is assigned a value but never used           no-unused-vars
+
+src\context\BGMProvider.jsx
+  Line 60:6:  React Hook useEffect has missing dependencies: 'muted' and 'volume'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+[39m[22m
+
+webpack compiled with [1m[33m9 warnings[39m[22m

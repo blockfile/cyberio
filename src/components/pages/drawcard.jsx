@@ -3,11 +3,10 @@ import React, { useState, useContext, useEffect, useRef } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "../navbar/navbar";
-import playBg from "../assets/video/playbg.mp4";
 import backCard from "../assets/images/back.png";
 import drawEffect from "../assets/images/drawbg.gif";
-import bg2 from "../assets/images/bg2.jpg";
 import { WalletContext } from "../../context/WalletConnect";
+import { nftArt } from "./cardArt";
 
 import {
   PublicKey,
@@ -19,26 +18,28 @@ import {
   getAssociatedTokenAddress,
   getMint,
   createTransferCheckedInstruction,
-  // ✅ NEW: import ATA creation helper
   createAssociatedTokenAccountInstruction,
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 
 /** --------- helpers --------- */
 function importAll(r) {
   const images = {};
   r.keys().forEach((item) => {
-    const key = item.replace("./", "").replace(".png", "");
+    const key = item.replace("./", "").replace(/\.(png|webp)$/, "");
     images[key] = r(item);
   });
   return images;
 }
+// fallback art only — the 5000-card NFT thumbnails come from nftArt() (public/cards5k)
 const monsterImages = importAll(
-  require.context("../assets/images/monsters", false, /\.(png)$/)
+  require.context("../assets/images/cards", false, /\.webp$/)
 );
 
 const getRarity = (num) => {
   const n = Number(num);
-  if (n >= 36) return "Mythical";
+  if (n >= 36) return "Legendary";
   if (n >= 21) return "Rare";
   return "Common";
 };
@@ -46,14 +47,18 @@ const getRarity = (num) => {
 const rarityGlow = {
   Common: "#a0522d",
   Rare: "#00bfff",
-  Mythical: "#8a2be2",
+  Legendary: "#8a2be2",
 };
 
 /** --------- constants (keep in sync with server) --------- */
-const RPC_ENDPOINT = "https://api.devnet.solana.com";
-const TREASURY_ADDRESS = "FtjTzPvSRVCaaM3u5BXKMKjkM8TACsyyuHPgv5YSQLGN";
-const SD_TOKEN_MINT = "DrDzsdounCCy7wpjWKgpKUcmYB4xDzwkSPGw6jX52SoY";
-const DRAW_PRICE_SD = 20000; // same as server DRAW_PRICE_SD
+const RPC_ENDPOINT =
+  (process.env.REACT_APP_SOLANA_RPC || "").trim() ||
+  "https://api.mainnet-beta.solana.com";
+const TREASURY_ADDRESS = "8yUGx6tMGsCxSdVj2Fk8FyaDkg4doZ32xnkNkzKSwHe5";
+const SD_TOKEN_MINT =
+  (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
+  "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump";
+const DRAW_PRICE_SD = 10; // whole CYBERIO tokens — MUST match server DRAW_PRICE_SD
 const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
@@ -88,8 +93,8 @@ function Spinner({ className = "w-10 h-10" }) {
   );
 }
 
-export default function DrawCard() {
-  const { wallet: walletAddress } = useContext(WalletContext);
+export default function DrawCard({ embedded = false }) {
+  const { wallet: walletAddress, walletProvider } = useContext(WalletContext);
 
   const [drawnCard, setDrawnCard] = useState(null);
   const [imageSrc, setImageSrc] = useState(null);
@@ -219,21 +224,42 @@ export default function DrawCard() {
             setJustCreatedMemo(true);
 
             const connection = new Connection(RPC_ENDPOINT, "confirmed");
-            const provider = window.solana;
-            if (!provider) throw new Error("Wallet not found.");
+            // use the wallet the user actually connected with (not just window.solana)
+            const provider = walletProvider || window.solana;
+            if (!provider || typeof provider.signTransaction !== "function") {
+              throw new Error("Connected wallet can't sign here — reconnect your wallet.");
+            }
+            // make sure the wallet is unlocked/connected before signing — if Phantom is
+            // locked this pops the unlock prompt; it's a no-op when already connected.
+            try {
+              if (typeof provider.connect === "function") await provider.connect();
+            } catch (e) {
+              throw new Error("Unlock and connect your wallet, then try again.");
+            }
 
             // 2) Send SD transfer with memo to treasury
             const mintPk = new PublicKey(SD_TOKEN_MINT);
             const sender = new PublicKey(walletAddress);
             const treasury = new PublicKey(TREASURY_ADDRESS);
 
+            // detect whether this mint is classic SPL Token or Token-2022 (this token is Token-2022)
+            const mintAcc = await connection.getAccountInfo(mintPk);
+            if (!mintAcc) throw new Error("Token mint not found on this RPC.");
+            const tokenProgramId = mintAcc.owner.equals(TOKEN_2022_PROGRAM_ID)
+              ? TOKEN_2022_PROGRAM_ID
+              : TOKEN_PROGRAM_ID;
+
+            const senderAta = await getAssociatedTokenAddress(mintPk, sender, false, tokenProgramId);
+            const treasuryAta = await getAssociatedTokenAddress(mintPk, treasury, false, tokenProgramId);
+
+            // make sure the buyer actually holds the token (clear error instead of a cryptic send failure)
+            const senderAtaInfo = await connection.getAccountInfo(senderAta);
+            if (!senderAtaInfo) {
+              throw new Error("You don't hold any CYBERIO in this wallet.");
+            }
+
             setBusyText("Preparing transaction…");
-            const senderAta = await getAssociatedTokenAddress(mintPk, sender);
-            const treasuryAta = await getAssociatedTokenAddress(
-              mintPk,
-              treasury
-            );
-            const mintInfo = await getMint(connection, mintPk);
+            const mintInfo = await getMint(connection, mintPk, "confirmed", tokenProgramId);
             const amount = Math.trunc(
               DRAW_PRICE_SD * 10 ** (mintInfo.decimals || 6)
             );
@@ -249,7 +275,8 @@ export default function DrawCard() {
                   sender, // payer (user)
                   treasuryAta, // ata to create
                   treasury, // owner of ATA
-                  mintPk // mint
+                  mintPk, // mint
+                  tokenProgramId
                 )
               );
             }
@@ -261,7 +288,9 @@ export default function DrawCard() {
                 treasuryAta,
                 sender, // owner
                 amount,
-                mintInfo.decimals
+                mintInfo.decimals,
+                [],
+                tokenProgramId
               ),
               new TransactionInstruction({
                 keys: [],
@@ -297,14 +326,14 @@ export default function DrawCard() {
 
             setBusyText("Revealing your card…");
             const cardNumber = finalizeRes.data.drawnCard;
-            const image = monsterImages[String(cardNumber)];
+            const image = nftArt(cardNumber) || monsterImages[String(cardNumber)];
             if (!image) {
               setMessage("Card image not found.");
               setImageSrc(null);
             } else {
               setImageSrc(image);
               setDrawnCard(cardNumber);
-              setRarity(getRarity(Number(cardNumber)));
+              setRarity(finalizeRes.data.rarity || getRarity(Number(cardNumber)));
               setShowOverlay(true);
             }
             if (finalizeRes.data.updatedUser) {
@@ -324,14 +353,15 @@ export default function DrawCard() {
           { walletAddress }
         );
         const freeCardNumber = freeRes.data.drawnCard;
-        const freeImage = monsterImages[String(freeCardNumber)];
+        const freeImage =
+          nftArt(freeCardNumber) || monsterImages[String(freeCardNumber)];
         if (!freeImage) {
           setMessage("Card image not found.");
           setImageSrc(null);
         } else {
           setImageSrc(freeImage);
           setDrawnCard(freeCardNumber);
-          setRarity(getRarity(Number(freeCardNumber)));
+          setRarity(freeRes.data.rarity || getRarity(Number(freeCardNumber)));
           setShowOverlay(true);
         }
         if (freeRes.data.updatedUser) {
@@ -359,7 +389,7 @@ export default function DrawCard() {
           } catch { }
         } else {
           setMessage(
-            err?.response?.data?.error || "Transaction failed or cancelled."
+            err?.response?.data?.error || msg || "Transaction failed or cancelled."
           );
         }
       } finally {
@@ -392,14 +422,14 @@ export default function DrawCard() {
         }
       );
       const cardNumber = res.data.drawnCard;
-      const image = monsterImages[String(cardNumber)];
+      const image = nftArt(cardNumber) || monsterImages[String(cardNumber)];
       if (!image) {
         setMessage("Card image not found.");
         setImageSrc(null);
       } else {
         setImageSrc(image);
         setDrawnCard(cardNumber);
-        setRarity(getRarity(Number(cardNumber)));
+        setRarity(res.data.rarity || getRarity(Number(cardNumber)));
         setShowOverlay(true);
       }
       if (res.data.updatedUser) setUserData(res.data.updatedUser);
@@ -495,27 +525,37 @@ export default function DrawCard() {
 
   return (
     <div className="relative min-h-screen overflow-hidden font-silkscreen">
-      {/* background */}
-      <img
-        src={bg2}
-        alt="Background"
-        className="absolute top-0 left-0 w-full h-full object-cover z-[-2]"
+      {/* background — cyberpunk card vault */}
+      <div
+        className="absolute inset-0 z-[-3]"
+        style={{
+          background:
+            "radial-gradient(120% 85% at 50% 0%, rgba(255,210,74,0.12), transparent 55%)," +
+            "radial-gradient(110% 90% at 85% 100%, rgba(150,40,255,0.18), transparent 62%)," +
+            "linear-gradient(180deg, #0b0b16 0%, #0c0810 55%, #06060c 100%)",
+        }}
       />
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute top-0 left-0 w-full h-full object-cover z-[-3] opacity-30"
-      >
-        <source src={playBg} type="video/mp4" />
-      </video>
-      <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/70 to-black/90 z-[-1]" />
+      <div
+        className="absolute inset-0 z-[-2] opacity-[0.16] pointer-events-none"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,210,74,0.55) 1px, transparent 1px)," +
+            "linear-gradient(90deg, rgba(255,210,74,0.55) 1px, transparent 1px)",
+          backgroundSize: "46px 46px",
+          WebkitMaskImage:
+            "radial-gradient(120% 100% at 50% 0%, #000 28%, transparent 74%)",
+          maskImage:
+            "radial-gradient(120% 100% at 50% 0%, #000 28%, transparent 74%)",
+        }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/40 to-black/80 z-[-1]" />
 
       {/* navbar */}
-      <div className="relative z-30">
-        <Navbar />
-      </div>
+      {!embedded && (
+        <div className="relative z-30">
+          <Navbar />
+        </div>
+      )}
 
       {/* Active memo banner */}
       {!!activeMemo && (
@@ -559,15 +599,17 @@ export default function DrawCard() {
         {/* Header */}
         <div className="flex flex-col gap-4 mb-8">
           {/* Back button under navbar, aligned with content */}
-          <div className="flex items-center">
-            <button
-              onClick={goBack}
-              className="px-3 py-1.5 rounded-lg bg-white/90 text-black font-semibold shadow hover:bg-white transition"
-              title="Back to Dapp"
-            >
-              ← Back
-            </button>
-          </div>
+          {!embedded && (
+            <div className="flex items-center">
+              <button
+                onClick={goBack}
+                className="px-3 py-1.5 rounded-lg bg-white/90 text-black font-semibold shadow hover:bg-white transition"
+                title="Back"
+              >
+                ← Back
+              </button>
+            </div>
+          )}
 
           {/* Title + price/CTA row */}
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">

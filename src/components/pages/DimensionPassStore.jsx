@@ -80,7 +80,7 @@ function getPurchaseErrorMessage(error) {
     return msg;
 }
 
-export default function DimensionPassStore() {
+export default function DimensionPassStore({ embedded = false }) {
     const { wallet, connectWallet, walletProvider } = useContext(WalletContext);
     const navigate = useNavigate();
 
@@ -207,6 +207,12 @@ export default function DimensionPassStore() {
             tx.recentBlockhash = blockhash;
 
             // 6) selected wallet signs & sends
+            // make sure the wallet is unlocked/connected first (pops Phantom's unlock if locked)
+            try {
+                if (typeof walletProvider.connect === "function") await walletProvider.connect();
+            } catch (e) {
+                throw new Error("Unlock and connect your wallet, then try again.");
+            }
             let signature = null;
             if (typeof walletProvider.signAndSendTransaction === "function") {
                 const res = await walletProvider.signAndSendTransaction(tx, {
@@ -254,35 +260,36 @@ export default function DimensionPassStore() {
 
     return (
         <div className="min-h-screen w-full text-white font-silkscreen relative overflow-hidden">
-            {/* cyberpunk HUD background */}
-            <div className="absolute inset-0 bg-black" />
+            {/* background — cyberpunk pass vault */}
             <div
-                className="absolute inset-0 opacity-80"
+                className="absolute inset-0"
                 style={{
                     background:
-                        "radial-gradient(circle at 20% 10%, rgba(0,255,255,.14), transparent 45%)," +
-                        "radial-gradient(circle at 75% 55%, rgba(180,0,255,.16), transparent 55%)," +
-                        "radial-gradient(circle at 40% 90%, rgba(255,43,214,.10), transparent 50%)",
+                        "radial-gradient(120% 85% at 50% 0%, rgba(55,224,160,0.12), transparent 55%)," +
+                        "radial-gradient(110% 90% at 80% 100%, rgba(120,40,255,0.18), transparent 62%)," +
+                        "linear-gradient(180deg, #0a0f12 0%, #080b10 55%, #06060c 100%)",
                 }}
             />
             <div
-                className="absolute inset-0 opacity-[0.08] pointer-events-none"
+                className="absolute inset-0 opacity-[0.16] pointer-events-none"
                 style={{
-                    backgroundImage: "linear-gradient(to bottom, rgba(255,255,255,.6) 1px, transparent 1px)",
-                    backgroundSize: "100% 4px",
+                    backgroundImage:
+                        "linear-gradient(rgba(55,224,160,0.5) 1px, transparent 1px)," +
+                        "linear-gradient(90deg, rgba(55,224,160,0.5) 1px, transparent 1px)",
+                    backgroundSize: "46px 46px",
+                    WebkitMaskImage: "radial-gradient(120% 100% at 50% 0%, #000 28%, transparent 74%)",
+                    maskImage: "radial-gradient(120% 100% at 50% 0%, #000 28%, transparent 74%)",
                 }}
             />
 
             <div className="relative z-10 p-6">
                 <div className="max-w-6xl mx-auto">
-                    {/* header */}
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <div className="flex items-center gap-3">
-                                <Ticket size={20} />
-                                <div className="text-3xl font-extrabold tracking-wide">DIMENSION PASS STORE</div>
-                            </div>
-
+                    {/* header (standalone page only — the HUD already shows "STORE") */}
+                    {!embedded && (
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <Ticket size={20} />
+                            <div className="text-3xl font-extrabold tracking-wide">DIMENSION PASS STORE</div>
                         </div>
 
                         <button
@@ -292,7 +299,8 @@ export default function DimensionPassStore() {
                             <ChevronLeft size={18} />
                             BACK
                         </button>
-                    </div>
+                      </div>
+                    )}
 
                     {/* wallet + pass status */}
                     <div className="mt-6 rounded-2xl border border-white/15 bg-white/5 backdrop-blur-md p-4">

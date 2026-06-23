@@ -30,6 +30,7 @@ import {
   useAnimationControls,
 } from "framer-motion";
 import bs58 from "bs58";
+import { nftArt } from "./cardArt";
 
 /* assets: legacy monster sprites (fallback) */
 function importAll(r) {
@@ -44,8 +45,8 @@ const monsterImages = importAll(
   require.context("../assets/images/cards", false, /\.webp$/)
 );
 
-// Legacy helper: for non-NFT cid values (numeric/string keys)
-const imgSrc = (cid) => monsterImages[String(cid)] || backImage;
+// Card art: prefer the NFT thumbnail (5000 pool), fall back to legacy sprite.
+const imgSrc = (cid) => nftArt(cid) || monsterImages[String(cid)] || backImage;
 
 /**
  * Unified helper to get the correct IMAGE source for a "card":
@@ -105,6 +106,10 @@ function GameCard({ card, className = "" }) {
       className={`relative h-full w-full overflow-hidden rounded-[inherit] border border-white/15 bg-[#05070d] shadow-[inset_0_0_22px_rgba(0,0,0,0.75)] ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,rgba(0,255,255,0.16),transparent_30%,rgba(236,72,153,0.14)_72%,transparent)]" />
+      {/* prominent power badge (always legible, even on small hand cards) */}
+      <div className="absolute left-[7%] top-[7%] z-20 flex min-h-[18px] min-w-[20px] items-center justify-center rounded-md border border-cyan-200/55 bg-black/85 px-1 text-[14px] font-black leading-none text-cyan-100 shadow-[0_0_10px_rgba(0,255,255,0.55)] sm:text-[16px]">
+        {power ?? "?"}
+      </div>
       <div className="relative flex h-full flex-col p-[7%]">
         <div className="flex h-[10%] min-h-[8px] items-center justify-between gap-1 text-[6px] uppercase text-cyan-100/75 sm:text-[7px]">
           <span className="truncate">{cardDisplayName(card)}</span>
@@ -118,9 +123,11 @@ function GameCard({ card, className = "" }) {
             alt=""
           />
         </div>
-        <div className="mt-auto flex min-h-[14%] items-center justify-between rounded-[12%] border border-white/10 bg-black/55 px-[6%] text-[6px] uppercase text-white/75 sm:text-[7px]">
-          <span>Pwr</span>
-          <span className="text-cyan-100">{power ?? "?"}</span>
+        <div className="mt-auto flex min-h-[16%] items-center justify-between rounded-[12%] border border-cyan-200/25 bg-black/70 px-[8%] py-[3%] text-[7px] uppercase text-white/60 sm:text-[8px]">
+          <span className="tracking-widest">Pwr</span>
+          <span className="text-[14px] font-black leading-none text-cyan-100 drop-shadow-[0_0_8px_rgba(0,255,255,0.7)] sm:text-[16px]">
+            {power ?? "?"}
+          </span>
         </div>
       </div>
     </div>
@@ -252,10 +259,14 @@ function useIsMobile(breakpoint = 768) {
   return isMobile;
 }
 
-export default function Play() {
+export default function Play({ embedded = false, challengeId = null, mode: challengeMode = null, bet: challengeBet = 0, onResult = null }) {
   const { wallet } = useContext(WalletContext);
   const navigate = useNavigate();
   const isMobile = useIsMobile(768);
+
+  // notify the arena (or parent) when the duel ends, without stale-closure issues
+  const onResultRef = useRef(onResult);
+  useEffect(() => { onResultRef.current = onResult; }, [onResult]);
 
   // connection banner
   const [netDown, setNetDown] = useState(false);
@@ -430,6 +441,19 @@ export default function Play() {
   useEffect(() => {
     if (wallet) socket.emit("hello", { wallet });
   }, [wallet]);
+
+  // direct PvP challenge: skip the lobby and rendezvous with the opponent by challengeId.
+  // Bet challenges pair into a quick (wager) room and jump straight to your escrow/payment step.
+  useEffect(() => {
+    if (challengeId && wallet) {
+      setStatus("searching");
+      if (challengeMode === "bet") {
+        socket.emit("joinBetChallenge", { challengeId, wallet, bet: Number(challengeBet) || 0 });
+      } else {
+        socket.emit("joinFriendlyChallenge", { challengeId, wallet });
+      }
+    }
+  }, [challengeId, wallet, challengeMode, challengeBet]);
 
   useEffect(() => {
     // connection events (UI banner)
@@ -736,6 +760,7 @@ export default function Play() {
       setStatus("idle");
       setResultModal({ open: true, winner, loser, forfeit: !!forfeit });
       animateMatchResult();
+      if (typeof onResultRef.current === "function") onResultRef.current({ winner, loser, forfeit: !!forfeit });
     });
 
     const onCanceled = () => setStatus("idle");
@@ -1249,13 +1274,15 @@ export default function Play() {
       <div className="pointer-events-none absolute inset-0 z-[1] opacity-20 [background:repeating-linear-gradient(0deg,rgba(255,255,255,0.05)_0px,rgba(255,255,255,0.05)_1px,transparent_1px,transparent_5px)]" />
 
       {/* BACK BUTTON */}
-      <button
-        onClick={() => navigate(-1)}
-        className="fixed z-[70] right-3 top-3 sm:right-4 sm:top-4 inline-flex items-center gap-1 px-3 py-2 rounded-md bg-black/55 hover:bg-black/65 border border-cyan-300/30 text-cyan-100 text-xs sm:text-sm shadow-[0_0_18px_rgba(0,255,255,0.16)]"
-        style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
-      >
-        ← Back
-      </button>
+      {!embedded && (
+        <button
+          onClick={() => navigate(-1)}
+          className="fixed z-[70] right-3 top-3 sm:right-4 sm:top-4 inline-flex items-center gap-1 px-3 py-2 rounded-md bg-black/55 hover:bg-black/65 border border-cyan-300/30 text-cyan-100 text-xs sm:text-sm shadow-[0_0_18px_rgba(0,255,255,0.16)]"
+          style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
+        >
+          ← Back
+        </button>
+      )}
 
       {/* NET BANNER */}
       <AnimatePresence>
@@ -1586,8 +1613,8 @@ export default function Play() {
                     </button>
                   )}
 
-                  {/* MODE SELECTOR (IDLE) */}
-                  {status === "idle" && (
+                  {/* MODE SELECTOR (IDLE) — only the standalone lobby, never inside a direct challenge */}
+                  {status === "idle" && !challengeId && (
                     <motion.div
                       className="w-full max-w-xl mx-auto rounded-2xl border border-cyan-300/20 bg-black/45 p-5 sm:p-6 shadow-[0_0_46px_rgba(0,255,255,0.12)] backdrop-blur-md"
                       initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -1664,6 +1691,27 @@ export default function Play() {
                       <CyberButton onClick={findMatch} className="mt-5 w-full py-3 sm:py-2">
                         🔎 Find Match
                       </CyberButton>
+                    </motion.div>
+                  )}
+
+                  {/* DIRECT CHALLENGE: no matchmaking lobby — show prep / result instead */}
+                  {status === "idle" && challengeId && (
+                    <motion.div
+                      className="w-full max-w-md mx-auto rounded-2xl border border-fuchsia-300/20 bg-black/45 p-6 text-center shadow-[0_0_46px_rgba(255,94,168,0.12)] backdrop-blur-md"
+                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                    >
+                      <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">
+                        {matchOver ? "Duel Complete" : "Preparing Duel"}
+                      </div>
+                      <div className="mt-1 text-xl font-extrabold text-cyan-200 drop-shadow">
+                        {matchOver ? "GG — duel finished" : "Setting up your duel…"}
+                      </div>
+                      <p className="mt-2 text-sm opacity-80">
+                        {matchOver
+                          ? "Use “✕ Leave Duel” (top bar) to return to the arena."
+                          : "Connecting to your opponent…"}
+                      </p>
                     </motion.div>
                   )}
 

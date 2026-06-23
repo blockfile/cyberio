@@ -23,3 +23,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# generated card thumbnails (regenerate: node scripts/makeThumbs.js)
+/public/cards5k

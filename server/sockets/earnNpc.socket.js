@@ -31,9 +31,8 @@ const {
 const NpcPayout = require("../model/NpcPayout");
 const EarnDaily = require("../model/EarnDaily");
 const DimensionPass = require("../model/DimensionPass"); // ✅ required
-const NftAssetDb = require("../model/NftAssetDb"); // ✅ required (reads your nftassets collection)
+const User = require("../model/User"); // non-NFT: player cards live here
 const CARD_META = require("../util/cardMetadata.json");
-const { computeNftStatsFromDoc } = require("../util/nftStats");
 
 // ===== CONFIG =====
 const ROUNDS_TO_WIN = Number(process.env.EARN_ROUNDS_TO_WIN || 2);
@@ -226,40 +225,32 @@ async function getPassStatus(wallet) {
   return { hasActive, expiresAt };
 }
 
+// non-NFT: count low-power cards (by quantity) from the player's DB cards
 async function getLowPowerCount(wallet) {
-  const assets = await NftAssetDb.find(
-    { ownerWallet: wallet },
-    { power: 1, skill: 1, attributes: 1, raw: 1 }
-  ).lean();
-
-  return assets.filter(
-    (asset) => computeNftStatsFromDoc(asset).power < LOW_POWER_THRESHOLD
-  ).length;
+  const user = await User.findOne({ walletAddress: wallet }).lean();
+  const cards = (user && user.cards) || [];
+  return cards.reduce(
+    (n, c) => n + ((Number(c.power) || 0) < LOW_POWER_THRESHOLD ? Math.max(1, Number(c.count) || 1) : 0),
+    0
+  );
 }
 
+// non-NFT: build the P2E deck from the player's low-power DB cards (expanded by count)
 async function loadLowPowerDeck(wallet) {
-  const assets = await NftAssetDb.find(
-    { ownerWallet: wallet },
-    { cid: 1, name: 1, image: 1, power: 1, skill: 1, attributes: 1, raw: 1 }
-  )
-    .lean();
-  const lowPowerAssets = assets
-    .map((asset) => ({ asset, stats: computeNftStatsFromDoc(asset) }))
-    .filter(({ stats }) => stats.power < LOW_POWER_THRESHOLD)
-    .slice(0, 200);
+  const user = await User.findOne({ walletAddress: wallet }).lean();
+  const cards = (user && user.cards) || [];
 
-  const cardIds = lowPowerAssets.map(({ asset: a, stats }) => ({
-    cid: String(a.cid ?? a._id),
-    name: a.name || null,
-    image: a.image || null,
-    power: stats.power,
-    skill: stats.skill || null,
-  }));
-
+  const cardIds = [];
   const cardPowersMap = {};
-  for (const { asset: a, stats } of lowPowerAssets) {
-    const cid = String(a.cid ?? a._id);
-    cardPowersMap[cid] = Number(stats.power || 0);
+  for (const c of cards) {
+    const power = Number(c.power) || 0;
+    if (power >= LOW_POWER_THRESHOLD) continue;
+    const cid = String(c.cardId);
+    cardPowersMap[cid] = power;
+    const count = Math.max(1, Number(c.count) || 1);
+    for (let i = 0; i < count && cardIds.length < 200; i++) {
+      cardIds.push({ cid, name: c.name || cid, image: null, power, skill: null });
+    }
   }
 
   return { cardIds, cardPowersMap };

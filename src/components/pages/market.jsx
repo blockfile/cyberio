@@ -5,8 +5,8 @@ import axios from "axios";
 import Navbar from "../navbar/navbar";
 import { WalletContext } from "../../context/WalletConnect";
 import { motion, AnimatePresence } from "framer-motion";
-import bg from "../assets/images/market-bg.jpg";
 import { useNavigate } from "react-router-dom"; // ⬅️ add this
+import { nftArt } from "./cardArt";
 
 // Buffer polyfill (browser)
 import { Buffer as BufferPolyfill } from "buffer";
@@ -21,6 +21,8 @@ import {
   getMint,
   createAssociatedTokenAccountInstruction,
   createTransferCheckedInstruction,
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 
 if (typeof window !== "undefined" && !window.Buffer) {
@@ -40,19 +42,26 @@ function importAll(r) {
 const monsterImages = importAll(
   require.context("../assets/images/cards", false, /\.webp$/)
 );
-const imgSrc = (cid) => monsterImages[String(cid)];
+const imgSrc = (cid) => nftArt(cid) || monsterImages[String(cid)];
 
 // -------- constants --------
-const RPC_ENDPOINT = "https://api.devnet.solana.com";
-const SD_TOKEN_MINT = "GapARTbbWqvzqzHRTPEKccKqDCru7YfL1usqb4M4pump";
+const RPC_ENDPOINT =
+  (process.env.REACT_APP_SOLANA_RPC || "").trim() ||
+  "https://api.mainnet-beta.solana.com";
+const SD_TOKEN_MINT =
+  (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
+  "3WBoV8iTFfa6fjsc66NLKyZJDftSSpbtJ1r6fjJfpump";
 const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
 
-// rarity by ID (same rule as Inventory)
-const rarityById = (id) => {
-  const n = Number(id);
-  if (n >= 36) return "Mythical";
+// rarity from the card's badge-derived power (falls back to legacy id rule if power unknown)
+const rarityById = (cardOrId) => {
+  const c = cardOrId && typeof cardOrId === "object" ? cardOrId : null;
+  const pw = c ? Number(c.power) : 0;
+  if (pw > 0) return pw >= 10 ? "Legendary" : pw >= 8 ? "Rare" : "Common";
+  const n = Number(c ? c.cardId : cardOrId);
+  if (n >= 36) return "Legendary";
   if (n >= 21) return "Rare";
   return "Common";
 };
@@ -68,7 +77,7 @@ const rarityTheme = {
     card: "bg-gradient-to-br from-sky-900/30 to-sky-700/10 border-sky-600/30 shadow-[0_0_12px_rgba(56,189,248,0.25)]",
     glow: "#00bfff",
   },
-  Mythical: {
+  Legendary: {
     badge: "bg-violet-600/20 text-violet-200 border border-violet-500/30",
     card: "bg-gradient-to-br from-violet-900/30 to-violet-700/10 border-violet-600/30 shadow-[0_0_14px_rgba(167,139,250,0.35)]",
     glow: "#8a2be2",
@@ -118,7 +127,7 @@ function CardTile({
   priceValue,
   onPriceChange,
 }) {
-  const rarity = rarityById(card.cardId);
+  const rarity = rarityById(card);
   const theme = rarityTheme[rarity];
 
   return (
@@ -240,9 +249,9 @@ function CardTile({
   );
 }
 
-export default function Market() {
+export default function Market({ embedded = false }) {
   const navigate = useNavigate(); // ⬅️ add this
-  const { wallet, userData } = useContext(WalletContext);
+  const { wallet, userData, walletProvider } = useContext(WalletContext);
   const [me, setMe] = useState(userData);
   const [listings, setListings] = useState([]);
   const [myListings, setMyListings] = useState([]);
@@ -257,7 +266,7 @@ export default function Market() {
 
   // UI controls
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterRarity, setFilterRarity] = useState("all"); // all/common/rare/mythical
+  const [filterRarity, setFilterRarity] = useState("all"); // all/common/rare/legendary
   const [sortKey, setSortKey] = useState("recent");
 
   // list modal toggle
@@ -309,7 +318,7 @@ export default function Market() {
     if (!me?.cards) return [];
     return me.cards
       .filter((c) => !c.isFree && c.count > 0)
-      .map((c) => ({ ...c, rarity: rarityById(c.cardId) }))
+      .map((c) => ({ ...c, rarity: rarityById(c) }))
       .sort((a, b) => Number(a.cardId) - Number(b.cardId));
   }, [me]);
 
@@ -378,7 +387,7 @@ export default function Market() {
     setBusy(true);
     setBusyText("Preparing purchase…");
 
-    const provider = window.solana;
+    const provider = walletProvider || window.solana;
     if (!provider) {
       setBusy(false);
       setBusyText("");
@@ -403,8 +412,15 @@ export default function Market() {
       const seller = new PublicKey(listing.sellerWallet);
       const mint = new PublicKey(SD_TOKEN_MINT);
 
-      const buyerAta = await getAssociatedTokenAddress(mint, buyer);
-      const sellerAta = await getAssociatedTokenAddress(mint, seller);
+      // detect classic SPL vs Token-2022 from the mint's owning program
+      const mintAcc = await conn.getAccountInfo(mint);
+      if (!mintAcc) throw new Error("Token mint not found on this RPC.");
+      const tokenProgramId = mintAcc.owner.equals(TOKEN_2022_PROGRAM_ID)
+        ? TOKEN_2022_PROGRAM_ID
+        : TOKEN_PROGRAM_ID;
+
+      const buyerAta = await getAssociatedTokenAddress(mint, buyer, false, tokenProgramId);
+      const sellerAta = await getAssociatedTokenAddress(mint, seller, false, tokenProgramId);
 
       const ixs = [];
       const sellerAtaAcc = await conn.getAccountInfo(sellerAta);
@@ -414,14 +430,15 @@ export default function Market() {
             buyer,
             sellerAta,
             seller,
-            mint
+            mint,
+            tokenProgramId
           )
         );
       }
 
       let decimals = 6;
       try {
-        const mintInfo = await getMint(conn, mint);
+        const mintInfo = await getMint(conn, mint, "confirmed", tokenProgramId);
         decimals = mintInfo.decimals ?? 6;
       } catch { }
 
@@ -434,7 +451,9 @@ export default function Market() {
           sellerAta,
           buyer,
           amount,
-          decimals
+          decimals,
+          [],
+          tokenProgramId
         )
       );
 
@@ -451,6 +470,11 @@ export default function Market() {
       tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
 
       setBusyText("Waiting for wallet approval…");
+      try {
+        if (typeof provider.connect === "function") await provider.connect();
+      } catch (e) {
+        throw new Error("Unlock and connect your wallet, then try again.");
+      }
       const signed = await provider.signTransaction(tx);
       setBusyText("Sending transaction…");
       const serialized = signed.serialize();
@@ -548,11 +572,11 @@ export default function Market() {
 
   // ----- search/filter/sort -----
   const visibleListings = useMemo(() => {
-    const rarityRank = { Common: 1, Rare: 2, Mythical: 3 };
+    const rarityRank = { Common: 1, Rare: 2, Legendary: 3 };
     const needle = searchQuery.trim().toLowerCase();
 
     let arr = listings.map((l) => {
-      const rarity = rarityById(l.cardId);
+      const rarity = rarityById(l);
       return {
         ...l,
         rarity,
@@ -620,34 +644,53 @@ export default function Market() {
 
   return (
     <div className="relative min-h-screen text-white font-silkscreen overflow-hidden">
-      <img
-        src={bg}
-        alt=""
-        className="absolute inset-0 w-full h-full object-cover -z-10"
+      {/* background — cyberpunk trade grid */}
+      <div
+        className="absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(120% 85% at 50% 0%, rgba(255,94,168,0.12), transparent 55%)," +
+            "radial-gradient(110% 90% at 15% 100%, rgba(120,40,255,0.18), transparent 62%)," +
+            "linear-gradient(180deg, #0c0a14 0%, #0a0810 55%, #06060c 100%)",
+        }}
       />
-      <div className="absolute inset-0 bg-black/90 -z-10" />
+      <div
+        className="absolute inset-0 -z-10 opacity-[0.16] pointer-events-none"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,94,168,0.5) 1px, transparent 1px)," +
+            "linear-gradient(90deg, rgba(255,94,168,0.5) 1px, transparent 1px)",
+          backgroundSize: "46px 46px",
+          WebkitMaskImage: "radial-gradient(120% 100% at 50% 0%, #000 28%, transparent 74%)",
+          maskImage: "radial-gradient(120% 100% at 50% 0%, #000 28%, transparent 74%)",
+        }}
+      />
 
       <div className="relative z-10">
-        <Navbar />
+        {!embedded && <Navbar />}
 
         <div className="max-w-7xl mx-auto px-6 py-8">
           {/* header row with Back + Title + Refresh */}
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate("/dapp")} // ⬅️ go back to dapp.jsx route
-                disabled={busy}
-                className="px-3 py-2 rounded border border-white/20 text-white hover:bg-white/10 disabled:opacity-60 flex items-center gap-2"
-                aria-label="Back to DApp"
-                title="Back"
-              >
-                {/* simple arrow */}
-                <span className="text-lg">←</span>
-                <span className="font-semibold">Back</span>
-              </button>
-              <h1 className="text-4xl md:text-5xl font-bold uppercase tracking-wider">
-                Marketplace
-              </h1>
+              {!embedded && (
+                <button
+                  onClick={() => navigate("/")}
+                  disabled={busy}
+                  className="px-3 py-2 rounded border border-white/20 text-white hover:bg-white/10 disabled:opacity-60 flex items-center gap-2"
+                  aria-label="Back"
+                  title="Back"
+                >
+                  {/* simple arrow */}
+                  <span className="text-lg">←</span>
+                  <span className="font-semibold">Back</span>
+                </button>
+              )}
+              {!embedded && (
+                <h1 className="text-4xl md:text-5xl font-bold uppercase tracking-wider">
+                  Marketplace
+                </h1>
+              )}
             </div>
 
             <button
@@ -701,7 +744,7 @@ export default function Market() {
               <option value="all">🔀 Show All</option>
               <option value="common">🟠 Common</option>
               <option value="rare">🔵 Rare</option>
-              <option value="mythical">🟣 Mythical</option>
+              <option value="legendary">🟣 Legendary</option>
             </select>
           </div>
 

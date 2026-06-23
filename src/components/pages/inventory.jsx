@@ -6,37 +6,47 @@ import { WalletContext } from "../../context/WalletConnect";
 import { API_BASE_URL } from "../../config/endpoints";
 import { motion, AnimatePresence } from "framer-motion";
 import bg2 from "../assets/images/bg2.jpg";
+import { nftArt } from "./cardArt";
 
 const getRarity = (id) => {
   const num = parseInt(id);
   if (Number.isNaN(num)) return "Common";
-  if (num >= 36) return "Mythical";
+  if (num >= 36) return "Legendary";
   if (num >= 21) return "Rare";
   return "Common";
 };
+
+// local card art (non-NFT): map a cardId → /assets/images/cards/<id>.webp
+const cardArtCtx = require.context("../assets/images/cards", false, /\.webp$/);
+const CARD_ART = cardArtCtx.keys().reduce((m, k) => {
+  m[k.replace("./", "").replace(".webp", "")] = cardArtCtx(k);
+  return m;
+}, {});
+const artFor = (cardId, image) =>
+  image || nftArt(cardId) || CARD_ART[String(cardId)] || null;
 
 // ✅ Cyberpunk pink/violet palette
 const rarityGlow = {
   Common: "shadow-[0_0_24px_rgba(255,43,214,0.18)]",
   Rare: "shadow-[0_0_28px_rgba(140,0,255,0.22)]",
-  Mythical: "shadow-[0_0_36px_rgba(255,105,210,0.26)]",
+  Legendary: "shadow-[0_0_36px_rgba(255,105,210,0.26)]",
 };
 
 const rarityPill = {
   Common: "bg-[rgba(255,43,214,0.14)] border-[rgba(255,43,214,0.35)] text-[rgba(255,180,235,0.95)]",
   Rare: "bg-[rgba(140,0,255,0.14)] border-[rgba(140,0,255,0.35)] text-[rgba(210,180,255,0.95)]",
-  Mythical:
+  Legendary:
     "bg-[rgba(255,105,210,0.14)] border-[rgba(255,105,210,0.35)] text-[rgba(255,220,245,0.98)]",
 };
 
 const rarityBadgeFill = {
   Common: "bg-[rgba(255,43,214,0.75)]",
   Rare: "bg-[rgba(140,0,255,0.75)]",
-  Mythical: "bg-[rgba(255,105,210,0.80)]",
+  Legendary: "bg-[rgba(255,105,210,0.80)]",
 };
 
 const rarityOrder = (rarity) => {
-  if (rarity === "Mythical") return 3;
+  if (rarity === "Legendary") return 3;
   if (rarity === "Rare") return 2;
   return 1;
 };
@@ -64,7 +74,7 @@ function fetchInventoryCards(wallet) {
   return request.finally(() => inventoryInflight.delete(wallet));
 }
 
-export default function Inventory() {
+export default function Inventory({ embedded = false }) {
   const { wallet } = useContext(WalletContext);
   const [cards, setCards] = useState([]);
   const [modalImage, setModalImage] = useState(null);
@@ -113,9 +123,9 @@ export default function Inventory() {
 
   const openModal = (card) => {
     const effectiveRarity = card.rarity || getRarity(card.cardId);
-    setModalImage(card.image || null);
+    setModalImage(artFor(card.cardId, card.image));
     setModalRarity(effectiveRarity);
-    setModalName(card.name || `NFT #${card.cardId}`);
+    setModalName(card.name || `Card #${card.cardId}`);
     setModalMeta({
       cardId: card.cardId,
       mint: card.mint,
@@ -168,7 +178,7 @@ export default function Inventory() {
   const totalCardCount = cards.reduce((sum, c) => sum + (c.count || 1), 0);
 
   const countsByRarity = useMemo(() => {
-    const acc = { Common: 0, Rare: 0, Mythical: 0 };
+    const acc = { Common: 0, Rare: 0, Legendary: 0 };
     for (const c of cards) {
       const r = c.rarity || getRarity(c.cardId);
       acc[r] += c.count || 1;
@@ -213,20 +223,22 @@ export default function Inventory() {
       />
 
       <div className="relative z-20">
-        <Navbar />
+        {!embedded && <Navbar />}
 
         {/* Frame */}
         <div className="p-4 md:p-8">
           {/* Back */}
-          <button
-            onClick={() => window.history.back()}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl
-                       bg-white/5 hover:bg-white/10 border border-white/15
-                       text-white/90 text-xs md:text-sm
-                       backdrop-blur-md shadow-[0_0_0_1px_rgba(255,43,214,0.06)_inset]"
-          >
-            <span className="opacity-90">←</span> Back
-          </button>
+          {!embedded && (
+            <button
+              onClick={() => window.history.back()}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl
+                         bg-white/5 hover:bg-white/10 border border-white/15
+                         text-white/90 text-xs md:text-sm
+                         backdrop-blur-md shadow-[0_0_0_1px_rgba(255,43,214,0.06)_inset]"
+            >
+              <span className="opacity-90">←</span> Back
+            </button>
+          )}
 
           {/* Header block */}
           <div className="mt-4 mb-6 md:mb-8 rounded-2xl border border-white/15 bg-black/35 backdrop-blur-xl overflow-hidden
@@ -265,9 +277,9 @@ export default function Inventory() {
                     </div>
                   </div>
                   <div className="px-3 py-2 rounded-xl border border-white/12 bg-white/5 backdrop-blur-md text-xs">
-                    <div className="text-[10px] tracking-[.28em] uppercase text-white/55">Mythical</div>
+                    <div className="text-[10px] tracking-[.28em] uppercase text-white/55">Legendary</div>
                     <div className="mt-1 font-black tracking-[.18em] text-white/90">
-                      {countsByRarity.Mythical}
+                      {countsByRarity.Legendary}
                     </div>
                   </div>
                   <div className="px-3 py-2 rounded-xl border border-white/12 bg-white/5 backdrop-blur-md text-xs">
@@ -377,122 +389,78 @@ export default function Inventory() {
           )}
 
           {/* Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-3 md:gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4 mb-6">
             {paginatedCards.map((card, index) => {
-              const { cardId, count, isFree, name, image, rarity, power, skill } = card;
+              const { cardId, count, isFree, name, image, rarity, power } = card;
               const effectiveRarity = rarity || getRarity(cardId);
 
               return (
                 <motion.button
                   key={`${card.mint || cardId}-${index}-${isFree ? "free" : "paid"}`}
                   onClick={() => openModal(card)}
-                  whileHover={{ y: -2, scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  className={`group relative text-left rounded-2xl overflow-hidden aspect-[3/4]
-                              border border-white/12 bg-black/35 backdrop-blur-xl
-                              shadow-[0_18px_44px_rgba(0,0,0,0.40)]
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`group relative rounded-2xl overflow-hidden aspect-[3/4]
+                              border border-white/12 bg-gradient-to-b from-white/[0.07] to-black/45
+                              transition-[box-shadow,border-color] hover:border-white/25
                               ${rarityGlow[effectiveRarity] || ""}
                               focus:outline-none`}
                 >
-                  {/* neon edge sweep */}
-                  <div
-                    className="absolute inset-0 pointer-events-none opacity-30 group-hover:opacity-45 transition-opacity"
-                    style={{
-                      background:
-                        "linear-gradient(90deg, rgba(255,43,214,.12), rgba(140,0,255,.10), rgba(255,105,210,.08))",
-                    }}
-                  />
-
-                  {/* scanlines */}
-                  <div
-                    className="absolute inset-0 pointer-events-none opacity-[0.10]"
-                    style={{
-                      background:
-                        "repeating-linear-gradient(to bottom, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, rgba(0,0,0,0) 6px, rgba(0,0,0,0) 12px)",
-                      mixBlendMode: "overlay",
-                    }}
-                  />
-
-                  {/* corners */}
-                  <div className="absolute top-3 left-3 w-5 h-5 border-2 border-[rgba(255,43,214,0.40)] border-r-0 border-b-0 rounded-tl-[10px] opacity-90 pointer-events-none" />
-                  <div className="absolute top-3 right-3 w-5 h-5 border-2 border-[rgba(255,43,214,0.40)] border-l-0 border-b-0 rounded-tr-[10px] opacity-90 pointer-events-none" />
-                  <div className="absolute bottom-3 left-3 w-5 h-5 border-2 border-[rgba(140,0,255,0.36)] border-r-0 border-t-0 rounded-bl-[10px] opacity-85 pointer-events-none" />
-                  <div className="absolute bottom-3 right-3 w-5 h-5 border-2 border-[rgba(140,0,255,0.36)] border-l-0 border-t-0 rounded-br-[10px] opacity-85 pointer-events-none" />
-
-                  {/* image area */}
-                  <div className="relative w-full h-full flex flex-col">
-                    <div className="flex-1 p-3 flex items-center justify-center">
-                      {image ? (
-                        <img
-                          src={image}
-                          alt={name || `NFT #${cardId}`}
-                          className="max-h-full max-w-full object-contain
-                                     drop-shadow-[0_16px_44px_rgba(0,0,0,0.70)]
-                                     group-hover:scale-[1.02] transition-transform"
-                        />
-                      ) : (
-                        <div className="text-[10px] text-center px-2 text-white/70">
-                          No image found
-                        </div>
-                      )}
+                  {/* art (fills the card) */}
+                  {artFor(cardId, image) ? (
+                    <img
+                      src={artFor(cardId, image)}
+                      alt={name || `Card #${cardId}`}
+                      className="absolute inset-0 w-full h-full object-contain p-2
+                                 drop-shadow-[0_10px_28px_rgba(0,0,0,0.6)]
+                                 transition-transform duration-300 group-hover:scale-[1.05]"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 grid place-items-center text-[10px] text-white/45">
+                      No image
                     </div>
+                  )}
 
-                    {/* footer bar */}
-                    <div className="px-3 pb-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-[10px] tracking-[.28em] uppercase text-white/55">
-                            #{cardId}
-                          </div>
-                          <div className="mt-1 text-[11px] font-black tracking-[.10em] text-white/90 truncate">
-                            {name || `NFT #${cardId}`}
-                          </div>
-                        </div>
-
-                        <div
-                          className={`shrink-0 px-2 py-1 rounded-xl border text-[10px] tracking-[.20em] uppercase
-                                      ${rarityPill[effectiveRarity] || ""}`}
-                        >
-                          {effectiveRarity}
-                        </div>
-                      </div>
-
-                      {/* divider */}
-                      <div className="mt-3 h-px bg-white/10" />
-
-                      {/* meta row */}
-                      <div className="mt-2 flex items-center justify-between text-[10px] tracking-[.18em] uppercase text-white/60">
-                        <span>{isFree ? "Free / Soulbound" : "Paid / Tradable"}</span>
-                        <span className="text-white/80 font-black">x{count || 1}</span>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between gap-2 text-[10px] tracking-[.16em] uppercase text-white/65">
-                        <span>PWR {power ?? "-"}</span>
-                        {skill ? (
-                          <span className="truncate text-white/80">SKL {skill}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* count bubble (only when >1) */}
+                  {/* top scrim + corner badges */}
+                  <div className="absolute top-0 inset-x-0 h-12 bg-gradient-to-b from-black/55 to-transparent pointer-events-none" />
                   {(count || 1) > 1 && (
                     <div
-                      className={`absolute top-3 left-3 w-10 h-10 text-[14px] flex items-center justify-center rounded-full
-                                  font-black text-white shadow
-                                  ${rarityBadgeFill[effectiveRarity] || "bg-white/20"}`}
+                      className={`absolute top-2 left-2 min-w-[26px] h-[26px] px-1.5 grid place-items-center rounded-full
+                                  text-[11px] font-black text-white shadow ${rarityBadgeFill[effectiveRarity] || "bg-white/25"}`}
                     >
                       ×{count}
                     </div>
                   )}
-
-                  {/* FREE badge */}
                   {isFree && (
-                    <div className="absolute bottom-3 left-3 text-[9px] font-black px-2 py-1 rounded-xl border
-                                    bg-[rgba(255,43,214,0.14)] border-[rgba(255,43,214,0.32)] text-white/90
-                                    shadow-[0_0_18px_rgba(255,43,214,0.12)] leading-tight">
-                      FREE<br />NOT TRADABLE
+                    <div className="absolute top-2 right-2 text-[8px] font-black tracking-[.16em] px-1.5 py-0.5 rounded-md
+                                    bg-black/55 border border-white/20 text-white/85 backdrop-blur-sm pointer-events-none">
+                      FREE
                     </div>
                   )}
+
+                  {/* bottom info scrim */}
+                  <div className="absolute bottom-0 inset-x-0 p-2 pt-6 bg-gradient-to-t from-black/90 via-black/55 to-transparent">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[9px] tracking-[.2em] uppercase text-white/60 truncate">
+                        #{cardId}
+                      </span>
+                      <span
+                        className={`shrink-0 px-1.5 py-0.5 rounded-md border text-[8px] font-bold tracking-[.14em] uppercase
+                                    ${rarityPill[effectiveRarity] || ""}`}
+                      >
+                        {effectiveRarity}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-1 text-[8px] tracking-[.14em] uppercase text-white/55">
+                      <span className="truncate">{name || `NFT #${cardId}`}</span>
+                      {power != null && (
+                        <span className="shrink-0 ml-1 text-white/80 font-black">PWR {power}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* hover ring */}
+                  <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/0 group-hover:ring-white/15 transition pointer-events-none" />
                 </motion.button>
               );
             })}
@@ -550,13 +518,13 @@ export default function Inventory() {
               exit={{ scale: 0.92, y: 10, opacity: 0 }}
               transition={{ type: "spring", stiffness: 260, damping: 22 }}
               onClick={(e) => e.stopPropagation()}
-              className={`relative w-[min(560px,92vw)] rounded-2xl overflow-hidden
+              className={`relative w-[min(560px,92vw)] max-h-[92%] flex flex-col rounded-2xl overflow-hidden
                           border border-white/12 bg-black/55 backdrop-blur-xl
                           shadow-[0_24px_72px_rgba(0,0,0,0.70)]
                           ${rarityGlow[modalRarity] || ""}`}
             >
               {/* header */}
-              <div className="px-4 py-3 border-b border-white/10 bg-gradient-to-b from-black/55 to-black/20 flex items-start justify-between gap-3">
+              <div className="shrink-0 px-4 py-3 border-b border-white/10 bg-gradient-to-b from-black/55 to-black/20 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[10px] tracking-[.30em] uppercase text-white/60">Preview</div>
                   <div className="mt-1 text-sm md:text-base font-black tracking-[.14em] text-white/90 truncate">
@@ -582,12 +550,12 @@ export default function Inventory() {
               </div>
 
               {/* body */}
-              <div className="p-4 md:p-5">
+              <div className="p-4 md:p-5 flex-1 min-h-0 overflow-y-auto">
                 <div className="rounded-2xl border border-white/10 bg-black/35 p-3 md:p-4 flex items-center justify-center">
                   <img
                     src={modalImage}
                     alt="Enlarged NFT"
-                    className="w-[min(420px,82vw)] h-auto object-contain
+                    className="w-[min(420px,82vw)] h-auto max-h-[42vh] object-contain
                                drop-shadow-[0_18px_44px_rgba(0,0,0,0.70)]"
                   />
                 </div>
@@ -629,7 +597,7 @@ export default function Inventory() {
               </div>
 
               {/* footer */}
-              <div className="px-4 py-3 border-t border-white/10 bg-black/35 text-[10px] tracking-[.28em] uppercase text-white/60">
+              <div className="shrink-0 px-4 py-3 border-t border-white/10 bg-black/35 text-[10px] tracking-[.28em] uppercase text-white/60">
                 Tap outside to close
               </div>
 

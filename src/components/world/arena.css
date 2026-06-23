@@ -1,0 +1,122 @@
+/* ---- ARENA: walkable isometric scene entered via the city portal ---- */
+.arena-scene {
+  position: fixed; inset: 0; z-index: 100060;
+  display: flex; flex-direction: column;
+  background:
+    radial-gradient(120% 90% at 50% 22%, rgba(120, 40, 160, 0.32), rgba(4, 4, 12, 0.97) 62%),
+    #05030a;
+  animation: wp-in 0.2s ease-out;
+  overflow: hidden;
+}
+
+/* in-arena duel overlay — the duel plays here so you never leave the arena map */
+.arena-duel-overlay {
+  position: absolute; inset: 0; z-index: 100085;
+  display: flex; flex-direction: column;
+  background: rgba(4, 4, 12, 0.97);
+  animation: wp-in 0.18s ease-out;
+}
+.arena-duel-bar {
+  flex: 0 0 auto; height: 48px;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+  border-bottom: 1px solid var(--sign, #c060ff);
+  background: linear-gradient(180deg, rgba(20, 12, 30, 0.95), rgba(10, 8, 16, 0.55));
+}
+.arena-duel-title {
+  font-weight: 900; letter-spacing: 0.16em; font-size: 13px; color: #fff;
+  text-shadow: 0 0 14px var(--sign, #c060ff);
+}
+.arena-duel-leave {
+  cursor: pointer; font-weight: 800; font-size: 12px; letter-spacing: 0.06em; color: #ffd7df;
+  padding: 8px 12px; border-radius: 8px;
+  background: rgba(255, 60, 90, 0.16); border: 1px solid rgba(255, 90, 120, 0.55);
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+.arena-duel-leave:hover { filter: brightness(1.25); transform: translateY(-1px); }
+.arena-duel-body {
+  flex: 1 1 auto; position: relative; overflow: auto; transform: translateZ(0);
+  overscroll-behavior: contain;
+}
+.arena-duel-body .min-h-screen { min-height: 100% !important; }
+
+.arena-bar {
+  flex: 0 0 auto; height: 54px;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 18px;
+  background: linear-gradient(90deg, rgba(18, 8, 30, 0.96), rgba(30, 10, 40, 0.96));
+  border-bottom: 1px solid rgba(192, 96, 255, 0.55);
+  box-shadow: 0 6px 26px rgba(0, 0, 0, 0.55), 0 0 22px rgba(192, 96, 255, 0.22);
+}
+.arena-title { font-weight: 900; letter-spacing: 0.16em; font-size: 16px; color: #e7c8ff; text-shadow: 0 0 14px #c060ff; }
+.arena-subtitle { font-size: 12px; letter-spacing: 0.06em; color: #9a86c4; }
+.arena-exit {
+  cursor: pointer; font-weight: 800; letter-spacing: 0.08em; font-size: 12px; color: #e8f4ff;
+  padding: 9px 14px; border-radius: 8px; background: rgba(255, 60, 90, 0.16);
+  border: 1px solid rgba(255, 90, 120, 0.55); box-shadow: 0 0 16px rgba(255, 70, 100, 0.25);
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+.arena-exit:hover { filter: brightness(1.25); transform: translateY(-1px); }
+
+/* viewport: the camera follows the player across the large arena */
+.arena-fit { flex: 1 1 auto; position: relative; overflow: hidden; }
+.arena-iso { position: absolute; left: 50%; top: 50%; transform-origin: center center; will-change: transform; }
+
+/* EXIT portal back to the Earn map (anchored standing on its tile) */
+.arena-portal-out {
+  position: absolute; width: 230px; transform: translate(-50%, -68%);
+  image-rendering: pixelated; pointer-events: none;
+  /* animate FILTER only — a transform-based glow would clobber the translate above
+     and mis-place the portal (so you'd walk to the wrong tile and never exit). */
+  animation: exitPortalGlow 2.4s ease-in-out infinite;
+}
+@keyframes exitPortalGlow {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(192, 96, 255, 0.7)) drop-shadow(0 0 14px rgba(255, 80, 200, 0.45)); }
+  50%      { filter: drop-shadow(0 0 14px rgba(210, 120, 255, 0.95)) drop-shadow(0 0 28px rgba(255, 90, 210, 0.7)); }
+}
+.arena-portal-label {
+  position: absolute; transform: translate(-50%, -300px);
+  font-weight: 900; letter-spacing: 0.16em; font-size: 18px; color: #ecd6ff;
+  text-shadow: 0 0 12px #c060ff, 0 0 22px #c060ff; pointer-events: none; white-space: nowrap;
+}
+
+.arena-tile {
+  position: absolute; image-rendering: pixelated;
+  filter: drop-shadow(0 0 2px rgba(0, 200, 255, 0.12));
+}
+
+/* glow ring/pool behind & under the platform */
+.arena-rim {
+  position: absolute; width: 900px; height: 660px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0, 230, 255, 0.22), rgba(192, 96, 255, 0.12) 52%, transparent 70%);
+  filter: blur(10px); z-index: -300;
+  animation: arenaGlow 3.2s ease-in-out infinite;
+}
+@keyframes arenaGlow { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+
+/* central duel pad marker */
+.arena-pad {
+  position: absolute; width: 150px; height: 78px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(0, 230, 255, 0.5);
+  box-shadow: 0 0 22px rgba(0, 220, 255, 0.4), inset 0 0 18px rgba(0, 220, 255, 0.25);
+  animation: arenaGlow 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+.arena-player { z-index: 2000; }
+
+.arena-actions {
+  flex: 0 0 auto; padding: 14px 0 26px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.arena-duel {
+  cursor: pointer; font-weight: 900; letter-spacing: 0.12em; font-size: 18px; color: #06121a;
+  padding: 14px 38px; border-radius: 12px;
+  background: linear-gradient(180deg, #6df3ff, #19b6e6);
+  border: 1px solid rgba(160, 245, 255, 0.8);
+  box-shadow: 0 0 26px rgba(0, 220, 255, 0.5), inset 0 0 12px rgba(255, 255, 255, 0.35);
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+.arena-duel:hover { filter: brightness(1.12); transform: translateY(-2px); }
+.arena-hint { font-size: 12px; color: #9fb2d6; letter-spacing: 0.04em; }

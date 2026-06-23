@@ -1,0 +1,824 @@
+.world-viewport {
+  position: fixed;
+  inset: 0;
+  /* purple-hue cyberpunk gradient backdrop (no more flat black void) */
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 30%, #3a2358 0%, #241640 38%, #160e2b 70%, #0d0820 100%),
+    linear-gradient(160deg, #2a1747 0%, #140a26 60%, #0a0617 100%);
+  overflow: hidden;
+  font-family: "Press Start 2P", monospace, system-ui;
+  cursor: default;
+  user-select: none;
+}
+.world-viewport:active { cursor: default; }
+
+/* zoom buttons */
+.world-zoom-ui {
+  position: fixed;
+  right: 16px; bottom: 16px;
+  z-index: 99999;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.world-zoom-ui button {
+  width: 38px; height: 38px;
+  font-size: 18px;
+  color: #cfe9ff;
+  background: rgba(14, 18, 30, 0.85);
+  border: 1px solid rgba(120, 200, 255, 0.5);
+  border-radius: 6px;
+  cursor: pointer;
+  text-shadow: 0 0 6px #2cf;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+.world-zoom-ui button:hover {
+  background: rgba(40, 70, 120, 0.9);
+  box-shadow: 0 0 10px rgba(80, 200, 255, 0.5);
+}
+
+.world-hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 18px;
+  color: #7cf;
+  background: linear-gradient(180deg, rgba(13, 15, 23, 0.9), rgba(13, 15, 23, 0));
+  pointer-events: none;
+}
+.world-hud h1 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px #29f, 0 0 18px #b3f;
+}
+.world-hud span {
+  font-size: 12px;
+  color: #d6b3ff;
+  text-shadow: 0 0 6px #b3f;
+}
+
+/* scene canvas — positioned at viewport centre; pan/zoom via transform */
+.world-scene {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform-origin: center center;
+  will-change: transform;
+}
+.world-scene--big {
+  width: 5500px;
+  height: 3160px;
+}
+
+/* wet-night sheen over the whole scene */
+.world-sheen {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 90000;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 42%, rgba(130,150,255,0.07), transparent 65%),
+    linear-gradient(180deg, rgba(180,120,255,0.05), transparent 30%, transparent 70%, rgba(40,200,255,0.04));
+  mix-blend-mode: screen;
+}
+
+/* always-on neon bleed for towers / megabuildings (wet-glow look) */
+.fx-neon img { animation: neonGlow 3.6s ease-in-out infinite; }
+@keyframes neonGlow {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(120,180,255,0.45)); }
+  50%      { filter: drop-shadow(0 0 8px rgba(190,120,255,0.7)); }
+}
+
+/* ARENA portal — pulsing magenta/violet glow + gentle breathing scale */
+.fx-portal img { animation: portalGlow 2.4s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes portalGlow {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(192,96,255,0.7)) drop-shadow(0 0 14px rgba(255,80,200,0.45)); transform: scale(1); }
+  50%      { filter: drop-shadow(0 0 14px rgba(210,120,255,0.95)) drop-shadow(0 0 28px rgba(255,90,210,0.7)); transform: scale(1.04); }
+}
+.world-building.is-shop.fx-portal:hover img { filter: drop-shadow(0 0 16px #fff) drop-shadow(0 0 30px #c060ff); }
+
+.world-floor {
+  position: absolute;
+  image-rendering: pixelated;
+  -webkit-user-drag: none;
+}
+
+/* ---- BIG holographic talking head — THREE layers ----
+   Base (.world-holo-base): a sci-fi circular podium with glowing rim, OPAQUE + STEADY.
+   Beam (.world-holo-beam): animated light rays rising from the podium emitter.
+   Head (.world-holo): the base-less talking face, semi-transparent + glitching. */
+
+/* steady opaque podium — anchored bottom-centre on the pad, never animates */
+.world-holo-base {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 16px rgba(70, 160, 255, 0.6));
+}
+
+/* animated light beam rising from the podium emitter — a cone of light that's narrow at
+   the base and fans out upward, plus faint ray streaks; pulses + flickers like a projector.
+   clip-path makes the triangular cone shape; the conic-gradient paints brighter ray bands. */
+.world-holo-beam {
+  position: absolute;
+  width: 320px;
+  height: 360px;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  /* bright radial ray bands fanning from the emitter × vertical falloff (bright at base) */
+  background:
+    conic-gradient(from 180deg at 50% 100%,
+      transparent 150deg,
+      rgba(180,225,255,0.15) 158deg, rgba(210,235,255,0.85) 162deg, rgba(180,225,255,0.15) 166deg,
+      transparent 170deg,
+      rgba(170,220,255,0.12) 173deg, rgba(225,242,255,0.95) 176deg, rgba(170,220,255,0.12) 179deg,
+      rgba(255,255,255,0.6) 180deg,
+      rgba(170,220,255,0.12) 181deg, rgba(225,242,255,0.95) 184deg, rgba(170,220,255,0.12) 187deg,
+      transparent 190deg,
+      rgba(180,225,255,0.15) 194deg, rgba(210,235,255,0.85) 198deg, rgba(180,225,255,0.15) 202deg,
+      transparent 210deg),
+    linear-gradient(to top, rgba(170,220,255,0.55), rgba(140,200,255,0.18) 55%, transparent 92%);
+  /* triangular cone: narrow at bottom-centre, wide at top */
+  clip-path: polygon(40% 100%, 60% 100%, 100% 0%, 0% 0%);
+  mix-blend-mode: screen;
+  filter: blur(1.5px) brightness(1.15);
+  animation: holoBeam 2.4s ease-in-out infinite;
+}
+@keyframes holoBeam {
+  0%, 100% { opacity: 0.7; }
+  48%      { opacity: 1; }
+  50%      { opacity: 0.78; }   /* tiny flicker */
+  52%      { opacity: 1; }
+}
+
+/* projected head — base-less 7-frame sheet (1260x181 = 7 x 180x181), scaled 2.4x,
+   anchored so its chin floats just above the podium emitter; translucent + glitch. */
+.world-holo {
+  --hf: 432px;             /* scaled frame width (180 * 2.4) */
+  position: absolute;
+  width: var(--hf);
+  height: 434px;           /* 181 * 2.4 */
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-size: calc(var(--hf) * 7) 434px;
+  image-rendering: pixelated;
+  opacity: 0.6;                                    /* semi-transparent */
+  /* recolour cyan(~180°) → purple(~280°): +100° hue, + purple glow */
+  filter: hue-rotate(105deg) saturate(1.4) brightness(1.08)
+          drop-shadow(0 0 24px rgba(190, 90, 245, 0.9)) drop-shadow(0 0 60px rgba(150, 70, 240, 0.5));
+  animation: holoTalk 0.85s steps(7) infinite, holoGlitch 3.2s steps(1) infinite;
+}
+/* step across all 7 frames with steps(7): position goes 0 → -(7 * --hf) */
+@keyframes holoTalk { to { background-position: calc(var(--hf) * -7) 0; } }
+@keyframes holoGlitch {
+  0%, 100% { transform: translate(-50%, -100%); opacity: 0.6; }
+  46%      { transform: translate(-50%, -100%); opacity: 0.6; }
+  47%      { transform: translate(calc(-50% + 6px), -100%) skewX(3deg); opacity: 0.38; }
+  48%      { transform: translate(calc(-50% - 7px), -100%) skewX(-4deg); opacity: 0.72; }
+  49%      { transform: translate(calc(-50% + 3px), -100%); opacity: 0.48; }
+  50%      { transform: translate(-50%, -100%); opacity: 0.6; }
+  78%      { opacity: 0.6; }
+  79%      { opacity: 0.3; }
+  80%      { opacity: 0.6; }
+}
+
+/* warm light pool cast on the ground by a street lamp (iso-flattened ellipse) */
+.world-lightpool {
+  position: absolute;
+  width: 150px; height: 84px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse 50% 50% at 50% 50%,
+    rgba(255, 170, 230, 0.42) 0%,
+    rgba(255, 120, 210, 0.22) 38%,
+    rgba(180, 80, 200, 0.08) 66%,
+    transparent 78%);
+  mix-blend-mode: screen;
+  animation: lightPool 1.8s ease-in-out infinite;
+}
+@keyframes lightPool {
+  0%, 100% { opacity: 0.65; transform: translate(-50%, -50%) scale(0.94); }
+  50%      { opacity: 1;    transform: translate(-50%, -50%) scale(1.06); }
+}
+
+/* HD animated bluish water — gentle sway + shimmer */
+.world-water {
+  animation: waterSway 4.5s ease-in-out infinite;
+}
+@keyframes waterSway {
+  0%, 100% { filter: brightness(0.96) hue-rotate(-6deg) saturate(1.05); transform: translateY(0); }
+  50%      { filter: brightness(1.14) hue-rotate(8deg) saturate(1.25); transform: translateY(-2px); }
+}
+
+/* animated harbor water — 3 PixelLab frames cycled (264x88 sheet = 3x88) */
+.world-water-anim {
+  background-repeat: no-repeat;
+  background-size: 264px 88px;
+  image-rendering: pixelated;
+  animation: waterCycle 1.1s steps(3) infinite;
+}
+@keyframes waterCycle { to { background-position: -264px 0; } }
+
+/* ---- NPCs ---- */
+/* standby loiterers: a single directional sprite with a gentle idle sway */
+.world-npc {
+  position: absolute;
+  height: 94px;
+  width: auto;
+  transform: translate(-50%, -100%);
+  image-rendering: pixelated;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 4px rgba(120, 220, 255, 0.5));
+}
+/* standby wrapper holds the sprite + its speech bubble; keep the sprite in-flow so its
+   width:auto resolves inside the zero-size wrapper (same fix as walkers). */
+.world-standby { position: absolute; }
+.world-standby > .world-npc { position: relative; display: block; }
+/* subtle breathing — gentle vertical scale from the feet, like the chest rising */
+.world-npc.idle { transform-origin: 50% 100%; animation: npcBreathe 3.6s ease-in-out infinite; }
+@keyframes npcBreathe {
+  0%, 100% { transform: translate(-50%, -100%) scaleY(1); }
+  50%      { transform: translate(-50%, -100%) scaleY(1.04); }
+}
+
+/* random speech bubble above an NPC's head */
+.npc-bubble {
+  position: absolute;
+  left: 0; top: -150px;
+  transform: translateX(-50%) scale(0.5);
+  transform-origin: center bottom;
+  padding: 5px 9px;
+  background: rgba(12, 14, 26, 0.92);
+  border: 2px solid rgba(120, 220, 255, 0.85);
+  border-radius: 8px;
+  color: #eaf6ff;
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  text-shadow: 0 0 6px rgba(80, 200, 255, 0.7);
+  box-shadow: 0 0 10px rgba(80, 200, 255, 0.4);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 9000;
+}
+.npc-bubble.show { opacity: 1; transform: translateX(-50%) scale(1); }
+.npc-bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%);
+  border-left: 6px solid transparent; border-right: 6px solid transparent;
+  border-top: 7px solid rgba(120, 220, 255, 0.85);
+}
+
+/* wandering pedestrians: engine sets the outer transform (position) + z each frame; the
+   inner sprite plays a 6-frame walk cycle (PixelLab) via a stepped background scroll. */
+.world-walker { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.world-walker-sprite {
+  --fw: 51px;                                   /* display frame width (46→51 to match height) */
+  width: var(--fw);
+  height: 88px;
+  transform: translate(-50%, -100%);
+  background-repeat: no-repeat;
+  background-size: calc(var(--fw) * 6) 88px;     /* 6-frame strip */
+  image-rendering: pixelated;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 4px rgba(120, 220, 255, 0.5));
+  animation: walkCycle 0.7s steps(6) infinite;
+}
+@keyframes walkCycle { to { background-position: calc(var(--fw) * -6) 0; } }
+
+/* the connected wallet's controllable avatar — bigger + gold glow + a marker ring */
+.world-player { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.player-sprite {
+  --fw: 70px;            /* clearly bigger than the 51px NPC walkers */
+  height: 120px;
+  background-size: calc(var(--fw) * 6) 120px;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 7px rgba(255, 210, 90, 0.95));
+}
+/* other connected players (multiplayer) — like the local avatar but cyan-tagged, no ring */
+.world-remote { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.remote-sprite {
+  --fw: 66px;
+  height: 112px;
+  background-size: calc(var(--fw) * 6) 112px;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 6px rgba(90, 220, 255, 0.85));
+}
+.remote-name {
+  position: absolute; left: 0; top: -126px;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  color: #d6f4ff;
+  background: rgba(12, 14, 26, 0.9);
+  border: 2px solid #2cf;
+  border-radius: 7px;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 6px #29f;
+  box-shadow: 0 0 10px rgba(40, 200, 255, 0.45);
+}
+
+/* abbreviated wallet address floating above the player */
+.player-name {
+  position: absolute; left: 0; top: -134px;
+  transform: translateX(-50%);
+  padding: 4px 9px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  color: #ffe6a6;
+  background: rgba(12, 14, 26, 0.92);
+  border: 2px solid #ffd166;
+  border-radius: 7px;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 6px #ffb700;
+  box-shadow: 0 0 12px rgba(255, 200, 80, 0.5);
+}
+.player-ring {
+  position: absolute; left: 0; top: -5px;
+  width: 76px; height: 34px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 210, 90, 0.55), rgba(255,180,60,0.18) 55%, transparent 72%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: playerRing 1.6s ease-in-out infinite;
+}
+@keyframes playerRing {
+  0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(0.92); }
+  50%      { opacity: 1;   transform: translate(-50%, -50%) scale(1.08); }
+}
+
+/* character-select HUD (bottom-left, shown when a wallet is connected) */
+.world-charbar {
+  position: fixed; left: 16px; bottom: 16px; z-index: 99999;
+  background: rgba(13, 15, 23, 0.92);
+  border: 1px solid rgba(120, 200, 255, 0.5);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 0 16px rgba(40, 120, 220, 0.35);
+}
+.charbar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.charbar-title { color: #7cf; font-family: "Press Start 2P", monospace; font-size: 9px; letter-spacing: 1px; text-shadow: 0 0 6px #29f; }
+.charbar-addr { color: #ffe6a6; font-family: "Press Start 2P", monospace; font-size: 9px; text-shadow: 0 0 6px #ffb700; }
+.charbar-row { display: flex; gap: 8px; }
+.charbar-opt {
+  width: 58px; height: 70px;
+  background: rgba(20, 24, 38, 0.85);
+  border: 2px solid transparent;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 2px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.charbar-opt img { height: 62px; width: auto; image-rendering: pixelated; }
+.charbar-opt:hover { border-color: rgba(120, 200, 255, 0.7); }
+.charbar-opt.sel { border-color: #ffd166; box-shadow: 0 0 12px rgba(255, 200, 80, 0.55); }
+.charbar-hint { color: #8fa6c8; font-family: "Press Start 2P", monospace; font-size: 8px; letter-spacing: 1px; text-align: center; }
+
+/* click-to-move destination marker (pulsing ring on the ground) */
+.world-dest {
+  position: absolute; left: 0; top: 0;
+  width: 54px; height: 26px;
+  margin-left: -27px; margin-top: -13px;       /* centre on the target point */
+  border: 2px solid rgba(120, 230, 255, 0.95);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(120, 230, 255, 0.3), transparent 70%);
+  box-shadow: 0 0 12px rgba(80, 210, 255, 0.7);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 1900;
+  animation: destPulse 1s ease-in-out infinite;
+}
+@keyframes destPulse {
+  0%, 100% { transform: scale(0.85); }
+  50%      { transform: scale(1.15); }
+}
+
+/* connect-wallet prompt */
+.world-connect-hint {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  z-index: 99999;
+  padding: 12px 20px;
+  background: rgba(12, 14, 26, 0.9);
+  border: 2px solid #2cf;
+  border-radius: 10px;
+  color: #eaf6ff;
+  font-family: "Press Start 2P", monospace;
+  font-size: 12px;
+  text-shadow: 0 0 8px #2cf;
+  box-shadow: 0 0 16px rgba(40, 200, 255, 0.5);
+  animation: shopSignPulse 2.4s ease-in-out infinite;
+}
+
+/* objects (buildings + props) are anchored bottom-centre on their tile */
+.world-obj {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.world-obj img {
+  display: block;
+  image-rendering: pixelated;
+  -webkit-user-drag: none;
+}
+
+/* modern fence ring overlay around the holo pad (absolute-positioned diamond) */
+.world-fence {
+  position: absolute;
+  pointer-events: none;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 5px rgba(80, 220, 255, 0.5));
+}
+
+.world-building { cursor: pointer; transition: filter 0.15s ease; outline: none; -webkit-tap-highlight-color: transparent; }
+.world-building:focus, .world-building:focus-visible { outline: none; }
+.world-building:hover { filter: drop-shadow(0 0 6px #2cf) drop-shadow(0 0 14px #b3f); }
+.world-building.is-active { filter: drop-shadow(0 0 8px #ffd166) drop-shadow(0 0 18px #ff5ea8); }
+.world-building.is-shop { filter: drop-shadow(0 0 6px var(--sign, #2cf)); }
+.world-building.is-shop:hover { filter: drop-shadow(0 0 10px #fff) drop-shadow(0 0 20px var(--sign, #2cf)); }
+
+/* BIG neon billboard above a shop building */
+.world-shop-sign {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  padding: 16px 26px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 30px;
+  letter-spacing: 2px;
+  color: #f2fbff;
+  background: rgba(10, 12, 24, 0.9);
+  border: 4px solid var(--sign, #2cf);
+  border-radius: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  text-shadow: 0 0 10px var(--sign, #2cf), 0 0 22px var(--sign, #2cf);
+  box-shadow: 0 0 24px var(--sign, #2cf), inset 0 0 16px rgba(255, 255, 255, 0.14);
+  animation: shopSignPulse 2.4s ease-in-out infinite;
+}
+/* stem connecting the sign to the building */
+.world-shop-sign::after {
+  content: "";
+  position: absolute;
+  left: 50%; bottom: -26px;
+  width: 4px; height: 26px;
+  transform: translateX(-50%);
+  background: var(--sign, #2cf);
+  box-shadow: 0 0 10px var(--sign, #2cf);
+}
+@keyframes shopSignPulse {
+  0%, 100% { box-shadow: 0 0 12px var(--sign, #2cf), inset 0 0 8px rgba(255,255,255,0.1); }
+  50%      { box-shadow: 0 0 22px var(--sign, #2cf), inset 0 0 14px rgba(255,255,255,0.2); }
+}
+
+/* store-NPC panel */
+.world-shop-overlay {
+  position: fixed; inset: 0; z-index: 100000;
+  background: rgba(6, 8, 16, 0.6);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.world-shop-panel {
+  width: 380px; max-width: 90vw;
+  background: linear-gradient(160deg, #15182a, #0c0e1a);
+  border: 2px solid var(--sign, #2cf);
+  border-radius: 12px;
+  box-shadow: 0 0 30px var(--sign, #2cf), inset 0 0 18px rgba(120, 200, 255, 0.08);
+  color: #dfe9ff;
+  font-family: "Press Start 2P", monospace;
+  padding: 18px 20px 22px;
+}
+.world-shop-panel header { display: flex; align-items: center; justify-content: space-between; }
+.world-shop-panel h2 {
+  margin: 0; font-size: 18px; letter-spacing: 1px;
+  color: #fff; text-shadow: 0 0 8px var(--sign, #2cf), 0 0 16px var(--sign, #2cf);
+}
+.world-shop-panel .shop-close {
+  background: none; border: none; color: #9fb6d6; font-size: 16px; cursor: pointer;
+}
+.world-shop-panel .shop-close:hover { color: #fff; }
+.world-shop-panel .shop-sub {
+  margin: 4px 0 14px; font-size: 9px; color: var(--sign, #2cf); letter-spacing: 2px;
+}
+.world-shop-panel .shop-body { font-size: 11px; line-height: 1.8; color: #b9c9e6; }
+.world-shop-panel .shop-soon { color: #7f8db0; margin-top: 12px; }
+
+/* ---- in-world tool HUD panels (Inventory / Market / Card Shop / Arena / Earn / Store) ---- */
+/* backdrop: dim + blur the city so the panel floats over the still-visible world */
+.world-panel-overlay {
+  position: fixed; inset: 0; z-index: 100050;
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(14px, 4vh, 48px) clamp(14px, 4vw, 64px);
+  background: rgba(3, 5, 12, 0.55);
+  -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
+  animation: wp-in 0.18s ease-out;
+}
+@keyframes wp-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===== cyberpunk HUD modal — ONE size for every panel ===== */
+.world-panel {
+  position: relative;
+  display: flex; flex-direction: column;
+  width: min(1040px, 100%);
+  height: min(86vh, 880px);
+  max-height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(13, 17, 28, 0.97), rgba(7, 9, 16, 0.985));
+  border: 1px solid color-mix(in srgb, var(--sign, #49b6ff) 50%, rgba(255, 255, 255, 0.10));
+  box-shadow:
+    0 34px 90px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 0 70px -24px color-mix(in srgb, var(--sign, #49b6ff) 70%, transparent),
+    0 0 64px -14px var(--sign, #49b6ff);
+  animation: wp-pop 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes wp-pop {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* faint tech-grid backdrop inside the frame */
+.world-panel::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.4;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--sign, #49b6ff) 26%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--sign, #49b6ff) 26%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(130% 100% at 50% -10%, #000 28%, transparent 72%);
+          mask-image: radial-gradient(130% 100% at 50% -10%, #000 28%, transparent 72%);
+}
+/* glowing top trim */
+.world-panel::after {
+  content: ""; position: absolute; top: 0; left: 6%; right: 6%; height: 2px; z-index: 6;
+  background: linear-gradient(90deg, transparent, var(--sign, #49b6ff), transparent);
+  filter: drop-shadow(0 0 7px var(--sign, #49b6ff));
+}
+
+/* HUD corner brackets */
+.world-panel-corner {
+  position: absolute; width: 22px; height: 22px; z-index: 6; pointer-events: none;
+  border: 2px solid var(--sign, #49b6ff);
+  filter: drop-shadow(0 0 6px var(--sign, #49b6ff));
+  animation: wp-corner 2.6s ease-in-out infinite;
+}
+@keyframes wp-corner { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+.world-panel-corner.tl { top: 8px; left: 8px; border-right: 0; border-bottom: 0; }
+.world-panel-corner.tr { top: 8px; right: 8px; border-left: 0; border-bottom: 0; }
+.world-panel-corner.bl { bottom: 8px; left: 8px; border-right: 0; border-top: 0; }
+.world-panel-corner.br { bottom: 8px; right: 8px; border-left: 0; border-top: 0; }
+
+/* slow scan sweep across the panel */
+.world-panel-scan {
+  position: absolute; left: 0; right: 0; height: 64px; top: -64px; z-index: 5; pointer-events: none;
+  background: linear-gradient(to bottom, transparent,
+    color-mix(in srgb, var(--sign, #49b6ff) 13%, transparent), transparent);
+  animation: wp-scan 4.8s linear infinite;
+}
+@keyframes wp-scan { 0% { top: -64px; } 100% { top: 100%; } }
+
+/* header */
+.world-panel-bar {
+  position: relative; z-index: 3;
+  flex: 0 0 auto; height: 54px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 58px;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--sign, #49b6ff) 16%, rgba(10, 14, 24, 0.92)), rgba(7, 9, 16, 0.55));
+  border-bottom: 1px solid color-mix(in srgb, var(--sign, #49b6ff) 46%, transparent);
+}
+.world-panel-bar::before {            /* left accent tab */
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  background: var(--sign, #49b6ff); box-shadow: 0 0 14px var(--sign, #49b6ff);
+}
+.world-panel-title {
+  position: relative;
+  font-weight: 900; letter-spacing: 0.28em; font-size: 14px; text-transform: uppercase;
+  color: #eaf6ff; text-shadow: 0 0 18px var(--sign, #49b6ff);
+}
+.world-panel-title::before, .world-panel-title::after {  /* flanking ticks */
+  content: ""; position: absolute; top: 50%; width: 14px; height: 2px;
+  background: var(--sign, #49b6ff); opacity: 0.8;
+  filter: drop-shadow(0 0 5px var(--sign, #49b6ff)); transform: translateY(-50%);
+}
+.world-panel-title::before { left: -24px; }
+.world-panel-title::after  { right: -24px; }
+
+/* angular close button */
+.world-panel-close {
+  position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
+  cursor: pointer; width: 34px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; line-height: 1; color: #ffd7df;
+  background: rgba(255, 60, 90, 0.16);
+  border: 1px solid rgba(255, 90, 120, 0.6);
+  clip-path: polygon(0 0, 100% 0, 100% 68%, 78% 100%, 0 100%);
+  box-shadow: 0 0 14px -3px rgba(255, 80, 110, 0.6);
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+.world-panel-close:hover { filter: brightness(1.3); transform: translateY(-50%) scale(1.08); }
+
+/* translateZ contains any embedded component's position:fixed background within the body */
+.world-panel-body {
+  flex: 1 1 auto; position: relative; z-index: 2; overflow: auto;
+  transform: translateZ(0);
+  overscroll-behavior: contain;          /* don't chain scroll out to the map */
+  scrollbar-width: thin;
+  scrollbar-color: var(--sign, #49b6ff) rgba(255, 255, 255, 0.05);
+}
+/* embedded tools were built for a full 100vh page — fit them to the card instead */
+.world-panel-body .min-h-screen { min-height: 100% !important; }
+
+/* slim neon scrollbar inside the HUD */
+.world-panel-body::-webkit-scrollbar { width: 10px; }
+.world-panel-body::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.04); }
+.world-panel-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--sign, #49b6ff) 55%, #20283a);
+  border-radius: 8px; border: 2px solid rgba(0, 0, 0, 0.3);
+}
+
+/* ---- proximity interaction: buildings/portal only highlight + open when the avatar is near ---- */
+.world-building.in-range img {
+  filter: drop-shadow(0 0 10px #fff) drop-shadow(0 0 22px var(--sign, #2cf));
+  animation: inRangeBob 1.4s ease-in-out infinite;
+}
+@keyframes inRangeBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.world-shop-sign.in-range { filter: brightness(1.25) saturate(1.2); box-shadow: 0 0 20px var(--sign, #2cf); }
+.world-prompt {
+  position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, -6px);
+  white-space: nowrap; font-weight: 900; font-size: 12px; letter-spacing: 0.1em;
+  color: #06121a; background: linear-gradient(180deg, #7af7ff, #16b5e6);
+  padding: 4px 10px; border-radius: 7px; border: 1px solid rgba(180, 250, 255, 0.9);
+  box-shadow: 0 0 16px rgba(0, 220, 255, 0.6);
+  pointer-events: none; animation: inRangeBob 1.4s ease-in-out infinite;
+}
+
+/* only ARENA remotes are clickable (challenge); city/Earn-map remotes are presence-only */
+.world-remote.clickable { pointer-events: auto; cursor: pointer; }
+.remote-tag {
+  position: absolute; left: 50%; top: -16px; transform: translateX(-50%);
+  font-size: 14px; filter: drop-shadow(0 0 6px #ff4a9e); opacity: 0; transition: opacity 0.12s ease;
+}
+.world-remote.clickable:hover .remote-tag { opacity: 1; }
+
+/* duel challenge HUD (click another player) */
+.world-duelhud {
+  position: fixed; inset: 0; z-index: 100070;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 5, 12, 0.72); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: wp-in 0.16s ease-out;
+}
+.duelhud-card {
+  min-width: 280px; padding: 22px 26px 24px; border-radius: 14px; text-align: center;
+  background: linear-gradient(160deg, #1a1030, #0c0a1a);
+  border: 2px solid rgba(255, 94, 168, 0.6);
+  box-shadow: 0 0 34px rgba(255, 94, 168, 0.4), inset 0 0 18px rgba(255, 120, 200, 0.08);
+  color: #f0e6ff;
+}
+.duelhud-head { font-size: 11px; letter-spacing: 0.22em; color: #ff8fc6; }
+.duelhud-name { font-size: 22px; font-weight: 900; margin: 8px 0 18px; text-shadow: 0 0 12px #ff5ea8; }
+.duelhud-actions { display: flex; gap: 10px; justify-content: center; }
+.duelhud-btn {
+  cursor: pointer; font-weight: 800; letter-spacing: 0.06em; font-size: 13px; color: #dfe9ff;
+  padding: 11px 18px; border-radius: 9px; background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18); transition: filter 0.12s, transform 0.12s;
+}
+.duelhud-btn--go {
+  color: #1a0410; background: linear-gradient(180deg, #ff7ab8, #ff3e86);
+  border-color: rgba(255, 160, 200, 0.9); box-shadow: 0 0 18px rgba(255, 70, 140, 0.5);
+}
+.duelhud-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+.duelhud-wait { font-size: 12px; color: #b9c9e6; align-self: center; animation: duelWait 1.6s ease-in-out infinite; }
+@keyframes duelWait { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+/* mode picker (right-click a player → Friendly / Bet) */
+.duelhud-sub { font-size: 11px; letter-spacing: 0.2em; color: #cdd9f2; margin: -10px 0 16px; text-transform: uppercase; }
+.duelhud-mode {
+  display: block; width: 100%; cursor: pointer; font-weight: 900; letter-spacing: 0.08em; font-size: 14px;
+  padding: 13px; border-radius: 10px; margin-bottom: 12px; color: #0a1e16;
+  background: linear-gradient(180deg, #6ff0c0, #37e0a0); border: 1px solid rgba(120, 255, 210, 0.8);
+  box-shadow: 0 0 18px rgba(55, 224, 160, 0.4); transition: filter 0.12s, transform 0.12s;
+}
+.duelhud-mode:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.duelhud-betbox {
+  border: 1px solid rgba(255, 210, 74, 0.4); border-radius: 10px; padding: 10px; margin-bottom: 14px;
+  background: rgba(255, 210, 74, 0.06);
+}
+.duelhud-betlabel { font-size: 10px; letter-spacing: 0.12em; color: #ffd24a; margin-bottom: 6px; }
+.duelhud-betlabel b { color: #fff; font-size: 13px; }
+.duelhud-betslider { width: 100%; accent-color: #ffd24a; margin: 2px 0 10px; cursor: pointer; }
+.duelhud-betpresets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+.duelhud-preset {
+  cursor: pointer; font-weight: 800; font-size: 12px; color: #ffe9a8; padding: 7px 0; border-radius: 7px;
+  background: rgba(255, 210, 74, 0.08); border: 1px solid rgba(255, 210, 74, 0.3); transition: filter 0.12s;
+}
+.duelhud-preset:hover { filter: brightness(1.15); }
+.duelhud-preset.is-active {
+  background: linear-gradient(180deg, #ffe27a, #ffc828); color: #1a1404; border-color: rgba(255, 220, 120, 0.9);
+}
+.duelhud-bet {
+  width: 100%; cursor: pointer; font-weight: 900; font-size: 13px; color: #1a1404; padding: 11px 0; border-radius: 8px;
+  background: linear-gradient(180deg, #ffe27a, #ffc828); border: 1px solid rgba(255, 220, 120, 0.9);
+  box-shadow: 0 0 14px rgba(255, 200, 40, 0.35); transition: filter 0.12s, transform 0.12s;
+}
+.duelhud-bet:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+/* DUELING tag over a busy player's head */
+.remote-dueling {
+  position: absolute; left: 50%; top: -20px; transform: translateX(-50%); white-space: nowrap;
+  font-size: 9px; font-weight: 900; letter-spacing: 0.1em; color: #fff; padding: 2px 6px; border-radius: 6px;
+  background: rgba(255, 60, 120, 0.85); box-shadow: 0 0 12px rgba(255, 60, 120, 0.7);
+  animation: duelTagPulse 1.2s ease-in-out infinite;
+}
+@keyframes duelTagPulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+.world-remote.is-busy { filter: drop-shadow(0 0 10px rgba(255, 60, 120, 0.6)); }
+
+/* single-session lock overlay */
+.world-superseded {
+  position: fixed; inset: 0; z-index: 2147483600;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 5, 12, 0.92); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  font-family: "Silkscreen", "Press Start 2P", "VT323", ui-monospace, monospace;
+}
+.world-superseded-card {
+  max-width: 460px; width: 90%; text-align: center; padding: 30px 28px; border-radius: 14px;
+  background: linear-gradient(160deg, #1a1030, #0c0a1a);
+  border: 1px solid rgba(255, 94, 168, 0.5);
+  box-shadow: 0 0 50px -8px rgba(255, 94, 168, 0.5), inset 0 0 30px rgba(255, 120, 200, 0.06);
+  color: #f0e6ff;
+}
+.ss-title {
+  font-size: 18px; font-weight: 900; letter-spacing: 0.22em; color: #ff8fc6;
+  text-shadow: 0 0 16px rgba(255, 94, 168, 0.7);
+}
+.ss-text { margin-top: 14px; font-size: 13px; line-height: 1.7; color: #cdd9f2; }
+.ss-btn {
+  margin-top: 22px; cursor: pointer; font-weight: 900; letter-spacing: 0.08em; font-size: 13px;
+  color: #1a0410; padding: 12px 20px; border-radius: 10px;
+  background: linear-gradient(180deg, #ff7ab8, #ff3e86); border: 1px solid rgba(255, 160, 200, 0.9);
+  box-shadow: 0 0 22px rgba(255, 70, 140, 0.5); transition: filter 0.12s, transform 0.12s;
+}
+.ss-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+
+/* ---------- animations ---------- */
+.fx-float { animation: bob 3s ease-in-out infinite; }
+@keyframes bob {
+  0%, 100% { transform: translate(-50%, -100%); }
+  50%      { transform: translate(-50%, calc(-100% - 12px)); }
+}
+
+.fx-flicker img { animation: flicker 3.2s steps(1) infinite; }
+@keyframes flicker {
+  0%, 92%, 96%, 100% { opacity: 1; filter: drop-shadow(0 0 8px #f3a); }
+  94% { opacity: 0.55; }
+  98% { opacity: 0.8; }
+}
+
+.fx-glow img { animation: lamp 4s ease-in-out infinite; }
+@keyframes lamp {
+  0%, 100% { filter: drop-shadow(0 0 4px #fe9); }
+  50%      { filter: drop-shadow(0 0 12px #fe9) brightness(1.1); }
+}
+
+/* animated streetlight — pulsing neon beacon */
+.fx-lamp img { animation: lampPulse 1.8s ease-in-out infinite; }
+@keyframes lampPulse {
+  0%, 100% { filter: drop-shadow(0 0 3px #f6a) brightness(0.95); }
+  50%      { filter: drop-shadow(0 0 9px #f6a) drop-shadow(0 0 18px #f6a) brightness(1.3); }
+}
+
+/* traffic stoplight — cycling red→yellow→green glow */
+.fx-stop img { animation: stopCycle 3s steps(1) infinite; }
+@keyframes stopCycle {
+  0%, 33%  { filter: drop-shadow(0 0 6px #f33) brightness(1.05); }
+  34%, 66% { filter: drop-shadow(0 0 6px #fd4) brightness(1.05); }
+  67%, 100%{ filter: drop-shadow(0 0 6px #4f6) brightness(1.05); }
+}
+
+/* real PixelLab 5-frame fountain animation (560x112 sprite sheet).
+   --fw = scaled frame width (set inline). The sheet is 5 frames wide, so background-size
+   is 5*--fw, and we step the position left by one --fw per frame → crisp frame stepping at
+   any scale (no sliding). */
+.fountain-anim {
+  --fw: 112px;
+  width: var(--fw);
+  height: var(--fw);
+  /* centred on its tile (overrides .world-obj's bottom-centre anchor) */
+  transform: translate(-50%, -50%);
+  background-repeat: no-repeat;
+  background-size: calc(var(--fw) * 5) var(--fw);
+  background-position: 0 0;
+  image-rendering: pixelated;
+  animation: fountainFlow 0.8s steps(5) infinite;
+  filter: drop-shadow(0 0 8px #2cf);
+}
+@keyframes fountainFlow { to { background-position: calc(var(--fw) * -5) 0; } }
