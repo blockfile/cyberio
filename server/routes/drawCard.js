@@ -8,6 +8,7 @@ const { getAssociatedTokenAddress } = require("@solana/spl-token");
 
 const User = require("../model/User");
 const DrawIntent = require("../model/DrawIntent");
+const ClaimedLegendary = require("../model/ClaimedLegendary");
 
 /** ─ CONFIG ─ */
 const RPC_URL = process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com";
@@ -50,18 +51,57 @@ const DRAW_WEIGHTS = [
   ["Rare", 20],
   ["Common", 70],
 ];
-/** pick a random cardId weighted by rarity tier (falls back to any id) */
-function pickCardId() {
-  const roll = Math.random() * 100;
-  let acc = 0;
-  for (const [tier, w] of DRAW_WEIGHTS) {
-    acc += w;
-    const arr = DRAW_BUCKETS[tier];
-    if (roll < acc && arr && arr.length) {
-      return arr[Math.floor(Math.random() * arr.length)];
-    }
+// ── Legendary cards are one-time: each is claimed globally on first draw, so only the
+//    ~20 power-10 cards ever circulate. Free-tier draws never roll Legendary. ──
+const claimedLegendaries = new Set();
+(async () => {
+  try {
+    const docs = await ClaimedLegendary.find({}, "cardId").lean();
+    for (const d of docs) claimedLegendaries.add(String(d.cardId));
+    console.log(`[DRAW] ${claimedLegendaries.size}/${DRAW_BUCKETS.Legendary.length} legendaries already claimed`);
+  } catch (e) {
+    console.error("load claimed legendaries failed:", e?.message || e);
   }
-  return ALL_CARD_IDS[Math.floor(Math.random() * ALL_CARD_IDS.length)];
+})();
+
+/** Pick a cardId weighted by tier.
+ *  - allowLegendary=false (FREE tier) never rolls Legendary.
+ *  - Legendary picks are claimed atomically so each circulates only once; if a chosen
+ *    legendary is already taken (race/restart) we re-roll. */
+async function chooseCard({ allowLegendary = true, wallet = "", txid = "" } = {}) {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const tiers = DRAW_WEIGHTS.filter(([t]) => allowLegendary || t !== "Legendary");
+    const total = tiers.reduce((s, [, w]) => s + w, 0);
+    let roll = Math.random() * total, acc = 0, tier = tiers[tiers.length - 1][0];
+    for (const [t, w] of tiers) { acc += w; if (roll < acc) { tier = t; break; } }
+
+    let bucket = DRAW_BUCKETS[tier] || [];
+    if (tier === "Legendary") {
+      bucket = bucket.filter((id) => !claimedLegendaries.has(String(id)));
+      if (!bucket.length) { tier = "Common"; bucket = DRAW_BUCKETS.Common; } // all legendaries claimed
+    }
+    if (!bucket.length) bucket = ALL_CARD_IDS;
+    const id = String(bucket[Math.floor(Math.random() * bucket.length)]);
+
+    if (tier === "Legendary") {
+      let claimedNew = false;
+      try {
+        const prev = await ClaimedLegendary.findOneAndUpdate(
+          { cardId: id },
+          { $setOnInsert: { cardId: id, wallet, txid } },
+          { upsert: true }
+        ).lean();
+        claimedNew = !prev;                 // null original ⇒ we just inserted it
+      } catch (e) {
+        claimedNew = false;                 // duplicate-key race ⇒ already claimed
+      }
+      claimedLegendaries.add(id);
+      if (!claimedNew) continue;            // someone already holds it → re-roll
+    }
+    return id;
+  }
+  // safety: never block a draw — fall back to a Common
+  return String(DRAW_BUCKETS.Common[Math.floor(Math.random() * DRAW_BUCKETS.Common.length)] || ALL_CARD_IDS[0]);
 }
 
 function priceToBaseUnits(priceSD, decimals) {
@@ -284,8 +324,8 @@ router.post("/finalize", async (req, res) => {
   const user = await User.findOne({ walletAddress });
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  // rarity-weighted draw across the full card pool
-  const idStr = String(pickCardId());
+  // rarity-weighted draw across the full pool (paid draw → Legendary allowed, one-time)
+  const idStr = await chooseCard({ allowLegendary: true, wallet: walletAddress, txid: txSignature });
   const meta = CARD_METADATA[idStr];
   if (!meta) return res.status(500).json({ error: "Card metadata missing" });
 
@@ -334,8 +374,8 @@ router.post("/free", async (req, res) => {
   user.freeCard -= 1;
   if (user.freeCard === 0) user.newPlayer = false;
 
-  // rarity-weighted draw across the full card pool
-  const idStr = String(pickCardId());
+  // rarity-weighted draw — FREE tier never rolls Legendary
+  const idStr = await chooseCard({ allowLegendary: false, wallet: walletAddress });
   const meta = CARD_METADATA[idStr];
   if (!meta) return res.status(500).json({ error: "Card metadata missing" });
 

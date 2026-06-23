@@ -969,6 +969,7 @@ export default function World() {
 
   return (
     <div className="world-viewport"
+      onContextMenu={(e) => e.preventDefault()}
       onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel}>
       <div className="world-sheen" />
       <header className="world-hud">
