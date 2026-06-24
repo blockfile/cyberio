@@ -527,3 +527,85 @@ weapon_market, clinic. Props: fountain_plaza, taxi. Raw pre-floodfill copies in 
 - **v4 stitched map:** `public/citymap/topdown/citymap.png` + `scripts/_map/`.
 - Tiles: `public/citymap/td/`; building sprites: `public/citymap/sprites/`; raw: `scripts/_bldg_raw/`.
 - Layout fully in `World.jsx` `MAP` / `BUILDINGS` — edit those to change the city.
+
+---
+
+# Motorbike accessory — PROTOTYPE (real character riding, via PixelLab character API)
+
+> Status: prototype live (localStorage-gated). **TAB** toggles riding in-city → speed boost + your
+> REAL player character genuinely riding a motorbike (all 4 directions) + "🏍 RIDING" HUD pill;
+> auto-dismount on panel/arena/encounter.
+> History: (1) single AI rider+bike sprite — blobby, reverted. (2) standing char composited onto a
+> riderless bike — OK but stiff. (3) **WINNER: PixelLab character API** `create_character_state`
+> ("riding a motorbike") on each player character → cohesive, properly-posed rider+bike.
+
+## Art pipeline (the key part) — PixelLab character API
+- Player characters already exist as PixelLab characters (4dir, 92x92):
+  player1 `99b6fde2…` (white-hair samurai), player2 `1a7236be…` (purple-armor soldier),
+  player3 `1aad63e6…` (blue-hair rebel). Find via `list_characters`.
+- [scripts/genRideStates.js](scripts/genRideStates.js): for each, `create_character_state(src,
+  edit_description="…riding a sleek black cyberpunk motorcycle, leaning forward, hands on handlebars,
+  legs astride…", use_color_palette_from_reference=false)` → a new linked state; poll `get_character`
+  → download the 4 `rotations/{south,east,north,west}.png` → `ride{N}_{s,e,n,w}.png`.
+- **Normalize:** `magick … -trim +repage -background none -gravity south -extent 76x80` (wheels at the
+  bottom-centre = ground/feet anchor; consistent scale across directions). 12 sprites total.
+
+## Code (World.jsx + world.css)
+- `ridingRef` / `ownsBikeRef` / `riding` state; TAB handler; `SPEED_RIDE = SPEED*2.2`; auto-dismount
+  in the freeze branch; sprite swap to a **`.player-ride`** element (`ride{charId}_{dir}`); `.moving`
+  toggle. CSS: `.player-ride` **110x116** bottom-centre anchor; `bikeIdle` vibration; `.moving` →
+  `bikeRide` lean+bob + speed-trail; reduced-motion guard. `.world-ride-pill` HUD.
+
+## Ownership
+- Prototype: `localStorage("cyb_owns_bike")` (defaults owned). Real (TODO): Store purchase token
+  transfer → `User.hasBike`.
+
+## Tuning knobs
+- Speed: `SPEED_RIDE` (World.jsx). On-screen scale: `.player-ride` width/height (110x116 in world.css).
+- Re-generate / re-pose by editing the `edit_description` in genRideStates.js and re-running.
+
+## Revert
+- Undo the World.jsx additions (TAB / `ridingRef` / `SPEED_RIDE` / sprite-swap / `.player-ride` div)
+  + the `.player-ride` / `.world-ride-pill` CSS. Delete `ride*_*.png` + `scripts/genRideStates.js`
+  (the obsolete composite scripts genBikeRiderless.js / genBikeFR.js can also go). Delete this section.
+
+---
+
+# PVE NPC battle: no-exit + incremental loss/surrender penalty (server-enforced)
+
+Goal: once in an NPC (Earn) fight you can't freely exit; losing, surrendering, or
+abandoning applies an escalating time penalty so players can't spam PVE.
+
+## Rules (server is the authority)
+- penalty = min(5min × offenseCount, 15min). 1st offence 5, then 10, then 15 (cap).
+- offenseCount RESETS to 0 on a win; auto-DECAYS to 0 if last offense > 60 min ago.
+- Disconnect mid-fight = 30s reconnect grace; if you don't return it finalises as a surrender penalty.
+- A started fight is STICKY: reopening/reconnecting RESUMES the same session (can't abandon to start fresh).
+- Draws are penalty-neutral. PVP/arena is unaffected.
+- Tunable via env: EARN_PENALTY_BASE_MS / EARN_PENALTY_MAX_MS / EARN_OFFENSE_DECAY_MS / EARN_GRACE_MS.
+
+## Files
+- NEW server/model/EarnPenalty.js — { wallet(unique), penaltyUntil, offenseCount, lastOffenseAt, lastReason }.
+- server/sockets/earnNpc.socket.js:
+  - in-memory mirror `pvePenaltyMem` (set synchronously on offense → race-free gate; survives DB hiccups),
+    helpers effOffense / getPenaltyState / recordPveOffense / clearPveOffense.
+  - earnNpc:start — RESUME existing session (with penalty gate) + PVE_PENALTY gate for new fights
+    + `sessions.has` guard before sessions.set (anti concurrent-start clobber).
+  - endTurn — clearPveOffense on win, recordPveOffense on a clear loss (draw neutral); emits payout.penaltyUntil.
+  - NEW earnNpc:surrender handler; disconnect → grace timer → recordPveOffense("abandon") then delete.
+- src/components/pages/EarnNpc.jsx — cooldown countdown + start gate, Surrender button + confirm modal,
+  PVE_PENALTY handling, onLockChange(active) to the host.
+- src/components/world/World.jsx — panelLockedRef + tryClose: block the panel ✕/overlay during a live fight.
+
+## Revert
+- Delete server/model/EarnPenalty.js. Revert the earnNpc.socket.js penalty helpers/handlers/gates.
+  Revert the EarnNpc.jsx cooldown/surrender UI + onLockChange. Revert World.jsx panelLockedRef/tryClose.
+  Delete this section.
+
+---
+
+# Motorbike riding animation — COMPLETE (all 4 directions, pro)
+- char1 ride state d8d01369 now has 4-frame pro animations for south/east/north/west
+  (north + west re-triggered after PixelLab's queue stalled twice). Sheets: ride1_{s,e,n,w}.png 304x80.
+- Builder: scripts/buildRideAnim.py (loads PL token from ~/.claude.json if PL_TOKEN unset; shared bbox, no jitter).
+- char2/char3 remain static ride sprites (no rideanim sheet) — animating them costs ~160 more gens.

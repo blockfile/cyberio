@@ -19,7 +19,8 @@ const SD_TOKEN_MINT = new PublicKey(
   process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT || "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump"
 );
 // price in whole CYBERIO tokens (e.g. 10)
-const DRAW_PRICE_SD = parseInt(process.env.DRAW_PRICE_CYBERIO || process.env.DRAW_PRICE_SD || "10", 10);
+const DRAW_PRICE_SD = parseInt(process.env.DRAW_PRICE_CYBERIO || process.env.DRAW_PRICE_SD || "5000", 10);
+const DRAW_COUNTS = [1, 5, 10]; // allowed multi-draw sizes
 
 const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -47,9 +48,9 @@ for (const id of ALL_CARD_IDS) {
 }
 // draw weights (sum 100): rarer tiers far less likely
 const DRAW_WEIGHTS = [
-  ["Legendary", 10],
-  ["Rare", 20],
-  ["Common", 70],
+  ["Legendary", 0.5],
+  ["Rare", 19.5],
+  ["Common", 80],
 ];
 // ── Legendary cards are one-time: each is claimed globally on first draw, so only the
 //    ~20 power-10 cards ever circulate. Free-tier draws never roll Legendary. ──
@@ -124,6 +125,7 @@ async function verifyDrawPayment({
   txSignature,
   buyerWallet,
   memo,
+  count = 1,
 }) {
   const tx = await connection.getParsedTransaction(txSignature, {
     maxSupportedTransactionVersion: 0,
@@ -158,7 +160,7 @@ async function verifyDrawPayment({
   const decimals =
     tx.meta?.postTokenBalances?.find((b) => b.mint === SD_TOKEN_MINT.toString())
       ?.uiTokenAmount?.decimals ?? 6;
-  const expected = priceToBaseUnits(DRAW_PRICE_SD, decimals);
+  const expected = priceToBaseUnits(DRAW_PRICE_SD * count, decimals);
 
   // 3) locate a matching transferChecked and verify account owners
   const ixs = tx.transaction.message.instructions || [];
@@ -216,7 +218,7 @@ async function verifyDrawPayment({
  *  /api/draw-card/free
  */
 
-/** POST /api/draw-card/intent  { walletAddress } */
+/** POST /api/draw-card/intent  { walletAddress, count } */
 router.post("/intent", async (req, res) => {
   const { walletAddress } = req.body;
   if (!walletAddress)
@@ -225,20 +227,24 @@ router.post("/intent", async (req, res) => {
   const user = await User.findOne({ walletAddress });
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  // If free draw available, no intent needed
+  // If free draw available, no intent needed (free draw is always a single card)
   if (user.newPlayer && user.freeCard > 0) {
     return res.json({ free: true });
   }
 
+  const count = DRAW_COUNTS.includes(Number(req.body.count)) ? Number(req.body.count) : 1;
+  const total = DRAW_PRICE_SD * count; // total tokens the buyer must send
+
   // Create a unique memo for this intent
-  const memo = `DRAW:${walletAddress}:${Date.now().toString(36)}:${Math.random()
+  const memo = `DRAW:${walletAddress}:${count}x:${Date.now().toString(36)}:${Math.random()
     .toString(36)
     .slice(2, 10)}`;
 
   const doc = await DrawIntent.create({
     wallet: walletAddress,
     memo,
-    priceSD: DRAW_PRICE_SD,
+    priceSD: total,
+    count,
     status: "locked",
     lockedAt: new Date(),
   });
@@ -246,7 +252,8 @@ router.post("/intent", async (req, res) => {
   res.json({
     free: false,
     memo: doc.memo,
-    priceSD: DRAW_PRICE_SD,
+    priceSD: total, // TOTAL to send (count × per-draw price)
+    count,
     mint: SD_TOKEN_MINT.toBase58(),
     treasury: TREASURY_PUBKEY.toBase58(),
   });
@@ -308,39 +315,39 @@ router.post("/finalize", async (req, res) => {
 
   const connection = new Connection(RPC_URL, "confirmed");
 
-  // Verify payment (robust)
+  const count = intent.count || 1;
+
+  // Verify payment (robust) — expects count × per-draw price
   const verified = await verifyDrawPayment({
     connection,
     txSignature,
     buyerWallet: walletAddress,
     memo,
+    count,
   });
   if (!verified.ok) {
     // surface exact reason to the client
     return res.status(403).json({ error: verified.reason || "Verify failed" });
   }
 
-  // Award the card
+  // Award `count` cards
   const user = await User.findOne({ walletAddress });
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  // rarity-weighted draw across the full pool (paid draw → Legendary allowed, one-time)
-  const idStr = await chooseCard({ allowLegendary: true, wallet: walletAddress, txid: txSignature });
-  const meta = CARD_METADATA[idStr];
-  if (!meta) return res.status(500).json({ error: "Card metadata missing" });
+  const drawn = [];
+  for (let i = 0; i < count; i++) {
+    // rarity-weighted draw across the full pool (paid draw → Legendary allowed, one-time)
+    const idStr = await chooseCard({ allowLegendary: true, wallet: walletAddress, txid: txSignature });
+    const meta = CARD_METADATA[idStr];
+    if (!meta) continue;
 
-  const existing = user.cards.find(
-    (c) => c.cardId === idStr && c.isFree === false
-  );
-  if (existing) existing.count += 1;
-  else
-    user.cards.push({
-      cardId: idStr,
-      name: meta.name,
-      power: meta.power,
-      count: 1,
-      isFree: false,
-    });
+    const existing = user.cards.find((c) => c.cardId === idStr && c.isFree === false);
+    if (existing) existing.count += 1;
+    else user.cards.push({ cardId: idStr, name: meta.name, power: meta.power, count: 1, isFree: false });
+
+    drawn.push({ cardId: idStr, name: meta.name, power: meta.power, rarity: rarityOf(idStr) });
+  }
+  if (!drawn.length) return res.status(500).json({ error: "Card metadata missing" });
 
   await user.save();
 
@@ -349,11 +356,13 @@ router.post("/finalize", async (req, res) => {
   intent.txSignature = txSignature;
   await intent.save();
 
+  // drawnCards = full list; the single fields mirror the first card (backward compat)
   res.json({
-    drawnCard: idStr,
-    name: meta.name,
-    power: meta.power,
-    rarity: rarityOf(idStr),
+    drawnCards: drawn,
+    drawnCard: drawn[0].cardId,
+    name: drawn[0].name,
+    power: drawn[0].power,
+    rarity: drawn[0].rarity,
     updatedUser: user,
   });
 });

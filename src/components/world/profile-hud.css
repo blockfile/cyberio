@@ -4,7 +4,7 @@
 .profile-hud {
   position: fixed;
   left: 16px;
-  top: 16px;
+  top: 54px; /* below the CityNav */
   z-index: 99999;
   display: flex;
   gap: 12px;

@@ -17,7 +17,8 @@ const SPAWN = [0, R - 5];                           // spawn near the south edge
 const EXIT_TILE = [0, 0];                           // EXIT portal dead-centre of the arena
 
 const iso = (tx, ty) => ({ x: OX + (tx - ty) * TW, y: OY + (tx + ty) * TH });
-const inArena = (tx, ty) => Math.hypot(tx, ty) <= R - 0.4;
+// keep the player ~2 tiles inside the floor edge so the (tall) sprite never overhangs the void
+const inArena = (tx, ty) => Math.hypot(tx, ty) <= R - 2.0;
 
 const FLOOR = [];
 for (let tx = -R; tx <= R; tx++)
@@ -26,7 +27,7 @@ for (let tx = -R; tx <= R; tx++)
 FLOOR.sort((a, b) => (a.tx + a.ty) - (b.tx + b.ty));
 const EXIT_POS = iso(EXIT_TILE[0], EXIT_TILE[1]);
 
-export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) {
+export default function ArenaMap({ charId = "1", wallet = "", name = "", onExit, onDuel }) {
   const sceneRef = useRef(null), playerRef = useRef(null);
   const keys = useRef(new Set()), pathRef = useRef([]);
   const playerPosRef = useRef(null);
@@ -34,6 +35,7 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
   const remotesRef = useRef(new Map());
   const remoteNodes = useRef({});
   const charIdRef = useRef(charId);
+  const nameRef = useRef(name);                     // display name (nickname or short wallet)
   const exitArmedRef = useRef(false);               // arm once you step away from the exit portal
   const [remoteIds, setRemoteIds] = useState([]);
   const [presenceConnected, setPresenceConnected] = useState(false);
@@ -48,6 +50,11 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
   const shortAddr = wallet ? `${wallet.slice(0, 4)}…${wallet.slice(-4)}` : "anon";
 
   useEffect(() => { charIdRef.current = charId; }, [charId]);
+  useEffect(() => {
+    nameRef.current = name;
+    const s = socketRef.current;
+    if (s && s.connected) s.emit("arena:name", { name });
+  }, [name]);
   const onDuelRef = useRef(onDuel), onExitRef = useRef(onExit);
   useEffect(() => { onDuelRef.current = onDuel; onExitRef.current = onExit; });
   useEffect(() => { activeDuelRef.current = activeDuel; }, [activeDuel]);
@@ -84,8 +91,30 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
     };
     const KEY = { ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down",
       ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right" };
-    const kd = (e) => { const m = KEY[e.code]; if (m) { e.preventDefault(); keys.current.add(m); } };
-    const ku = (e) => { const m = KEY[e.code]; if (m) keys.current.delete(m); };
+    const isTyping = (e) => {
+      const t = e.target || document.activeElement;
+      return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+    };
+    const kd = (e) => {
+      if (isTyping(e)) return;
+      if (e.code === "KeyE") {                          // "E" → request a duel with the nearest player
+        e.preventDefault();
+        const P = playerPosRef.current; if (!P) return;
+        let best = null, bd = Infinity;
+        remotesRef.current.forEach((r, id) => {
+          const d = Math.hypot(P.x - r.tx, P.y - r.ty);
+          if (d < bd) { bd = d; best = { id, r }; }
+        });
+        if (best && bd < 800) {                         // a player is reasonably nearby
+          const r = best.r;
+          const nm = r.name || (r.wallet ? `${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}` : "anon");
+          setDuelTarget({ id: best.id, name: nm, wallet: r.wallet || "" });
+        }
+        return;
+      }
+      const m = KEY[e.code]; if (m) { e.preventDefault(); keys.current.add(m); }
+    };
+    const ku = (e) => { if (isTyping(e)) return; const m = KEY[e.code]; if (m) keys.current.delete(m); };
     window.addEventListener("keydown", kd); window.addEventListener("keyup", ku);
     // persist arena position so a browser refresh drops you back where you were
     const saveArena = () => {
@@ -165,7 +194,7 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
     socket.on("connect", () => {
       setPresenceConnected(true);
       const P = playerPosRef.current;
-      socket.emit("arena:join", { wallet, char: charIdRef.current, x: P ? P.x : 0, y: P ? P.y : 0, dir: P ? P.dir : "s" });
+      socket.emit("arena:join", { wallet, name: nameRef.current, char: charIdRef.current, x: P ? P.x : 0, y: P ? P.y : 0, dir: P ? P.dir : "s" });
     });
     socket.on("disconnect", () => {
       setPresenceConnected(false);
@@ -175,7 +204,7 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
     });
     const addRemote = (o) => {
       if (!o || o.id === socket.id) return;
-      remotesRef.current.set(o.id, { char: String(o.char || "1"), wallet: o.wallet || "",
+      remotesRef.current.set(o.id, { char: String(o.char || "1"), wallet: o.wallet || "", name: o.name || "",
         dx: o.x, dy: o.y, tx: o.x, ty: o.y, dir: o.dir || "s", moving: false, _dir: null, _char: null, _mv: null });
       setRemoteIds([...remotesRef.current.keys()]);
     };
@@ -188,6 +217,10 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
     socket.on("arena:charChanged", (m) => {
       const r = remotesRef.current.get(m.id);
       if (r) { r.char = String(m.char); r._char = null; }
+    });
+    socket.on("arena:nameChanged", (m) => {
+      const r = remotesRef.current.get(m.id);
+      if (r) { r.name = String(m.name || ""); setRemoteIds([...remotesRef.current.keys()]); }
     });
     socket.on("arena:left", (m) => {
       remotesRef.current.delete(m.id);
@@ -290,6 +323,7 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
           variant="arena"
           playerCount={presenceConnected ? remoteIds.length + 1 : 0}
           presenceConnected={presenceConnected}
+          displayName={name}
         />
       )}
 
@@ -309,7 +343,7 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
           {remoteIds.map((id) => {
             const r = remotesRef.current.get(id);
             if (!r) return null;
-            const nm = r.wallet ? `${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}` : "anon";
+            const nm = r.name || (r.wallet ? `${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}` : "anon");
             const busy = busyIds.has(id);
             return (
               <div key={id} className={`world-remote clickable${busy ? " is-busy" : ""}`}
@@ -328,12 +362,13 @@ export default function ArenaMap({ charId = "1", wallet = "", onExit, onDuel }) 
           <div className="world-player arena-player" ref={playerRef}>
             <div className="world-walker-sprite player-sprite" />
             <div className="player-ring" />
+            <div className="player-name">{name || shortAddr}</div>
           </div>
         </div>
       </div>
 
       <div className="arena-actions">
-        <p className="arena-hint">Right-click a player to duel · WASD / click to move · walk into the EXIT portal to leave</p>
+        <p className="arena-hint">Right-click a player (or press E) to duel · WASD / click to move · walk into the EXIT portal to leave</p>
       </div>
 
       {duelTarget && (

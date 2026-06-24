@@ -5,7 +5,7 @@ import roadCellsList from "./road_cells.json";   // road layout (built by script
 import { WalletContext } from "../../context/WalletConnect";
 import { io } from "socket.io-client";
 import { SOCKET_URL, API_BASE_URL } from "../../config/endpoints";
-import CyberLanding from "../pages/CyberLanding";
+import CityNav from "./CityNav";
 // in-world tool panels (open as HUD overlays when a building is clicked)
 import Inventory from "../pages/inventory";
 import Market from "../pages/market";
@@ -284,7 +284,7 @@ SHOPS.forEach((shop) => {
 // ---- ARENA PORTAL: a glowing gateway at the SOUTH end of the central arterial (cols 15-16).
 // Clicking it opens the duel. The OTHER road exits are capped with barricades below.
 const ARENA_PORTAL = (() => {
-  const tx = 15.5, ty = 38;                       // end of the central road, near the front (south) edge
+  const tx = 24.5, ty = 38;                       // end of the central-S road — long clear run, no nearby statue
   const { x, y } = iso(tx, ty);
   const w = Math.round(DW * 2.0);
   objs.push({ key: "arena-portal", name: "portal", w, dy: 0, fx: "portal",
@@ -298,7 +298,7 @@ const ARENA_PORTAL = (() => {
 // ---- close every OTHER road exit at the map edges with a neon barricade ----
 const ROAD_EXITS = [
   [6.5, 0], [15.5, 0], [24.5, 0], [33.5, 0],                 // top edge
-  [6.5, 39], [24.5, 39], [33.5, 39],                         // bottom edge (skip 15.5 = ARENA portal)
+  [6.5, 39], [15.5, 39], [33.5, 39],                         // bottom edge (skip 24.5 = ARENA portal)
   [0, 6.5], [0, 15.5], [0, 24.5], [0, 33.5],                 // left edge
   // right edge (tx≥39) is the harbor/water — no road exits there, so no barricades
 ];
@@ -313,7 +313,7 @@ const INTERACTABLES = [
   ...SHOPS.map((s) => ({ key: `shop-${s.name}`, name: s.name, panel: s.panel,
     color: s.color, tx: s.tx, ty: s.ty, range: 3.4 })),
   { key: "arena-portal", name: "ARENA", panel: "arena", color: "#c060ff",
-    tx: ARENA_PORTAL.tx, ty: ARENA_PORTAL.ty, range: 2.0, portal: true },
+    tx: ARENA_PORTAL.tx, ty: ARENA_PORTAL.ty, range: 3.0, portal: true },
 ];
 
 BLOCKS.forEach(([x0, y0, x1, y1], i) => {
@@ -433,7 +433,9 @@ const isWalkable = (tx, ty) => {
   if (tx < 0 || ty < 0 || tx >= GW || ty >= GH) return false;
   if (tx >= WATER_X0 || tx === DOCK_X) return false;
   if (HOLO_PAD.has(`${tx},${ty}`)) return false;
-  if (inRaIsland(tx, ty)) return false;
+  // the statue's grass island blocks movement — but never a tile the road builder marked as
+  // road (the ring road dips inside the island radius, and those paths must stay walkable)
+  if (inRaIsland(tx, ty) && !ROAD_CELLS.has(`${tx},${ty}`)) return false;
   return !occupied.has(`${tx},${ty}`);
 };
 // spawn wandering pedestrians on walkable ROAD tiles
@@ -500,14 +502,29 @@ export default function World() {
     return null;
   });
   const [superseded, setSuperseded] = useState(false); // this wallet became active in another tab
-  // Lite FX (heavy blend/blur/glow effects OFF) — DEFAULT ON; only full effects if the user opted in.
-  const [liteFx, setLiteFx] = useState(() => {
-    try { return localStorage.getItem("cyb_lite_fx") !== "0"; } catch (e) { return true; }
+  // FX quality: "low" | "med" | "high".
+  //   high → full effects;  med → `lite-fx` (drops blur/glow/blend);  low → med + `fx-low`
+  //   (also strips ambient motion: hologram, water) for weak / no-GPU machines.
+  // Default MED. Migrates the old binary cyb_lite_fx toggle.
+  const [fxLevel, setFxLevel] = useState(() => {
+    try {
+      const lvl = localStorage.getItem("cyb_fx_level");
+      if (lvl === "low" || lvl === "med" || lvl === "high") return lvl;
+      return localStorage.getItem("cyb_lite_fx") === "0" ? "high" : "med";
+    } catch (e) { return "med"; }
   });
   useEffect(() => {
-    document.body.classList.toggle("lite-fx", liteFx);
-    try { localStorage.setItem("cyb_lite_fx", liteFx ? "1" : "0"); } catch (e) { /* ignore */ }
-  }, [liteFx]);
+    document.body.classList.toggle("lite-fx", fxLevel !== "high"); // low + med reduce effects
+    document.body.classList.toggle("fx-low", fxLevel === "low");   // low strips ambient motion
+    try { localStorage.setItem("cyb_fx_level", fxLevel); } catch (e) { /* ignore */ }
+  }, [fxLevel]);
+  const cycleFx = () => setFxLevel((v) => (v === "low" ? "med" : v === "med" ? "high" : "low"));
+  const FX_LABEL = { low: "FX·LOW", med: "FX·MED", high: "FX·HIGH" };
+  const FX_HINT = {
+    low: "FX: LOW — best for weak / no-GPU PCs · tap to cycle",
+    med: "FX: MEDIUM — balanced · tap to cycle",
+    high: "FX: HIGH — full effects · tap to cycle",
+  };
   // nickname (editable only while a pass is active; displayed in the ProfileHUD + on-map nameplate)
   const [nickname, setNickname] = useState("");
   // EARN MODE — with an active Dimension Pass, duel city NPCs to earn (toggle, upper-right)
@@ -518,6 +535,13 @@ export default function World() {
   const earnSpentRef = useRef(new Set());        // walking-NPC indices already auto-dueled this session
   const [encounter, setEncounter] = useState(null); // { npcChar, tier } — Pokémon-style intro before a duel
   const encounterRef = useRef(false);
+  const encounterCdRef = useRef(0);   // suppress auto-duel until this timestamp (set after a duel closes)
+  // motorbike (PROTOTYPE): TAB toggles riding when owned → speed boost + your character composited
+  // onto a bike (ride{charId}_{dir}). Gate = localStorage "cyb_owns_bike" (defaults owned for testing;
+  // the real version will gate on a Store purchase / User.hasBike).
+  const [riding, setRiding] = useState(false);
+  const ridingRef = useRef(false);
+  const ownsBikeRef = useRef(typeof localStorage !== "undefined" && localStorage.getItem("cyb_owns_bike") !== "0");
   useEffect(() => { earnOnRef.current = earnOn; }, [earnOn]);
   useEffect(() => { passActiveRef.current = passActive; }, [passActive]);
   useEffect(() => { encounterRef.current = !!encounter; }, [encounter]);
@@ -556,6 +580,8 @@ export default function World() {
   const sceneRef = useRef(null);                 // the scene element (camera follows the player)
   const playerRef = useRef(null);                // the controllable avatar
   const destRef = useRef(null);                  // click-to-move destination marker
+  const hoverRef = useRef(null);                 // tile-hover highlight (positioned imperatively)
+  const nearestInteractRef = useRef(null);       // closest in-range shop/portal — entered with "E"
   const keysRef = useRef(new Set());
   const pathRef = useRef([]);                    // current click-to-move path (scene waypoints)
   const playerPosRef = useRef(null);             // live player position (for click pathfinding)
@@ -565,10 +591,19 @@ export default function World() {
   const [nearKeys, setNearKeys] = useState(() => new Set()); // interactables in reach of the avatar
   // (dueling lives only on the ARENA map — the city/Earn map has no duel HUD)
   const shopRef = useRef(null);                  // current open panel (read inside the rAF loop)
+  const panelLockedRef = useRef(false);          // true while an in-panel NPC fight is active (blocks close)
   const nearKeysRef = useRef("");                // signature of last in-range set (avoid re-renders)
   const portalArmedRef = useRef(true);           // re-arm portal transport when leaving its range
   const [remoteIds, setRemoteIds] = useState([]);// which remote players to render
   const [presenceConnected, setPresenceConnected] = useState(false);
+  // transient join/leave feed (other players entering/leaving the city)
+  const [toasts, setToasts] = useState([]);
+  const toastSeq = useRef(0);
+  const pushToast = useCallback((text, kind) => {
+    const id = ++toastSeq.current;
+    setToasts((t) => [...t.slice(-3), { id, text, kind }]); // keep at most 4 on screen
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3400);
+  }, []);
   const sRef = useRef(0.5);       // target zoom — the rAF camera-follow reads this
   const sCurRef = useRef(0.5);    // eased current zoom → smooth wheel zoom
 
@@ -634,9 +669,23 @@ export default function World() {
     if (initialViewRef.current === "arena") {
       setShop({ name: "ARENA", panel: "arena", color: "#c060ff" }); // reopen the arena under the loader
       window.setTimeout(() => setLoading(null), 700);                // then fade the restore loader out
-    } else {
-      setLoading(null);
+      return;
     }
+    // resume an in-progress NPC duel after a refresh / tab-close, within the 30s grace window —
+    // reopening the panel remounts EarnNpc, which re-emits earnNpc:start → server resumes the same fight
+    try {
+      const raw = localStorage.getItem("cyb_earn_active");
+      if (raw) {
+        const { tier, ts } = JSON.parse(raw);
+        localStorage.removeItem("cyb_earn_active"); // one-shot; EarnNpc re-sets it if the duel actually resumes
+        if (Date.now() - ts < 35000) {              // still inside the grace window → restore the fight
+          setShop({ name: "EARN DUEL", panel: "earn", color: tier === "walking" ? "#9b7bff" : "#37e0a0", tier });
+          setLoading(null);
+          return;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    setLoading(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected]);
   // safety: never trap on the restore loader if the wallet never reconnects
@@ -655,6 +704,13 @@ export default function World() {
     try { localStorage.setItem("CYBERIO_CHAR", id); } catch (e) { /* ignore */ }
   };
   useEffect(() => { shopRef.current = shop; }, [shop]);   // live panel state for the rAF loop
+  const prevPanelRef = useRef(null);
+  useEffect(() => {
+    // after an earn duel closes, hold off auto-duel briefly so an NPC standing on the
+    // (frozen) player can't instantly re-trigger another duel the moment the panel closes
+    if (prevPanelRef.current === "earn" && !shop) encounterCdRef.current = performance.now() + 2200;
+    prevPanelRef.current = shop ? shop.panel : null;
+  }, [shop]);
 
   // NPC engine: each agent walks tile-to-tile, only onto WALKABLE tiles (collisions),
   // picking a new direction at each tile (prefers going straight). Positions are written
@@ -695,7 +751,7 @@ export default function World() {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       // EARN: with the toggle on + a pass active (and no duel already open), walking near an
       // unspent earn NPC auto-starts a duel (walking = 2× reward). Compute the player tile once.
-      const earnActive = earnOnRef.current && passActiveRef.current && !shopRef.current && !loadingRef.current && !encounterRef.current;
+      const earnActive = earnOnRef.current && passActiveRef.current && !shopRef.current && !loadingRef.current && !encounterRef.current && performance.now() > encounterCdRef.current;
       let ptx = 0, pty = 0;
       if (earnActive) {
         const P = playerPosRef.current;
@@ -721,10 +777,13 @@ export default function World() {
           g._dir = g.dir;
           g.sprite.style.backgroundImage = `url(${asset("npc" + g.char + "_walk_" + g.dir)})`;
         }
-        // auto-duel when the player walks near an unspent earn NPC
-        if (earnActive && g.earn && !earnSpentRef.current.has(g.idx) &&
+        // auto-duel when the player walks near an unspent earn NPC.
+        // re-read encounterRef each NPC (not the frame-level earnActive) and flip it SYNCHRONOUSLY,
+        // so only ONE nearby NPC can start a duel — the others in the crowd can't pile on this frame or next.
+        if (earnActive && !encounterRef.current && g.earn && !earnSpentRef.current.has(g.idx) &&
             Math.hypot(ptx - fx, pty - fy) <= 1.4) {
           earnSpentRef.current.add(g.idx);
+          encounterRef.current = true; // gate immediately (the useEffect would lag a frame and let others trigger)
           setEncounter({ npcChar: String(g.char || "1"), tier: "walking" }); // Pokémon-style intro → duel
         }
       }
@@ -756,7 +815,8 @@ export default function World() {
   // Set the camera transform before the first paint so the scene isn't briefly un-centered
   // (the rAF loop owns it after this, and React re-renders never touch it).
   useLayoutEffect(() => {
-    if (!connected || !sceneRef.current) return;
+    if (!sceneRef.current) return;
+    // center on the plaza so the city is framed even before connecting (no off-screen scene)
     let sx = 11, sy = 11, best = 1e9;
     for (const [tx, ty] of WALK_SPAWN) {
       const d = Math.abs(tx - 11) + Math.abs(ty - 11);
@@ -783,7 +843,8 @@ export default function World() {
     playerPosRef.current = P;                          // live position for click pathfinding
     const el = playerRef.current;
     const sprite = el && el.firstChild;
-    const SPEED = 165;                                  // scene px / sec
+    const rideEl = el && el.querySelector(".player-ride");
+    const SPEED = 165, SPEED_RIDE = SPEED * 2.2;        // scene px / sec (riding = boosted)
     const sceneWalkable = (x, y) => {
       const txf = ((x - OX) / TW + (y - TH - OY) / TH) / 2;
       const tyf = ((y - TH - OY) / TH - (x - OX) / TW) / 2;
@@ -796,22 +857,45 @@ export default function World() {
       const t = e.target || document.activeElement;
       return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
     };
-    const kd = (e) => { if (isTyping(e)) return; const m = KEY[e.code]; if (m) { e.preventDefault(); keysRef.current.add(m); } };
+    const kd = (e) => {
+      if (isTyping(e)) return;
+      if (e.code === "Tab") {                           // TAB → toggle the motorbike (if owned)
+        e.preventDefault();
+        if (ownsBikeRef.current && !shopRef.current && !loadingRef.current && !encounterRef.current) {
+          ridingRef.current = !ridingRef.current;
+          setRiding(ridingRef.current);
+        }
+        return;
+      }
+      if (e.code === "KeyE") {                          // "E" → enter the nearest shop/portal in range
+        const it = nearestInteractRef.current;
+        if (it && !loadingRef.current && !shopRef.current && !encounterRef.current) {
+          e.preventDefault();
+          transitionTo({ name: it.name, panel: it.panel, color: it.color });
+        }
+        return;
+      }
+      const m = KEY[e.code]; if (m) { e.preventDefault(); keysRef.current.add(m); }
+    };
     const ku = (e) => { if (isTyping(e)) return; const m = KEY[e.code]; if (m) keysRef.current.delete(m); };
     window.addEventListener("keydown", kd); window.addEventListener("keyup", ku);
     let raf, last = performance.now();
     const loop = (now) => {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      if (shopRef.current || loadingRef.current || encounterRef.current) { raf = requestAnimationFrame(loop); return; } // frozen during HUD/arena/transition/encounter
+      if (shopRef.current || loadingRef.current || encounterRef.current) {
+        if (ridingRef.current) { ridingRef.current = false; setRiding(false); } // auto-dismount on panel/arena/encounter
+        raf = requestAnimationFrame(loop); return; // frozen during HUD/arena/transition/encounter
+      }
       const k = keysRef.current;
       let dx = 0, dy = 0;
       if (k.has("up")) dy -= 1; if (k.has("down")) dy += 1;
       if (k.has("left")) dx -= 1; if (k.has("right")) dx += 1;
       let moving = false;
+      const spd = ridingRef.current ? SPEED_RIDE : SPEED;
       if (dx || dy) {                                  // WASD takes over (cancels any path)
         pathRef.current = [];
         const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
-        const nx = P.x + dx * SPEED * dt, ny = P.y + dy * SPEED * dt;
+        const nx = P.x + dx * spd * dt, ny = P.y + dy * spd * dt;
         if (sceneWalkable(nx, P.y)) P.x = nx;          // axis-separated collision
         if (sceneWalkable(P.x, ny)) P.y = ny;
         P.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "e" : "w") : (dy > 0 ? "s" : "n");
@@ -822,7 +906,7 @@ export default function World() {
         if (d < 4) { pathRef.current.shift(); }
         else {
           vx /= d; vy /= d;
-          P.x += vx * SPEED * dt; P.y += vy * SPEED * dt;
+          P.x += vx * spd * dt; P.y += vy * spd * dt;
           P.dir = Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? "e" : "w") : (vy > 0 ? "s" : "n");
           moving = true;
         }
@@ -847,14 +931,30 @@ export default function World() {
           if (P._z !== pz) { P._z = pz; el.style.zIndex = pz; }
         }
         if (sprite) {
-          if (P._dir !== P.dir) {
-            P._dir = P.dir;
-            sprite.style.backgroundImage = `url(${asset("player" + charId + "_walk_" + P.dir)})`;
+          const riding = ridingRef.current;
+          if (P._ride !== riding) {                      // toggle walk-sprite ↔ ride-sprite (char on bike)
+            P._ride = riding;
+            sprite.style.display = riding ? "none" : "block";
+            if (rideEl) {
+              rideEl.style.display = riding ? "block" : "none";
+              rideEl.classList.toggle("rideanim", riding); // all chars now have 4-frame animated ride sheets
+              if (!riding) { rideEl.classList.remove("moving"); P._bmv = false; }
+            }
+            P._dir = null;                               // force a dir refresh on the now-visible sprite
           }
-          if (P._mv !== moving) {
-            P._mv = moving;
-            sprite.style.animationPlayState = moving ? "running" : "paused";
-            if (!moving) sprite.style.backgroundPosition = "0 0";
+          if (riding) {
+            if (rideEl && P._dir !== P.dir) { P._dir = P.dir; rideEl.style.backgroundImage = `url(${asset("ride" + charId + "_" + P.dir)})`; }
+            if (rideEl && P._bmv !== moving) { P._bmv = moving; rideEl.classList.toggle("moving", moving); } // revving vs idle anim
+          } else {
+            if (P._dir !== P.dir) {
+              P._dir = P.dir;
+              sprite.style.backgroundImage = `url(${asset("player" + charId + "_walk_" + P.dir)})`;
+            }
+            if (P._mv !== moving) {
+              P._mv = moving;
+              sprite.style.animationPlayState = moving ? "running" : "paused";
+              if (!moving) sprite.style.backgroundPosition = "0 0";
+            }
           }
         }
       }
@@ -873,9 +973,10 @@ export default function World() {
         const pa = (P.x - OX) / TW, pb = (P.y - TH - OY) / TH;
         const ptx = (pa + pb) / 2, pty = (pb - pa) / 2;   // fractional player tile
         const inRange = [];
+        let nearest = null, nd = Infinity;
         for (const it of INTERACTABLES) {
           const d = Math.hypot(ptx - it.tx, pty - it.ty);
-          if (d <= it.range) inRange.push(it.key);
+          if (d <= it.range) { inRange.push(it.key); if (d < nd) { nd = d; nearest = it; } }
           if (it.portal) {
             if (d <= it.range && portalArmedRef.current) {
               portalArmedRef.current = false;
@@ -883,6 +984,7 @@ export default function World() {
             } else if (d > it.range) portalArmedRef.current = true; // re-arm the moment you step out of the circle
           }
         }
+        nearestInteractRef.current = nearest;             // what "E" will open
         const sig = inRange.slice().sort().join("|");
         if (sig !== nearKeysRef.current) { nearKeysRef.current = sig; setNearKeys(new Set(inRange)); }
       }
@@ -911,19 +1013,19 @@ export default function World() {
     if (inArena) {
       if (s) s.emit("world:leave");
     } else {
-      // Stepped out of the arena → place the avatar JUST OUTSIDE the city portal's trigger
-      // circle (2 tiles north) and re-arm it, so you can simply walk back in to re-enter
-      // (instead of being stuck disarmed inside the circle and having to click).
+      // Stepped out of the arena → drop the avatar a few tiles up the (clear) road, well OUTSIDE
+      // the portal's trigger ring, facing into the city. It stays armed, so re-entry just needs a
+      // deliberate walk back down — but the gap means you won't instantly bounce back in on exit.
       const P = playerPosRef.current;
       if (P) {
-        const so = iso(ARENA_PORTAL.tx - 0.5, ARENA_PORTAL.ty - 2);
-        P.x = so.x; P.y = so.y + TH; P.dir = "s"; P.moving = false;
+        const so = iso(ARENA_PORTAL.tx, ARENA_PORTAL.ty - 4);
+        P.x = so.x; P.y = so.y + TH; P.dir = "n"; P.moving = false;
       }
       portalArmedRef.current = true;
       if (s) {
         const P2 = playerPosRef.current;
         s.emit("world:join", { wallet: walletAddr, name: displayNameRef.current, char: charIdRef.current,
-          x: P2 ? P2.x : 0, y: P2 ? P2.y : 0, dir: P2 ? P2.dir : "s" });
+          x: P2 ? P2.x : 0, y: P2 ? P2.y : 0, dir: P2 ? P2.dir : "s", riding: ridingRef.current });
       }
     }
   }, [shop, walletAddr]);
@@ -935,9 +1037,11 @@ export default function World() {
     socketRef.current = socket;
     socket.on("connect", () => {
       setPresenceConnected(true);
+      // don't put an avatar in the city while we're in the arena (e.g. reconnect/refresh into arena)
+      if (shopRef.current && shopRef.current.panel === "arena") return;
       const P = playerPosRef.current;
       socket.emit("world:join", { wallet: walletAddr, name: displayNameRef.current, char: charIdRef.current,
-        x: P ? P.x : 0, y: P ? P.y : 0, dir: P ? P.dir : "s" });
+        x: P ? P.x : 0, y: P ? P.y : 0, dir: P ? P.dir : "s", riding: ridingRef.current });
     });
     // another tab/window took over this wallet → stop here (no reconnect) and tell the user
     socket.on("session:superseded", () => {
@@ -950,17 +1054,27 @@ export default function World() {
       remotesRef.current.clear();
       setRemoteIds([]);
     });
-    const addRemote = (o) => {
+    const leaveTimers = new Map();  // id -> pending despawn timer, so a fast rejoin can cancel its own removal
+    const remoteLabel = (o) => o.name || (o.wallet ? `${o.wallet.slice(0, 4)}…${o.wallet.slice(-4)}` : "anon");
+    const addRemote = (o, announce) => {
       if (!o || o.id === socket.id) return;
+      const pending = leaveTimers.get(o.id);  // rejoining inside the fade-out window? cancel the scheduled removal
+      if (pending) { clearTimeout(pending); leaveTimers.delete(o.id); }
+      const existed = remotesRef.current.has(o.id);
       remotesRef.current.set(o.id, { char: String(o.char || "1"), wallet: o.wallet || "", name: o.name || "",
-        dx: o.x, dy: o.y, tx: o.x, ty: o.y, dir: o.dir || "s", moving: false, _dir: null, _char: null, _mv: null });
+        dx: o.x, dy: o.y, tx: o.x, ty: o.y, dir: o.dir || "s", moving: false, riding: !!o.riding,
+        _dir: null, _char: null, _mv: null, _riding: null });
+      const node = remoteNodes.current[o.id];  // drop any leftover fade-out class from an in-flight leave
+      if (node) node.classList.remove("world-remote--leaving");
       setRemoteIds([...remotesRef.current.keys()]);
+      if (announce && !existed) pushToast(`${remoteLabel(o)} entered the grid`, "join");
     };
-    socket.on("world:players", (list) => (list || []).forEach(addRemote));
-    socket.on("world:player", addRemote);
+    // initial roster = silent (no toast spam); a single live join = announce it
+    socket.on("world:players", (list) => (list || []).forEach((o) => addRemote(o, false)));
+    socket.on("world:player", (o) => addRemote(o, true));
     socket.on("world:moved", (m) => {
       const r = remotesRef.current.get(m.id);
-      if (r) { r.tx = m.x; r.ty = m.y; r.dir = m.dir || r.dir; r.moving = !!m.moving; }
+      if (r) { r.tx = m.x; r.ty = m.y; r.dir = m.dir || r.dir; r.moving = !!m.moving; r.riding = !!m.riding; }
     });
     socket.on("world:charChanged", (m) => {
       const r = remotesRef.current.get(m.id);
@@ -971,26 +1085,44 @@ export default function World() {
       if (r) { r.name = String(m.name || ""); setRemoteIds([...remotesRef.current.keys()]); }
     });
     socket.on("world:left", (m) => {
-      remotesRef.current.delete(m.id);
-      setRemoteIds([...remotesRef.current.keys()]);
+      const r = remotesRef.current.get(m.id);
+      if (!r || leaveTimers.has(m.id)) return;     // ignore if already fading out
+      pushToast(`${remoteLabel(r)} left the grid`, "leave");
+      const node = remoteNodes.current[m.id];      // play a quick fade-out before React unmounts the avatar
+      if (node) node.classList.add("world-remote--leaving");
+      leaveTimers.set(m.id, setTimeout(() => {
+        leaveTimers.delete(m.id);
+        remotesRef.current.delete(m.id);
+        setRemoteIds([...remotesRef.current.keys()]);
+      }, 420));
     });
     // (no city duel handshake — dueling is arena-only)
 
-    // broadcast my position ~10×/s
+    // broadcast my position ~10×/s (but not while in the arena — we've left the city presence)
     const moveTimer = setInterval(() => {
       const P = playerPosRef.current;
-      if (P && socket.connected) socket.emit("world:move", { x: P.x, y: P.y, dir: P.dir, moving: !!P.moving });
+      if (shopRef.current && shopRef.current.panel === "arena") return;
+      if (P && socket.connected) socket.emit("world:move", { x: P.x, y: P.y, dir: P.dir, moving: !!P.moving, riding: ridingRef.current });
     }, 100);
 
-    // smoothly interpolate the other players toward their last reported position
-    let raf;
+    // smoothly interpolate the other players toward their last reported position.
+    // dt-aware exponential smoothing → frame-rate independent (consistent on 60/120/144Hz);
+    // a big jump (spawn / teleport) snaps instantly so avatars never glide across the whole map.
+    let raf, lerpLast = performance.now();
+    const SMOOTH_TAU = 0.06;        // s — lower = snappier; keeps fast bike riders from rubber-banding
+    const SNAP_DIST2 = 360 * 360;   // px² — beyond this, snap rather than ease
     const lerp = () => {
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lerpLast) / 1000);
+      lerpLast = now;
+      const k = 1 - Math.exp(-dt / SMOOTH_TAU);
       remotesRef.current.forEach((r, id) => {
         const node = remoteNodes.current[id];
         if (!node) return;
         const ddx = r.tx - r.dx, ddy = r.ty - r.dy;
-        if (Math.abs(ddx) < 0.1 && Math.abs(ddy) < 0.1) {
-          if (!r._settled) {                            // snap + stop writing once it arrives
+        const d2 = ddx * ddx + ddy * ddy;
+        if (d2 > SNAP_DIST2 || d2 < 0.02) {
+          if (d2 > SNAP_DIST2 || !r._settled) {         // snap on arrival OR on a big jump
             r._settled = true; r.dx = r.tx; r.dy = r.ty;
             node.style.transform = `translate3d(${r.dx}px, ${r.dy}px, 0)`;
             const z = 1000 + Math.round(((r.dy - TH - OY) / TH) * 10) + 6;
@@ -998,21 +1130,40 @@ export default function World() {
           }
         } else {
           r._settled = false;
-          r.dx += ddx * 0.25; r.dy += ddy * 0.25;
+          r.dx += ddx * k; r.dy += ddy * k;
           node.style.transform = `translate3d(${r.dx}px, ${r.dy}px, 0)`;
           const z = 1000 + Math.round(((r.dy - TH - OY) / TH) * 10) + 6;
           if (r._z !== z) { r._z = z; node.style.zIndex = z; }
         }
-        const spr = node.firstChild;
-        if (spr) {
+        const spr = node.querySelector(".remote-sprite");
+        const rideSpr = node.querySelector(".remote-ride");
+        const riding = !!r.riding;
+        if (r._riding !== riding) {                       // swap walk-sprite ↔ ride-sprite
+          r._riding = riding;
+          if (spr) spr.style.display = riding ? "none" : "block";
+          if (rideSpr) {
+            rideSpr.style.display = riding ? "block" : "none";
+            rideSpr.classList.toggle("rideanim", riding);
+            if (!riding) rideSpr.classList.remove("moving");
+          }
+          r._dir = null; r._char = null; r._mv = null;    // force a refresh on the now-visible element
+        }
+        const active = riding ? rideSpr : spr;
+        if (active) {
           if (r._char !== r.char || r._dir !== r.dir) {
             r._char = r.char; r._dir = r.dir;
-            spr.style.backgroundImage = `url(${asset("player" + r.char + "_walk_" + r.dir)})`;
+            active.style.backgroundImage = riding
+              ? `url(${asset("ride" + r.char + "_" + r.dir)})`
+              : `url(${asset("player" + r.char + "_walk_" + r.dir)})`;
           }
           if (r._mv !== r.moving) {
             r._mv = r.moving;
-            spr.style.animationPlayState = r.moving ? "running" : "paused";
-            if (!r.moving) spr.style.backgroundPosition = "0 0";
+            if (riding) {
+              active.classList.toggle("moving", r.moving);
+            } else {
+              active.style.animationPlayState = r.moving ? "running" : "paused";
+              if (!r.moving) active.style.backgroundPosition = "0 0";
+            }
           }
         }
       });
@@ -1022,6 +1173,7 @@ export default function World() {
 
     return () => {
       clearInterval(moveTimer); cancelAnimationFrame(raf);
+      leaveTimers.forEach(clearTimeout);
       try { socket.emit("world:leave"); socket.disconnect(); } catch (e) { /* ignore */ }
       socketRef.current = null;
       setPresenceConnected(false);
@@ -1033,11 +1185,30 @@ export default function World() {
   // mouse drag no longer pans (the camera follows the avatar) — we only track movement so a
   // drag isn't mistaken for a click-to-move / building tap.
   const onMove = (e) => {
+    // tile-hover highlight (positioned imperatively → no React re-render per move)
+    const hv = hoverRef.current, scene = sceneRef.current;
+    if (hv && scene) {
+      const rect = scene.getBoundingClientRect();
+      const sc = rect.width / SCENE_W;
+      const sx = (e.clientX - rect.left) / sc, sy = (e.clientY - rect.top) / sc;
+      const a = (sx - OX) / TW, b = (sy - OY) / TH;
+      const tx = Math.round((a + b) / 2), ty = Math.round((b - a) / 2);
+      if (tx >= 0 && ty >= 0 && tx < GW && ty < GH) {
+        const p = iso(tx, ty);
+        hv.style.left = `${p.x - TW}px`;
+        hv.style.top = `${p.y - TH}px`;
+        hv.style.opacity = "1";
+        hv.classList.toggle("blocked", !isWalkable(tx, ty));
+      } else {
+        hv.style.opacity = "0";
+      }
+    }
     const d = drag.current;
     if (!d) return;
     if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 4) movedRef.current = true;
   };
   const onUp = () => { drag.current = null; };
+  const onLeave = () => { drag.current = null; if (hoverRef.current) hoverRef.current.style.opacity = "0"; };
   // zoom updates the target scale ref directly — the rAF camera-follow eases toward it.
   // No setView → the big scene tree never re-renders on a wheel tick (that was extra jank).
   const clampZoom = (s) => Math.min(1.6, Math.max(0.22, s));
@@ -1065,12 +1236,26 @@ export default function World() {
   return (
     <div className="world-viewport"
       onContextMenu={(e) => e.preventDefault()}
-      onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp} onWheel={onWheel}>
+      onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onLeave} onWheel={onWheel}>
       <div className="world-sheen" />
       <header className="world-hud">
         <h1>CYBER CITY</h1>
-        <span>{active || "scroll / +− to zoom · click to move"}</span>
+        <span>{active || "scroll / +− zoom · click to move · E enter · TAB ride"}</span>
       </header>
+
+      {connected && riding && <div className="world-ride-pill">🏍 RIDING — TAB to stop</div>}
+
+      {/* transient join/leave feed for other players */}
+      {connected && toasts.length > 0 && (
+        <div className="world-toasts">
+          {toasts.map((t) => (
+            <div key={t.id} className={`world-toast world-toast--${t.kind}`}>
+              <span className="world-toast__dot" />
+              <span className="world-toast__text">{t.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* upper-right statuses: EARN mode (needs an active Dimension Pass) */}
       {connected && (
@@ -1097,6 +1282,7 @@ export default function World() {
           mapName="CYBER CITY"
           playerCount={presenceConnected ? remoteIds.length + 1 : 0}
           presenceConnected={presenceConnected}
+          displayName={displayName}
         />
       )}
       <div className="world-zoom-ui">
@@ -1104,10 +1290,10 @@ export default function World() {
         <button onClick={() => zoom(0.8)} title="Zoom out">−</button>
         <button onClick={reset} title="Reset view">⟳</button>
         <button
-          onClick={() => setLiteFx((v) => !v)}
-          className={`world-fx-toggle${liteFx ? " on" : ""}`}
-          title={liteFx ? "Lite FX is ON — tap for full effects" : "Tap if the screen flickers (Lite FX / performance mode)"}
-        >FX</button>
+          onClick={cycleFx}
+          className={`world-fx-toggle fxlvl-${fxLevel}`}
+          title={FX_HINT[fxLevel]}
+        >{FX_LABEL[fxLevel]}</button>
       </div>
       {/* transform is owned imperatively by the rAF camera-follow loop (sceneRef.style.transform);
           keeping it out of React's inline style means re-renders (zoom, presence, proximity) can't
@@ -1122,6 +1308,9 @@ export default function World() {
             src={asset(t.name)} alt="" draggable={false}
             style={{ left: t.left, top: t.top, width: DW, zIndex: t.z, transform: t.flip ? "scaleX(-1)" : "none" }} />
         ))}
+        {/* tile-hover highlight (follows the mouse; green=walkable, red=blocked) */}
+        <div className="world-tile-hover" ref={hoverRef} aria-hidden="true" />
+
         {/* HD road network: one continuous overlay built from HD asphalt+sidewalk textures */}
         <img className="world-floor" src={asset("road_overlay")} alt="" draggable={false}
           style={{ left: OX - 2560, top: OY - 32, width: 5378, zIndex: 500 }} />
@@ -1164,7 +1353,7 @@ export default function World() {
                   else setActive(`${o.label} — walk closer to enter`);
                 })}>
                 <img src={asset(o.name)} alt={o.label} width={o.w} draggable={false} />
-                {reachable && <span className="world-prompt">{o.shop && o.shop.panel === "arena" ? "ENTER ▶" : "OPEN ▶"}</span>}
+                {reachable && <span className="world-prompt">{o.shop && o.shop.panel === "arena" ? "[E] ENTER" : "[E] OPEN"}</span>}
               </button>
             );
           }
@@ -1184,6 +1373,9 @@ export default function World() {
               style={{ left: p.x, top: p.y, zIndex: p.z }}
               onContextMenu={earnable ? (e) => {
                 e.preventDefault(); e.stopPropagation();
+                // one duel at a time — ignore if an encounter/duel/transition is already active
+                if (encounterRef.current || shopRef.current || loadingRef.current || performance.now() <= encounterCdRef.current) return;
+                encounterRef.current = true;
                 setEncounter({ npcChar: String(p.char || "1"), tier: "static" }); // intro → duel
               } : undefined}
               title={earnable ? "Right-click to duel for earn (lower reward)" : undefined}
@@ -1227,6 +1419,7 @@ export default function World() {
             <div key={id} className="world-remote" title={nm}
               ref={(el) => { if (el) remoteNodes.current[id] = el; else delete remoteNodes.current[id]; }}>
               <div className="world-walker-sprite remote-sprite" />
+              <div className="player-ride remote-ride" />
               <div className="remote-name">{nm}</div>
             </div>
           );
@@ -1237,6 +1430,7 @@ export default function World() {
             <div className="world-dest" ref={destRef} />
             <div className="world-player" ref={playerRef}>
               <div className="world-walker-sprite player-sprite" />
+              <div className="player-ride" />
               <div className="player-ring" />
               <div className="player-name">{displayName}</div>
             </div>
@@ -1244,8 +1438,13 @@ export default function World() {
         )}
       </div>
 
-      {/* not connected → cyberpunk connect gate over the LIVE city */}
-      {!connected && <CyberLanding overlay onConnect={walletCtx.connectWallet} />}
+      {/* top navbar — brand · Docs · How To Play · Connect Wallet (replaces the full-screen gate) */}
+      <CityNav
+        connected={connected}
+        shortAddr={shortAddr}
+        onConnect={walletCtx.connectWallet}
+        onDisconnect={walletCtx.disconnectWallet}
+      />
 
       {/* top-left profile HUD: avatar, display name, pass badge + nickname edit, character switcher */}
       {connected && (
@@ -1265,6 +1464,7 @@ export default function World() {
         <ArenaMap
           charId={charId}
           wallet={walletAddr}
+          name={displayName}
           onExit={() => transitionTo(null)}
           onDuel={(t) => transitionTo({ name: t ? `DUEL vs ${t.name}` : "ARENA DUEL", panel: "play", color: "#c060ff", challengeId: t?.challengeId })}
         />
@@ -1273,10 +1473,18 @@ export default function World() {
       {/* dueling is arena-only — no duel HUD on the Earn (city) map */}
       {shop && shop.panel !== "arena" && (() => {
         const Comp = PANEL_COMP[shop.panel];
+        // can't close the panel while an NPC fight is live — surrender inside instead
+        const tryClose = () => {
+          if (panelLockedRef.current) {
+            pushToast("Finish or surrender the fight to leave", "leave");
+            return;
+          }
+          setShop(null);
+        };
         return (
           <div
             className="world-panel-overlay"
-            onClick={() => setShop(null)}
+            onClick={tryClose}
             onWheel={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -1294,7 +1502,7 @@ export default function World() {
                 <span className="world-panel-title">{shop.name}</span>
                 <button
                   className="world-panel-close"
-                  onClick={() => setShop(null)}
+                  onClick={tryClose}
                   aria-label="Close"
                   title="Close"
                 >
@@ -1303,7 +1511,8 @@ export default function World() {
               </div>
               <div className="world-panel-body">
                 {Comp ? (
-                  <Comp embedded challengeId={shop.challengeId} tier={shop.tier} onClose={() => setShop(null)} />
+                  <Comp embedded challengeId={shop.challengeId} tier={shop.tier} onClose={() => setShop(null)}
+                    onLockChange={(v) => { panelLockedRef.current = v; }} />
                 ) : (
                   <div className="shop-body">
                     <p>Welcome to the {shop.name.toLowerCase()}.</p>

@@ -1,0 +1,20 @@
+{
+ "1": {
+  "base": "31ecd506-9a53-487f-ae60-b03241907573",
+  "walk_done": true,
+  "ride": "ea299803-26e2-450e-8a9f-bfe6e4c6e187",
+  "rideanim_done": true
+ },
+ "2": {
+  "base": "acca2724-c94d-417a-acea-2faca3adaaa2",
+  "walk_done": true,
+  "ride": "b3d07481-1056-443a-928b-a7cbdba5b923",
+  "rideanim_done": true
+ },
+ "3": {
+  "base": "39398a0a-9ea2-45aa-8f97-9e844c79b134",
+  "walk_done": true,
+  "ride": "8453bd53-64d8-4393-9d63-3eb908746b7e",
+  "rideanim_done": false
+ }
+}

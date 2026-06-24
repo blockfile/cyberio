@@ -19,6 +19,8 @@
   --cf-color: #6fe0ff;
 }
 
+.map-status-panel--city { top: 96px; } /* clears the CityNav + EARN toggle */
+
 .map-status-panel--arena {
   top: 68px;
   z-index: 100075;

@@ -33,9 +33,9 @@ const SOLANA_RPC =
  * - Price is in CYBERIO token units (display), but payment logic is on-chain.
  */
 const LOCAL_OFFERINGS = [
-    { tier: "TIER 3", durationDays: 7, price: 5, image: TIER3, accent: "cyan" },
-    { tier: "TIER 2", durationDays: 15, price: 15, image: TIER2, accent: "violet" },
-    { tier: "TIER 1", durationDays: 30, price: 35, image: TIER1, accent: "fuchsia" },
+    { tier: "TIER 3", durationDays: 7, price: 9999, image: TIER3, accent: "cyan" },
+    { tier: "TIER 2", durationDays: 15, price: 17999, image: TIER2, accent: "violet" },
+    { tier: "TIER 1", durationDays: 30, price: 29999, image: TIER1, accent: "fuchsia" },
 ];
 
 const pendingStorageKey = (wallet) => `cyberio:pending-pass:${wallet || "unknown"}`;
@@ -616,8 +616,14 @@ export default function DimensionPassStore({ embedded = false }) {
 
                                         <div className="mt-3 text-center">
                                             <div className="text-2xl font-extrabold">{o.durationDays} DAYS</div>
-                                            <div className="mt-1 opacity-85">
-                                                PRICE: <span className="font-extrabold">{o.price}</span> CYBERIO
+                                            <div className="mt-2 flex items-baseline justify-center gap-1.5">
+                                                <span
+                                                    className="text-3xl md:text-4xl font-black text-yellow-300 leading-none"
+                                                    style={{ textShadow: "0 0 14px rgba(255,210,80,0.65)" }}
+                                                >
+                                                    {Number(o.price).toLocaleString()}
+                                                </span>
+                                                <span className="text-[11px] font-bold tracking-widest text-yellow-200/70">$CYBERIO</span>
                                             </div>
                                         </div>
 

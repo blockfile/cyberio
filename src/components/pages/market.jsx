@@ -123,6 +123,7 @@ function CardTile({
   card,
   busy,
   onPrimary,
+  onInspect,
   qtyValue,
   onQtyChange,
   priceValue,
@@ -132,7 +133,11 @@ function CardTile({
   const theme = rarityTheme[rarity];
 
   return (
-    <div className={`rounded-xl border p-3 ${theme.card} h-full`}>
+    <div
+      className={`rounded-xl border p-3 ${theme.card} h-full ${onInspect ? "cursor-pointer hover:brightness-110 transition" : ""}`}
+      onClick={onInspect ? () => onInspect() : undefined}
+      title={onInspect ? "Click to inspect" : undefined}
+    >
       <div className="flex gap-3 items-stretch h-full">
         {/* image rail */}
         <div className="shrink-0 min-w-[80px] max-w-[120px] w-[22%]">
@@ -161,7 +166,11 @@ function CardTile({
           </div>
 
           {/* stats */}
-          <div className="text-xs opacity-80 mt-0.5">Power {card.power}</div>
+          <div className="mt-1">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-400/20 border border-amber-300/50 text-amber-200 font-black text-sm shadow-[0_0_10px_rgba(255,200,60,0.35)]">
+              ⚡ {card.power}
+            </span>
+          </div>
 
           {/* detail line */}
           <div className="text-xs mt-0.5 break-words">
@@ -231,7 +240,7 @@ function CardTile({
           {/* button pinned to bottom */}
           <div className="mt-auto pt-2">
             <button
-              onClick={onPrimary}
+              onClick={(e) => { e.stopPropagation(); onPrimary?.(); }}
               disabled={busy}
               className={`w-full rounded font-semibold py-2 disabled:opacity-60 flex items-center justify-center gap-2 ${kind === "market"
                 ? "bg-emerald-500 hover:bg-emerald-400 text-black"
@@ -272,6 +281,7 @@ export default function Market({ embedded = false }) {
 
   // list modal toggle
   const [showListModal, setShowListModal] = useState(false);
+  const [inspectListing, setInspectListing] = useState(null); // card clicked → inspect + buy modal
 
   // pending (finalize) panel
   const [pending, setPending] = useState([]);
@@ -853,6 +863,7 @@ export default function Market({ embedded = false }) {
                     card={l}
                     busy={busy}
                     onPrimary={() => handleBuy(l)}
+                    onInspect={() => setInspectListing(l)}
                   />
                 ))}
               </div>
@@ -873,6 +884,67 @@ export default function Market({ embedded = false }) {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* INSPECT + BUY MODAL — click a listing to open */}
+      <AnimatePresence>
+        {inspectListing && (() => {
+          const l = inspectListing;
+          const rarity = rarityById(l);
+          const theme = rarityTheme[rarity];
+          return (
+            <motion.div
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setInspectListing(null)}
+            >
+              <motion.div
+                className={`relative w-full max-w-md rounded-2xl border p-5 ${theme.card}`}
+                initial={{ scale: 0.92, y: 18 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => setInspectListing(null)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-lg bg-black/50 border border-white/15 text-white/80 hover:text-white"
+                >✕</button>
+
+                <div className="flex flex-col items-center">
+                  <img
+                    src={imgSrc(l.cardId)} alt=""
+                    className="w-56 h-auto rounded-xl"
+                    style={{ boxShadow: `0 0 28px ${theme.glow}77` }}
+                  />
+                  <div className="mt-4 w-full text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xl font-extrabold truncate">#{l.cardId} · {l.name}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${theme.badge}`}>{rarity}</span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-center gap-3">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-400/20 border border-amber-300/50 text-amber-200 font-black shadow-[0_0_10px_rgba(255,200,60,0.35)]">⚡ {l.power}</span>
+                      <span className="text-white/70 text-sm">Qty: <b className="text-white">{l.quantity}</b></span>
+                    </div>
+                    <div className="mt-3 text-2xl font-black text-yellow-300" style={{ textShadow: "0 0 12px rgba(255,210,80,0.55)" }}>
+                      {Number(l.priceSD).toLocaleString()} <span className="text-xs text-yellow-200/70">$CYBERIO each</span>
+                    </div>
+                    <div className="mt-2 text-[11px] opacity-70 break-all">
+                      Seller: {l.sellerWallet?.slice(0, 4)}…{l.sellerWallet?.slice(-4)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <button
+                    onClick={() => { const buyIt = l; setInspectListing(null); handleBuy(buyIt); }}
+                    disabled={busy}
+                    className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold tracking-wider disabled:opacity-60 flex items-center gap-2"
+                  >
+                    {busy && <Spinner />} Buy
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
       {/* LIST MODAL */}
       <AnimatePresence>

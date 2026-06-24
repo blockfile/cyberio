@@ -455,7 +455,9 @@ export default function Inventory({ embedded = false }) {
                     <div className="mt-1 flex items-center justify-between gap-1 text-[8px] tracking-[.14em] uppercase text-white/55">
                       <span className="truncate">{name || `NFT #${cardId}`}</span>
                       {power != null && (
-                        <span className="shrink-0 ml-1 text-white/80 font-black">PWR {power}</span>
+                        <span className="shrink-0 ml-1 px-1.5 py-[1px] rounded-md bg-amber-400/25 border border-amber-300/60 text-amber-200 font-black text-[10px] shadow-[0_0_8px_rgba(255,200,60,0.45)]">
+                          ⚡{power}
+                        </span>
                       )}
                     </div>
                   </div>

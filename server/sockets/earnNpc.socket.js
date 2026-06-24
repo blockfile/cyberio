@@ -30,6 +30,7 @@ const {
 
 const NpcPayout = require("../model/NpcPayout");
 const EarnDaily = require("../model/EarnDaily");
+const EarnPenalty = require("../model/EarnPenalty"); // ✅ PVE anti-spam cooldown
 const DimensionPass = require("../model/DimensionPass"); // ✅ required
 const User = require("../model/User"); // non-NFT: player cards live here
 const CARD_META = require("../util/cardMetadata.json");
@@ -53,6 +54,71 @@ const winMaxFor = (tier) => rangeFor(tier).max;
 // requirements
 const LOW_POWER_THRESHOLD = Number(process.env.EARN_LOW_POWER_THRESHOLD || 5);
 const LOW_POWER_MIN_COUNT = Number(process.env.EARN_LOW_POWER_MIN_COUNT || 2);
+
+// ───────── PVE anti-spam penalty (loss / surrender / abandon) ─────────
+// Once in an NPC fight you can't freely exit: losing, surrendering, or abandoning
+// (disconnect without returning inside the grace window) starts a time penalty.
+// penalty = min(BASE * offenseCount, MAX). Resets on a win; decays after a clean stretch.
+const PVE_PENALTY_BASE_MS  = Number(process.env.EARN_PENALTY_BASE_MS  || 5 * 60 * 1000);  // 5 min, +5/offense
+const PVE_PENALTY_MAX_MS   = Number(process.env.EARN_PENALTY_MAX_MS   || 15 * 60 * 1000); // cap 15 min
+const PVE_OFFENSE_DECAY_MS = Number(process.env.EARN_OFFENSE_DECAY_MS || 60 * 60 * 1000); // clean 60 min → back to 0
+const PVE_GRACE_MS         = Number(process.env.EARN_GRACE_MS         || 30 * 1000);      // reconnect window on drop
+
+// In-memory penalty mirror — set synchronously the instant an offense happens, so the start gate
+// sees it with no DB-write race, and so a penalty still holds even if the DB write hiccups.
+// The DB copy is for persistence across server restarts. On lookup we take the stricter of the two.
+const pvePenaltyMem = new Map(); // wallet -> { penaltyUntil: ms, offenseCount, lastOffenseAt: ms }
+
+// offense count after decay (0 if the last offense is older than the decay window)
+function effOffense(count, lastAtMs, now) {
+  if (!count) return 0;
+  if (lastAtMs && now - lastAtMs > PVE_OFFENSE_DECAY_MS) return 0;
+  return Number(count) || 0;
+}
+
+// is the wallet currently serving a PVE cooldown? (memory first — read before any await — then DB)
+async function getPenaltyState(wallet) {
+  const now = Date.now();
+  const mem = pvePenaltyMem.get(wallet);                 // synchronous: no race against an in-flight offense
+  let untilMs = mem?.penaltyUntil || 0;
+  let count = effOffense(mem?.offenseCount, mem?.lastOffenseAt, now);
+  try {
+    const doc = await EarnPenalty.findOne({ wallet }).lean();
+    if (doc) {
+      const dUntil = doc.penaltyUntil ? new Date(doc.penaltyUntil).getTime() : 0;
+      const dCount = effOffense(Number(doc.offenseCount || 0), doc.lastOffenseAt ? new Date(doc.lastOffenseAt).getTime() : 0, now);
+      if (dUntil > untilMs) untilMs = dUntil;            // take the stricter of memory / DB
+      if (dCount > count) count = dCount;
+    }
+  } catch { /* DB hiccup → rely on memory */ }
+  return { active: untilMs > now, penaltyUntil: untilMs > now ? new Date(untilMs) : null, offenseCount: count };
+}
+
+// record a penalized exit; escalates the cooldown and returns it (memory set synchronously, then persisted)
+async function recordPveOffense(wallet, reason) {
+  const now = Date.now();
+  const mem = pvePenaltyMem.get(wallet);
+  const newCount = effOffense(mem?.offenseCount, mem?.lastOffenseAt, now) + 1;
+  const durMs = Math.min(PVE_PENALTY_BASE_MS * newCount, PVE_PENALTY_MAX_MS);
+  const untilMs = now + durMs;
+  pvePenaltyMem.set(wallet, { penaltyUntil: untilMs, offenseCount: newCount, lastOffenseAt: now }); // sync → race-free gate
+  try {
+    await EarnPenalty.findOneAndUpdate(
+      { wallet },
+      { $set: { wallet, offenseCount: newCount, lastOffenseAt: new Date(now), penaltyUntil: new Date(untilMs), lastReason: reason } },
+      { upsert: true, new: true }
+    );
+  } catch (e) { console.warn("⚠️ EarnPenalty DB write failed (memory fallback active):", e?.message || e); }
+  return { penaltyUntil: new Date(untilMs), offenseCount: newCount, durationMs: durMs, durationMin: Math.round(durMs / 60000) };
+}
+
+// winning resets the escalation (kind to honest players)
+async function clearPveOffense(wallet) {
+  pvePenaltyMem.delete(wallet);
+  try {
+    await EarnPenalty.updateOne({ wallet }, { $set: { offenseCount: 0, penaltyUntil: null } }, { upsert: true });
+  } catch (e) { console.warn("⚠️ EarnPenalty clear failed:", e?.message || e); }
+}
 
 // payouts config (token mint)
 const TOKEN_MINT = process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT || process.env.NPC_TOKEN_MINT;
@@ -452,6 +518,26 @@ async function dealBonusHand(socket, s, buildDeckFromDb) {
   });
 }
 
+// Build the P2E rules block the client UI expects (used on resume so a reconnect restores the HUD).
+async function buildRulesForUI(wallet, tier, passExpiresAt) {
+  const rec = await getOrCreateEarnDaily(wallet);
+  const earnedToday = Number(rec.total || 0);
+  const matchesPlayedToday = Number(rec.matchesPlayed || 0);
+  return {
+    roundsToWin: ROUNDS_TO_WIN,
+    dailyCap: DAILY_CAP,
+    earnedToday,
+    remainingToday: computeRemainingToday(DAILY_CAP, earnedToday),
+    winPayout: winMaxFor(tier),
+    matchesPerDay: MATCHES_PER_DAY,
+    matchesPlayedToday,
+    remainingMatchesToday: Math.max(0, MATCHES_PER_DAY - matchesPlayedToday),
+    passExpiresAt: passExpiresAt || null,
+    poolBalance: 0,
+    requirements: { lowPowerThreshold: LOW_POWER_THRESHOLD, lowPowerMinCount: LOW_POWER_MIN_COUNT },
+  };
+}
+
 function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
   // Optional bind
   socket.on("hello", ({ wallet }) => {
@@ -466,6 +552,51 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
       wallet = assertWallet(wallet);
       const earnTier = tier === "walking" ? "walking" : "static"; // walking = 2× reward
       socket.data.wallet = wallet;
+
+      // ✅ RESUME: a fight you already started is sticky — you can't exit it to start a fresh one.
+      // Covers reconnect-after-drop (cancels the grace timer) AND reopening the panel (socket stayed alive).
+      const existing = sessions.get(wallet);
+      if (existing) {
+        // if a penalty is already active (e.g. the abandon grace fired, or another tab got penalized),
+        // don't let them resume — leave the grace timer running so the session still gets cleaned up.
+        const penR = await getPenaltyState(wallet);
+        if (penR.active) {
+          socket.emit("earnNpc:eligibilityFailed", {
+            code: "PVE_PENALTY",
+            message: "You're on a cooldown for leaving or losing an NPC fight.",
+            lockedUntil: penR.penaltyUntil,
+            offenseCount: penR.offenseCount,
+          });
+          return;
+        }
+        if (existing.graceTimer) { clearTimeout(existing.graceTimer); existing.graceTimer = null; }
+        existing.graceUntil = null;
+        // restart the in-flight round cleanly: return any half-played cards to their hands
+        if (existing.selfFieldCard) { existing.selfCards.push(existing.selfFieldCard); existing.selfFieldCard = null; }
+        if (existing.opponentFieldCard) { existing.opponentCards.push(existing.opponentFieldCard); existing.opponentFieldCard = null; }
+        socket.emit("earnNpc:startDuel", {
+          selfCards: existing.selfCards,
+          npcCards: new Array(existing.opponentCards.length).fill("back"),
+          npcProfile: { name: "NEON NPC", rank: "P2E BOT" },
+          rules: await buildRulesForUI(wallet, existing.tier, existing.passExpiresAt),
+          bonusRound: false,
+          resumed: true,
+        });
+        socket.emit("earnNpc:scoreUpdate", { selfScore: existing.selfScore, opponentScore: existing.opponentScore });
+        return;
+      }
+
+      // ✅ PVE PENALTY GATE — can't start a NEW fight while serving a loss/surrender/abandon cooldown
+      const pen = await getPenaltyState(wallet);
+      if (pen.active) {
+        socket.emit("earnNpc:eligibilityFailed", {
+          code: "PVE_PENALTY",
+          message: "You're on a cooldown for leaving or losing an NPC fight.",
+          lockedUntil: pen.penaltyUntil,
+          offenseCount: pen.offenseCount,
+        });
+        return;
+      }
 
       // ✅ PASS CHECK
       const pass = await getPassStatus(wallet);
@@ -530,6 +661,12 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
       const rec = await getOrCreateEarnDaily(wallet);
       const earnedToday = Number(rec.total || 0);
       const matchesPlayedToday = Number(rec.matchesPlayed || 0);
+
+      // guard against a simultaneous second start (e.g. two tabs) clobbering the first session:
+      // whoever reaches here first owns the session; a late racer aborts instead of overwriting.
+      if (sessions.has(wallet)) {
+        return socket.emit("earnNpc:error", { message: "A fight is already active." });
+      }
 
       sessions.set(wallet, {
         sessionId,
@@ -599,16 +736,23 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
       // consume your selected card
       s.selfFieldCard = s.selfCards.splice(idx, 1)[0];
       socket.emit("earnNpc:ackPlayed", { uid: s.selfFieldCard.uid });
-
-      // NPC consumes one card
       if (!s.opponentCards.length) throw new Error("NPC has no cards left.");
-      const npcPickIdx = Math.floor(Math.random() * s.opponentCards.length);
-      const npc = s.opponentCards.splice(npcPickIdx, 1)[0];
-      s.opponentFieldCard = npc;
 
-      // UI: show back on field, reveal only for modal
-      socket.emit("earnNpc:opponentPlayedCard");
-      setTimeout(() => socket.emit("earnNpc:revealOpponentCard", npc), 650);
+      // NPC "strategizes" — a short, randomized think before it commits a card (feels deliberate)
+      socket.emit("earnNpc:npcThinking");
+      const thinkMs = 700 + Math.floor(Math.random() * 1100); // 0.7–1.8s
+      const sid = s.sessionId;
+      setTimeout(() => {
+        const cur = sessions.get(wallet);
+        // bail if the session was resolved/replaced/resumed, or the NPC already played
+        if (!cur || cur.sessionId !== sid || cur.opponentFieldCard || !cur.selfFieldCard || !cur.opponentCards.length) return;
+        const npcPickIdx = Math.floor(Math.random() * cur.opponentCards.length);
+        const npc = cur.opponentCards.splice(npcPickIdx, 1)[0];
+        cur.opponentFieldCard = npc;
+        // UI: show back on field, reveal only for the modal a beat later
+        socket.emit("earnNpc:opponentPlayedCard");
+        setTimeout(() => socket.emit("earnNpc:revealOpponentCard", npc), 650);
+      }, thinkMs);
     } catch (e) {
       socket.emit("earnNpc:error", { message: e.message || "Play failed" });
     }
@@ -673,6 +817,9 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
       // If 3 rounds reached without first-to-2, higher score wins; tie => draw no payout
       const finalSelfWon =
         selfWon || (!oppWon && maxRoundsReached && s.selfScore > s.opponentScore);
+      // a clear loss (opponent won) — distinct from an even draw, which is penalty-neutral
+      const finalOppWon =
+        oppWon || (!selfWon && maxRoundsReached && s.opponentScore > s.selfScore);
 
       // ✅ Match counts even if lose
       const day = todayKey();
@@ -740,6 +887,17 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
         await EarnDaily.updateOne({ wallet, day }, { $set: { lockedUntil } });
       }
 
+      // ✅ PVE anti-spam: a win resets escalation; a clear loss starts a cooldown (a draw is neutral)
+      let pvePenaltyUntil = null;
+      let pveOffenseCount = 0;
+      if (finalSelfWon) {
+        await clearPveOffense(wallet);
+      } else if (finalOppWon) {
+        const pen = await recordPveOffense(wallet, "loss");
+        pvePenaltyUntil = pen.penaltyUntil;
+        pveOffenseCount = pen.offenseCount;
+      }
+
       // refresh final EarnDaily state for UI
       const recFinal = await EarnDaily.findOne({ wallet, day }).lean();
       const earnedFinal = Number(recFinal?.total || 0);
@@ -761,6 +919,8 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
 
           passExpiresAt: s.passExpiresAt,
           lockedUntil: lockedUntil || null,
+          penaltyUntil: pvePenaltyUntil,   // PVE loss cooldown (distinct from daily-cap lockedUntil)
+          offenseCount: pveOffenseCount,
           winPayout: winMaxFor(s?.tier),
           poolBalance: 0,
         },
@@ -797,9 +957,79 @@ function attachEarnNpcSocket(io, socket, { buildDeckFromDb }) {
     }
   });
 
+  // SURRENDER — explicit forfeit mid-fight (the only sanctioned way out). Applies a penalty.
+  socket.on("earnNpc:surrender", async () => {
+    try {
+      const wallet = socket.data.wallet;
+      if (!wallet) return;
+      const s = sessions.get(wallet);
+      if (!s) return socket.emit("earnNpc:error", { message: "No active Earn duel session." });
+
+      if (s.graceTimer) { clearTimeout(s.graceTimer); s.graceTimer = null; }
+      const tierSnapshot = s.tier;
+      const passSnapshot = s.passExpiresAt;
+
+      // persist the penalty BEFORE freeing the session, so a new start can't slip in penalty-free
+      const pen = await recordPveOffense(wallet, "surrender");
+      sessions.delete(wallet);
+
+      // count the abandoned match as played, consistent with a loss
+      const day = todayKey();
+      let played = 0;
+      try {
+        const rec = await EarnDaily.findOneAndUpdate(
+          { wallet, day }, { $inc: { matchesPlayed: 1 } }, { new: true, upsert: true }
+        );
+        played = Number(rec.matchesPlayed || 0);
+      } catch { /* ignore */ }
+
+      socket.emit("earnNpc:duelResult", {
+        winner: "NPC",
+        loser: wallet,
+        forfeit: true,
+        surrendered: true,
+        payout: {
+          amount: 0,
+          txid: null,
+          reason: "You surrendered.",
+          penaltyUntil: pen.penaltyUntil,
+          offenseCount: pen.offenseCount,
+          dailyCap: DAILY_CAP,
+          matchesPerDay: MATCHES_PER_DAY,
+          matchesPlayedToday: played,
+          remainingMatchesToday: Math.max(0, MATCHES_PER_DAY - played),
+          passExpiresAt: passSnapshot,
+          winPayout: winMaxFor(tierSnapshot),
+          poolBalance: 0,
+        },
+      });
+    } catch (e) {
+      socket.emit("earnNpc:error", { message: e.message || "Surrender failed" });
+    }
+  });
+
+  // DISCONNECT — mid-fight drop opens a reconnect grace window; abandoning it = surrender penalty.
   socket.on("disconnect", () => {
     const wallet = socket.data.wallet;
-    if (wallet) sessions.delete(wallet);
+    if (!wallet) return;
+    const s = sessions.get(wallet);
+    if (!s || s.graceTimer) return;   // no active fight, or grace already running
+
+    s.graceUntil = Date.now() + PVE_GRACE_MS;
+    s.graceTimer = setTimeout(async () => {
+      const cur = sessions.get(wallet);
+      if (!cur || cur.sessionId !== s.sessionId || !cur.graceTimer) return; // resumed or replaced
+      // persist the penalty BEFORE freeing the session (recordPveOffense sets the in-memory
+      // mirror synchronously, so the gate is race-free even before the DB write resolves)
+      try {
+        await recordPveOffense(wallet, "abandon");
+        const day = todayKey();
+        await EarnDaily.findOneAndUpdate({ wallet, day }, { $inc: { matchesPlayed: 1 } }, { upsert: true });
+      } catch { /* ignore */ }
+      // only delete if still the same un-resumed session (resume nulls graceTimer)
+      const after = sessions.get(wallet);
+      if (after && after.sessionId === s.sessionId && after.graceTimer) sessions.delete(wallet);
+    }, PVE_GRACE_MS);
   });
 }
 

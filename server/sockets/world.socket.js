@@ -44,6 +44,7 @@ function attachWorldSocket(io, socket) {
         y: Number(data.y) || 0,
         dir: data.dir || "s",
         moving: false,
+        riding: !!data.riding,
       };
       players.set(socket.id, p);
       socket.join(room);
@@ -58,7 +59,8 @@ function attachWorldSocket(io, socket) {
       p.y = Number(data.y) || 0;
       p.dir = data.dir || p.dir;
       p.moving = !!data.moving;
-      socket.to(room).emit(`${room}:moved`, { id: socket.id, x: p.x, y: p.y, dir: p.dir, moving: p.moving });
+      p.riding = !!data.riding;
+      socket.to(room).emit(`${room}:moved`, { id: socket.id, x: p.x, y: p.y, dir: p.dir, moving: p.moving, riding: p.riding });
     });
 
     socket.on(`${room}:char`, (data = {}) => {

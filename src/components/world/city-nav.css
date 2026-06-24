@@ -1,0 +1,120 @@
+/* ============================================================
+   CityNav — cyberpunk top navbar (brand · Docs · How To Play · Connect)
+   ============================================================ */
+.city-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100050;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: linear-gradient(180deg, rgba(10, 13, 22, 0.96), rgba(8, 10, 18, 0.88));
+  border-bottom: 1px solid rgba(120, 200, 255, 0.35);
+  box-shadow: 0 2px 18px rgba(20, 80, 160, 0.25);
+  backdrop-filter: blur(8px);
+  font-family: "Silkscreen", "Press Start 2P", ui-monospace, monospace;
+  user-select: none;
+}
+
+/* brand */
+.city-nav__brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.city-nav__logo {
+  font-size: 17px; font-weight: 900; letter-spacing: 0.14em; color: #eaf6ff;
+  text-shadow: 0 0 10px rgba(90, 200, 255, 0.8), 0 0 3px rgba(150, 220, 255, 0.9);
+}
+.city-nav__tag {
+  font-size: 8px; letter-spacing: 0.22em; color: rgba(130, 200, 255, 0.55);
+  white-space: nowrap;
+}
+@media (max-width: 560px) { .city-nav__tag { display: none; } }
+
+/* nav links + wallet */
+.city-nav__links { display: flex; align-items: center; gap: 8px; }
+.city-nav__link {
+  font-family: inherit;
+  font-size: 11px; letter-spacing: 0.12em; font-weight: 700;
+  color: #b9d8f5; text-decoration: none;
+  background: none; border: 0; cursor: pointer;
+  padding: 6px 10px; border-radius: 7px;
+  transition: color 0.12s, background 0.12s;
+}
+.city-nav__link:hover { color: #fff; background: rgba(120, 200, 255, 0.12); }
+
+.city-nav__wallet {
+  font-family: inherit;
+  font-size: 11px; letter-spacing: 0.1em; font-weight: 900;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 8px;
+  color: #04121f;
+  background: linear-gradient(180deg, #7ff0ff, #34c9ff);
+  border: 1px solid rgba(150, 235, 255, 0.9);
+  box-shadow: 0 0 16px rgba(60, 200, 255, 0.5);
+  transition: filter 0.12s, transform 0.12s;
+}
+.city-nav__wallet:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.city-nav__hex { font-size: 12px; }
+.city-nav__wallet.is-connected {
+  color: #d6ffe8;
+  background: rgba(14, 22, 18, 0.9);
+  border-color: rgba(90, 230, 160, 0.7);
+  box-shadow: 0 0 12px rgba(60, 220, 140, 0.35);
+}
+.city-nav__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #4dffa0; box-shadow: 0 0 8px #4dffa0;
+}
+
+/* ---- How To Play modal ---- */
+.howto-overlay {
+  position: fixed; inset: 0; z-index: 100060;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(2, 4, 10, 0.82);
+  backdrop-filter: blur(6px);
+  padding: 16px;
+  font-family: "Silkscreen", "Press Start 2P", ui-monospace, monospace;
+}
+.howto-card {
+  position: relative;
+  width: min(560px, 94vw);
+  max-height: 88vh; overflow-y: auto;
+  padding: 26px 26px 22px;
+  border-radius: 14px;
+  color: #eaf2ff;
+  background: linear-gradient(135deg, rgba(16, 20, 34, 0.98), rgba(10, 12, 22, 0.98));
+  border: 1px solid rgba(120, 200, 255, 0.45);
+  box-shadow: 0 0 40px rgba(40, 120, 220, 0.35), inset 0 0 26px rgba(40, 90, 180, 0.12);
+}
+.howto-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 30px; height: 30px; border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8); cursor: pointer; font-weight: 900;
+}
+.howto-close:hover { color: #fff; }
+.howto-title {
+  margin: 0 0 16px; text-align: center;
+  font-size: 22px; font-weight: 900; letter-spacing: 0.12em; color: #fff;
+  text-shadow: 0 0 14px rgba(90, 200, 255, 0.75);
+}
+.howto-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+.howto-list li {
+  font-size: 12px; line-height: 1.55; color: #cfe0f5; letter-spacing: 0.02em;
+  padding-left: 16px; position: relative;
+}
+.howto-list li::before {
+  content: "▸"; position: absolute; left: 0; color: #5ad0ff;
+}
+.howto-list b { color: #ffe27a; }
+.howto-ok {
+  margin-top: 20px; width: 100%;
+  padding: 12px; border-radius: 10px; cursor: pointer;
+  font-family: inherit; font-weight: 900; letter-spacing: 0.14em; font-size: 13px;
+  color: #04121f;
+  background: linear-gradient(180deg, #7ff0ff, #34c9ff);
+  border: 1px solid rgba(150, 235, 255, 0.9);
+  box-shadow: 0 0 16px rgba(60, 200, 255, 0.45);
+}
+.howto-ok:hover { filter: brightness(1.08); }

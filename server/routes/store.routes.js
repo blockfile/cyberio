@@ -52,9 +52,9 @@ function addDays(date, days) {
 
 function getPriceForDuration(durationDays) {
   const d = Number(durationDays);
-  if (d === 7) return Number(process.env.PASS_PRICE_7 || 5);
-  if (d === 15) return Number(process.env.PASS_PRICE_30 || 15);
-  if (d === 30) return Number(process.env.PASS_PRICE_90 || 35);
+  if (d === 7) return Number(process.env.PASS_PRICE_7 || 9999);
+  if (d === 15) return Number(process.env.PASS_PRICE_30 || 17999);
+  if (d === 30) return Number(process.env.PASS_PRICE_90 || 29999);
   return null;
 }
 

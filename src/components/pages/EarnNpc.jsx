@@ -53,7 +53,7 @@ const fadeInUp = {
     exit: { opacity: 0, y: -12, transition: { duration: 0.2 } },
 };
 
-export default function EarnNpc({ embedded = false, tier = "static", onClose = null }) {
+export default function EarnNpc({ embedded = false, tier = "static", onClose = null, onLockChange = null }) {
     const { wallet } = useContext(WalletContext);
     const navigate = useNavigate();
 
@@ -115,6 +115,7 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
     });
 
     const [bonusModal, setBonusModal] = useState(false);
+    const [npcThinking, setNpcThinking] = useState(false); // NPC "strategizing" indicator between your play and its play
 
     const ignoreNextScoreUpdateRef = useRef(false);
     const requestedBonusRef = useRef(false);
@@ -122,9 +123,58 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
     // ✅ Mobile HUD toggle (UI only)
     const [hudOpen, setHudOpen] = useState(false);
 
+    // ✅ PVE anti-spam cooldown (loss / surrender / abandon) + surrender confirm
+    const [lockedUntil, setLockedUntil] = useState(null); // ms timestamp or null
+    const [surrenderModal, setSurrenderModal] = useState(false);
+    const [nowTs, setNowTs] = useState(() => Date.now());
+
+    const lockRemainingMs = lockedUntil ? Math.max(0, lockedUntil - nowTs) : 0;
+    const isLocked = lockRemainingMs > 0;
+    const fmtCountdown = (ms) => {
+        const s = Math.ceil(ms / 1000);
+        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    };
+    // daily earn cap resets at 00:00 UTC — time until the next UTC midnight
+    const msToUtcReset = (() => {
+        const d = new Date(nowTs);
+        return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0) - nowTs;
+    })();
+    const fmtResetIn = (ms) => {
+        const s = Math.max(0, Math.floor(ms / 1000));
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+        return `${h}h ${String(m).padStart(2, "0")}m`;
+    };
+
+    // always-on 1s tick (drives the cooldown countdown AND the daily-reset countdown)
+    useEffect(() => {
+        const id = setInterval(() => setNowTs(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, []);
+    // clear the PVE cooldown the moment it elapses
+    useEffect(() => {
+        if (lockedUntil && nowTs >= lockedUntil) setLockedUntil(null);
+    }, [nowTs, lockedUntil]);
+
     useEffect(() => {
         if (wallet) socket.emit("hello", { wallet });
     }, [wallet]);
+
+    // tell the host (in-world panel) when a fight is active so it can block the close button
+    useEffect(() => {
+        const active = status === "dueling" || status === "redealing";
+        if (onLockChange) onLockChange(active);
+    }, [status, onLockChange]);
+    useEffect(() => () => { if (onLockChange) onLockChange(false); }, [onLockChange]); // unlock on unmount
+
+    // persist "in an NPC duel" so a refresh / tab-close can auto-reopen + resume within the 30s grace window
+    useEffect(() => {
+        try {
+            if (status === "dueling" || status === "redealing")
+                localStorage.setItem("cyb_earn_active", JSON.stringify({ tier, ts: Date.now() }));
+            else
+                localStorage.removeItem("cyb_earn_active");
+        } catch (e) { /* ignore */ }
+    }, [status, tier]);
 
     useEffect(() => {
         const onStart = ({ selfCards, npcCards, npcProfile, rules, bonusRound }) => {
@@ -161,6 +211,7 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
             setNpcFieldSlot(null);
             setNpcHiddenCard(null);
             setPendingUid(null);
+            setNpcThinking(false);
 
             requestedBonusRef.current = false;
             ignoreNextScoreUpdateRef.current = false;
@@ -191,6 +242,7 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
             setNpcFieldSlot(null);
             setNpcHiddenCard(null);
             setPendingUid(null);
+            setNpcThinking(false);
 
             requestedBonusRef.current = false;
             setBonusModal(true);
@@ -209,6 +261,17 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
             if (code === "LOW_POWER_RULE") {
                 extra = lowCount != null ? `\n\nLow-power cards owned: ${lowCount}` : "";
             }
+            if (code === "PVE_PENALTY") {
+                const until = lockedUntil ? new Date(lockedUntil).getTime() : 0;
+                if (until > Date.now()) {
+                    setLockedUntil(until);
+                    openInfo("Cooldown Active", `${message || "On cooldown."}\n\nYou can fight again in ${fmtCountdown(until - Date.now())}.`);
+                } else {
+                    openInfo("Cooldown Active", message || "On cooldown.");
+                }
+                setStatus("idle");
+                return;
+            }
             openInfo("P2E Access Denied", `${message || "Not eligible."}${extra}`);
             setStatus("idle");
         });
@@ -222,7 +285,10 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
             setPendingUid(null);
         });
 
+        socket.on("earnNpc:npcThinking", () => setNpcThinking(true));
+
         socket.on("earnNpc:opponentPlayedCard", () => {
+            setNpcThinking(false);
             setNpcFieldSlot("back");
             setNpcHiddenCard(null);
 
@@ -264,9 +330,15 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
             setNpcScore(Number(opponentScore || 0));
         });
 
-        socket.on("earnNpc:duelResult", ({ payout }) => {
+        socket.on("earnNpc:duelResult", ({ payout, surrendered }) => {
             const didWin = (payout?.amount || 0) > 0;
-            setResultModal({ open: true, win: didWin, payout });
+            setResultModal({ open: true, win: didWin, payout, surrendered: !!surrendered });
+
+            // PVE loss/surrender starts a cooldown — store it for the countdown + start gate
+            if (payout?.penaltyUntil) {
+                const until = new Date(payout.penaltyUntil).getTime();
+                if (until > Date.now()) setLockedUntil(until);
+            }
 
             setRules((prev) => ({
                 ...prev,
@@ -281,6 +353,7 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
                 poolBalance: payout?.poolBalance ?? prev.poolBalance,
             }));
 
+            setNpcThinking(false);
             setStatus("idle");
         });
 
@@ -292,12 +365,14 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
         socket.on("earnNpc:error", ({ message }) => {
             openInfo("P2E", message || "Something went wrong");
             setPendingUid(null);
+            setNpcThinking(false);
             setStatus((s) => (s === "redealing" ? "dueling" : s));
             requestedBonusRef.current = false;
         });
 
         return () => {
             socket.off("earnNpc:startDuel", onStart);
+            socket.removeAllListeners("earnNpc:npcThinking");
             socket.removeAllListeners("earnNpc:bonusHand");
             socket.removeAllListeners("earnNpc:eligibilityFailed");
             socket.removeAllListeners("earnNpc:ackPlayed");
@@ -313,8 +388,18 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
 
     const startEarn = () => {
         if (!wallet) return openInfo("Wallet Required", "Connect your wallet first.");
+        if (lockedUntil && lockedUntil > Date.now()) {
+            return openInfo("Cooldown Active", `You can't start an NPC fight yet.\n\nTry again in ${fmtCountdown(lockedUntil - Date.now())}.`);
+        }
         socket.emit("hello", { wallet });
         socket.emit("earnNpc:start", { wallet, tier });   // tier: "static" (1×) | "walking" (2×)
+    };
+
+    // explicit forfeit (the only sanctioned way out of an active fight) — applies a penalty
+    const confirmSurrender = () => {
+        setSurrenderModal(false);
+        if (status !== "dueling" && status !== "redealing") return;
+        socket.emit("earnNpc:surrender", { wallet });
     };
 
     // in-city earn: opened from an NPC encounter → begin the duel immediately (no lobby step)
@@ -450,6 +535,9 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
                     <span className="font-semibold">
                         {dailyText.earned}/{dailyText.cap}
                     </span>
+                    <span className="opacity-60 text-cyan-200" title="Daily earn cap resets at 00:00 UTC (08:00 PHT)">
+                        (resets in {fmtResetIn(msToUtcReset)} · 00:00 UTC / 8AM PHT)
+                    </span>
 
                     <span className="opacity-50">•</span>
 
@@ -543,9 +631,19 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
                         embedded ? (
                             <div className="w-full max-w-sm mx-auto rounded-2xl border border-fuchsia-400/30 bg-black/45 p-6 text-center backdrop-blur-md">
                                 <div className="text-xs uppercase tracking-widest opacity-80 text-fuchsia-200">Earn Duel</div>
-                                <div className="mt-2 text-xl font-extrabold text-cyan-200">Starting duel…</div>
-                                <div className="mt-2 text-sm opacity-80">Connecting to your opponent…</div>
-                                <button onClick={startEarn} className="mt-4 px-5 py-2 rounded-xl border border-fuchsia-300/40 bg-white/10 hover:bg-white/15 text-sm font-bold tracking-widest uppercase">Retry</button>
+                                {isLocked ? (
+                                    <>
+                                        <div className="mt-2 text-xl font-extrabold text-rose-200">On Cooldown</div>
+                                        <div className="mt-1 text-3xl font-black text-rose-300 tabular-nums">{fmtCountdown(lockRemainingMs)}</div>
+                                        <div className="mt-2 text-sm opacity-80">You left or lost an NPC fight. Come back when the timer ends.</div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="mt-2 text-xl font-extrabold text-cyan-200">Starting duel…</div>
+                                        <div className="mt-2 text-sm opacity-80">Connecting to your opponent…</div>
+                                        <button onClick={startEarn} className="mt-4 px-5 py-2 rounded-xl border border-fuchsia-300/40 bg-white/10 hover:bg-white/15 text-sm font-bold tracking-widest uppercase">Retry</button>
+                                    </>
+                                )}
                             </div>
                         ) : (
                         <motion.div
@@ -594,11 +692,12 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
 
                             <motion.button
                                 onClick={startEarn}
-                                whileHover={{ scale: 1.03 }}
-                                whileTap={{ scale: 0.98 }}
-                                className="mt-5 w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase"
+                                whileHover={isLocked ? undefined : { scale: 1.03 }}
+                                whileTap={isLocked ? undefined : { scale: 0.98 }}
+                                disabled={isLocked}
+                                className="mt-5 w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase disabled:opacity-70 disabled:cursor-not-allowed"
                             >
-                                Start P2E Duel
+                                {isLocked ? `On Cooldown — ${fmtCountdown(lockRemainingMs)}` : "Start P2E Duel"}
                             </motion.button>
                         </motion.div>
                         )
@@ -636,6 +735,15 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
                                         <div className="relative w-24 h-32 sm:w-28 sm:h-40 md:w-32 md:h-44 mx-auto flex items-center justify-center rounded-xl border-2 border-fuchsia-300/60 bg-black/35">
                                             {npcFieldSlot ? (
                                                 <img src={npcFieldImage} className="w-[95%] h-[95%] object-contain rounded-lg" alt="" />
+                                            ) : npcThinking ? (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <div className="flex gap-1.5">
+                                                        <span className="w-2 h-2 rounded-full bg-fuchsia-300 animate-bounce" style={{ animationDelay: "0ms" }} />
+                                                        <span className="w-2 h-2 rounded-full bg-fuchsia-300 animate-bounce" style={{ animationDelay: "150ms" }} />
+                                                        <span className="w-2 h-2 rounded-full bg-fuchsia-300 animate-bounce" style={{ animationDelay: "300ms" }} />
+                                                    </div>
+                                                    <div className="text-[10px] uppercase tracking-widest text-fuchsia-200 opacity-90">Choosing…</div>
+                                                </div>
                                             ) : (
                                                 <div className="text-xs opacity-80">Waiting…</div>
                                             )}
@@ -718,18 +826,74 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
             {/* Bottom action bar (End Turn centered on mobile and desktop) */}
             {status === "dueling" || status === "redealing" ? (
                 <div className="earnnpc-bottom-bar">
-                    <div className="earnnpc-bottom-inner">
+                    <div className="earnnpc-bottom-inner flex gap-2">
                         <motion.button
                             onClick={endTurn}
                             whileTap={{ scale: 0.98 }}
                             disabled={status === "redealing"}
-                            className="w-full rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase disabled:opacity-60"
+                            className="flex-1 rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-3 font-bold tracking-[.18em] uppercase disabled:opacity-60"
                         >
                             {status === "redealing" ? "Redealing…" : "End Turn"}
+                        </motion.button>
+                        <motion.button
+                            onClick={() => setSurrenderModal(true)}
+                            whileTap={{ scale: 0.98 }}
+                            title="Forfeit the fight (applies a cooldown)"
+                            className="shrink-0 rounded-xl border border-rose-400/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-100 px-4 py-3 font-bold tracking-[.14em] uppercase"
+                        >
+                            Surrender
                         </motion.button>
                     </div>
                 </div>
             ) : null}
+
+            {/* SURRENDER CONFIRM MODAL */}
+            <AnimatePresence>
+                {surrenderModal && (
+                    <motion.div
+                        className="fixed inset-0 z-[90] flex items-center justify-center"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setSurrenderModal(false)}
+                    >
+                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+                        <motion.div
+                            onClick={(e) => e.stopPropagation()}
+                            className="earnnpc-modal earnnpc-modal-tight relative mx-4 rounded-2xl text-center
+                         bg-gradient-to-b from-rose-950/70 to-slate-900/50 border border-rose-400/30"
+                            initial={{ scale: 0.94, y: 10, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 0.98, y: -6, opacity: 0 }}
+                        >
+                            <div className="px-5 pt-4">
+                                <div className="text-xs uppercase tracking-widest opacity-80 text-rose-200">Forfeit Fight</div>
+                                <div className="mt-2 font-extrabold text-rose-200 earnnpc-modal-title">Surrender?</div>
+                            </div>
+                            <div className="earnnpc-modal-body px-5 pb-4 mt-3">
+                                <div className="text-sm opacity-85">
+                                    You can't exit a fight once it starts. Surrendering counts as a loss and applies a
+                                    <span className="text-rose-200 font-bold"> 5–15 min cooldown</span> (longer for repeat exits).
+                                </div>
+                                <div className="mt-4 flex gap-2">
+                                    <button
+                                        onClick={() => setSurrenderModal(false)}
+                                        className="flex-1 rounded-xl border border-white/15 bg-white/10 hover:bg-white/15 px-4 py-2.5 font-bold tracking-widest uppercase text-sm"
+                                    >
+                                        Keep Fighting
+                                    </button>
+                                    <button
+                                        onClick={confirmSurrender}
+                                        className="flex-1 rounded-xl border border-rose-400/40 bg-rose-500/20 hover:bg-rose-500/30 text-rose-100 px-4 py-2.5 font-bold tracking-widest uppercase text-sm"
+                                    >
+                                        Surrender
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* BONUS MODAL */}
             <AnimatePresence>

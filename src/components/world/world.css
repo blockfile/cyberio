@@ -17,7 +17,7 @@
   position: fixed;
   right: 16px; bottom: 72px;        /* lifted above the bottom-right BGM/volume player */
   z-index: 99999;
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
 }
 .world-zoom-ui button {
   width: 38px; height: 38px;
@@ -37,7 +37,7 @@
 
 .world-hud {
   position: fixed;
-  top: 0; left: 0; right: 0;
+  top: 44px; left: 0; right: 0; /* below the CityNav */
   z-index: 99990; /* below the ProfileHUD / EARN toggle (99999) */
   display: flex;
   align-items: baseline;
@@ -49,6 +49,7 @@
   pointer-events: none;
 }
 .world-hud h1 {
+  display: none; /* CityNav shows the CYBERIO brand now */
   margin: 0;
   font-size: 20px;
   letter-spacing: 2px;
@@ -56,8 +57,15 @@
 }
 .world-hud span {
   font-size: 12px;
-  color: #d6b3ff;
-  text-shadow: 0 0 6px #b3f;
+  color: #ecdcff;
+  /* lift the instruction off the busy city: dark pill + crisp outline shadow */
+  padding: 7px 16px;
+  background: rgba(11, 8, 22, 0.72);
+  border: 1px solid rgba(179, 120, 255, 0.45);
+  border-radius: 9px;
+  text-shadow: 0 1px 3px #000, 0 0 8px #b3f;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(140, 60, 255, 0.12);
+  backdrop-filter: blur(2px);
 }
 
 /* scene canvas — positioned at viewport centre; pan/zoom via transform */
@@ -104,6 +112,26 @@
   image-rendering: pixelated;
   -webkit-user-drag: none;
 }
+
+/* tile-hover highlight — diamond that follows the mouse (green = walkable, red = blocked).
+   2*TW x 2*TH = 128x64; z above the road (500)/floor, below buildings + characters. */
+.world-tile-hover {
+  position: absolute;
+  width: 128px;
+  height: 64px;
+  z-index: 700;
+  pointer-events: none;
+  opacity: 0;
+  background: rgba(120, 220, 255, 0.22);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  filter: drop-shadow(0 0 5px rgba(120, 220, 255, 0.7));
+  transition: opacity 0.08s linear;
+}
+.world-tile-hover.blocked {
+  background: rgba(255, 90, 110, 0.22);
+  filter: drop-shadow(0 0 5px rgba(255, 90, 110, 0.7));
+}
+body.lite-fx .world-tile-hover { filter: none; }
 
 /* ---- BIG holographic talking head — THREE layers ----
    Base (.world-holo-base): a sci-fi circular podium with glowing rim, OPAQUE + STEADY.
@@ -299,8 +327,122 @@
   background-size: calc(var(--fw) * 6) 120px;
   filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 7px rgba(255, 210, 90, 0.95));
 }
+/* ride sprite = your character composited onto a motorbike (ride{charId}_{dir}, 140x150 canvas,
+   bike wheels at the bottom-centre = the ground/feet anchor). Shown while riding. Animated:
+   constant engine-idle vibration; bigger lean+bob + brighter glow + speed trail while moving. */
+.player-ride {
+  position: absolute; left: 0; top: 0;
+  width: 110px; height: 116px;
+  transform: translate(-50%, -100%);
+  transform-origin: center bottom;               /* lean pivots at the wheels */
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center bottom;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px rgba(120, 220, 255, 0.7));
+  display: none;
+  animation: bikeIdle 0.16s ease-in-out infinite;
+}
+@keyframes bikeIdle {
+  0%, 100% { transform: translate(-50%, -100%); }
+  50%      { transform: translate(-50%, calc(-100% - 1.5px)); }
+}
+.player-ride.moving {
+  animation: bikeRide 0.34s ease-in-out infinite;
+  filter: drop-shadow(0 5px 4px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 16px rgba(80, 230, 255, 0.95));
+}
+@keyframes bikeRide {
+  0%   { transform: translate(-50%, -100%) rotate(-2deg); }
+  50%  { transform: translate(-50%, calc(-100% - 4px)) rotate(2deg); }
+  100% { transform: translate(-50%, -100%) rotate(-2deg); }
+}
+.player-ride.moving::after {
+  content: ""; position: absolute; z-index: -1;
+  left: 6%; right: 6%; bottom: 8px; height: 12px;
+  background: radial-gradient(ellipse at center, rgba(80, 230, 255, 0.7), rgba(80, 230, 255, 0.16) 55%, transparent 72%);
+  filter: blur(2.5px);
+  animation: bikeTrail 0.24s linear infinite;
+}
+@keyframes bikeTrail {
+  0%, 100% { opacity: 0.45; transform: scaleX(0.85); }
+  50%      { opacity: 0.9;  transform: scaleX(1.15); }
+}
+/* animated ride sheet (PixelLab pro animation): 4-frame horizontal strip → stepped scroll, like the
+   walk cycle. Runs the frame-cycle (hair flutter / bounce) always; the transform bob/lean rides on top. */
+.player-ride.rideanim {
+  background-size: calc(110px * 4) 116px;        /* 4 frames, each = element width */
+  background-position: 0 0;
+  animation: rideCycle 0.52s steps(4) infinite, bikeIdle 0.16s ease-in-out infinite;
+}
+.player-ride.rideanim.moving {
+  animation: rideCycle 0.36s steps(4) infinite, bikeRide 0.34s ease-in-out infinite;
+}
+@keyframes rideCycle { to { background-position-x: calc(110px * -4); } }
+@media (prefers-reduced-motion: reduce) {
+  .player-ride, .player-ride.moving, .player-ride.rideanim, .player-ride.rideanim.moving { animation: none; }
+  .player-ride.moving::after { animation: none; }
+}
+/* "RIDING" HUD pill */
+.world-ride-pill {
+  position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
+  z-index: 99999; pointer-events: none;
+  font-family: "Silkscreen", "Press Start 2P", ui-monospace, monospace;
+  font-size: 11px; font-weight: 900; letter-spacing: 0.1em;
+  color: #06121f; padding: 6px 14px; border-radius: 8px;
+  background: linear-gradient(180deg, #7ff0c0, #34e0a0);
+  border: 1px solid rgba(120, 255, 200, 0.9);
+  box-shadow: 0 0 16px rgba(60, 220, 150, 0.6);
+}
+
+/* join/leave feed — stacked pills, bottom-left, out of the way of HUD/zoom/BGM */
+.world-toasts {
+  position: fixed; left: 16px; bottom: 92px;
+  z-index: 99996; pointer-events: none;
+  display: flex; flex-direction: column-reverse; gap: 8px;
+}
+.world-toast {
+  display: flex; align-items: center; gap: 9px;
+  font-family: "Silkscreen", "Press Start 2P", ui-monospace, monospace;
+  font-size: 11px; letter-spacing: 0.04em; color: #eaf6ff;
+  padding: 8px 13px; border-radius: 8px;
+  background: rgba(11, 14, 26, 0.92);
+  border: 1px solid rgba(120, 200, 255, 0.5);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  text-shadow: 0 0 6px rgba(40, 200, 255, 0.6);
+  animation: toastIn 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+.world-toast__dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;
+  background: #05d9e8; box-shadow: 0 0 8px #05d9e8;
+}
+.world-toast--join { border-color: rgba(5, 217, 232, 0.6); }
+.world-toast--join .world-toast__dot { background: #05d9e8; box-shadow: 0 0 9px #05d9e8; }
+.world-toast--leave { border-color: rgba(255, 42, 109, 0.6); text-shadow: 0 0 6px rgba(255, 42, 109, 0.55); }
+.world-toast--leave .world-toast__dot { background: #ff2a6d; box-shadow: 0 0 9px #ff2a6d; }
+@keyframes toastIn {
+  0%   { opacity: 0; transform: translateX(-16px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-remote, .world-toast { animation: none; }
+}
+
 /* other connected players (multiplayer) — like the local avatar but cyan-tagged, no ring */
-.world-remote { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.world-remote {
+  position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform;
+  /* materialize when a player appears — animates opacity/filter only (the rAF loop owns transform) */
+  animation: remoteSpawn 0.45s ease-out;
+}
+.world-remote--leaving { animation: remoteDespawn 0.42s ease-in forwards; }
+@keyframes remoteSpawn {
+  0%   { opacity: 0; filter: brightness(2.4) drop-shadow(0 0 16px #2cf); }
+  55%  { opacity: 1; }
+  100% { opacity: 1; filter: none; }
+}
+@keyframes remoteDespawn {
+  0%   { opacity: 1; filter: none; }
+  100% { opacity: 0; filter: brightness(1.9) drop-shadow(0 0 16px #ff2a6d); }
+}
 .remote-sprite {
   --fw: 66px;
   height: 112px;
@@ -466,7 +608,12 @@
   text-shadow: 0 0 10px var(--sign, #2cf), 0 0 22px var(--sign, #2cf);
   box-shadow: 0 0 24px var(--sign, #2cf), inset 0 0 16px rgba(255, 255, 255, 0.14);
   animation: shopSignPulse 2.4s ease-in-out infinite;
+  transition: filter 0.12s ease, transform 0.12s ease;
 }
+/* hover feedback even when out of range, so it's obvious the sign is clickable */
+.world-shop-sign:hover { filter: brightness(1.14) saturate(1.1); }
+/* in-range already brightens; .in-range:hover (higher specificity) keeps hover meaningful */
+.world-shop-sign.in-range:hover { filter: brightness(1.4) saturate(1.32); }
 /* stem connecting the sign to the building */
 .world-shop-sign::after {
   content: "";
@@ -824,14 +971,22 @@
 }
 @keyframes fountainFlow { to { background-position: calc(var(--fw) * -5) 0; } }
 
-/* ===== Lite FX toggle button ===== */
-.world-fx-toggle { font-size: 13px !important; font-weight: 900; letter-spacing: 0.04em; }
-.world-fx-toggle.on {
-  color: #0a1e16;
-  background: linear-gradient(180deg, #6ff0c0, #37e0a0);
-  border-color: rgba(120, 255, 210, 0.9);
-  box-shadow: 0 0 12px rgba(55, 224, 160, 0.55);
-  text-shadow: none;
+/* ===== FX quality button (Low / Med / High) ===== */
+.world-fx-toggle {
+  width: auto !important; min-width: 66px; padding: 0 10px;
+  font-size: 11px !important; font-weight: 900; letter-spacing: 0.06em;
+}
+.world-fx-toggle.fxlvl-low {
+  color: #0a1e16; background: linear-gradient(180deg, #6ff0c0, #37e0a0);
+  border-color: rgba(120, 255, 210, 0.9); box-shadow: 0 0 12px rgba(55, 224, 160, 0.55); text-shadow: none;
+}
+.world-fx-toggle.fxlvl-med {
+  color: #06121f; background: linear-gradient(180deg, #8fd0ff, #49b6ff);
+  border-color: rgba(120, 200, 255, 0.9); box-shadow: 0 0 12px rgba(73, 182, 255, 0.5); text-shadow: none;
+}
+.world-fx-toggle.fxlvl-high {
+  color: #1a0716; background: linear-gradient(180deg, #ff9be0, #ff5ea8);
+  border-color: rgba(255, 150, 210, 0.9); box-shadow: 0 0 12px rgba(255, 94, 168, 0.55); text-shadow: none;
 }
 
 /* ===== Lite FX mode — disable GPU-heavy effects that flicker on weak GPUs ===== */
@@ -876,8 +1031,18 @@ body.lite-fx .world-npc.idle,
 body.lite-fx .player-ring,
 body.lite-fx .world-dest { animation: none !important; }
 
+/* LOW FX (weak / no-GPU): med reductions + strip ALL remaining ambient motion
+   (hologram glitch + beam, water sway/cycle) — only walking stays. */
+body.fx-low .world-holo,
+body.fx-low .world-holo-beam,
+body.fx-low .world-water,
+body.fx-low .world-water-anim,
+body.fx-low .world-sheen { animation: none !important; }
+body.fx-low .world-holo,
+body.fx-low .world-holo-beam { filter: none !important; }
+
 /* ===== EARN mode — upper-right toggle ===== */
-.world-earn-ui { position: fixed; top: 16px; right: 16px; z-index: 99999; }
+.world-earn-ui { position: fixed; top: 54px; right: 16px; z-index: 99999; }
 .world-earn-toggle {
   cursor: pointer; font-weight: 900; letter-spacing: 0.1em; font-size: 12px; padding: 10px 16px; border-radius: 4px;
   color: #cfe9ff; background: rgba(14, 18, 30, 0.88); border: 1px solid rgba(120, 200, 255, 0.55);

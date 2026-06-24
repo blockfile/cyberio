@@ -59,7 +59,8 @@ const TREASURY_ADDRESS = "8yUGx6tMGsCxSdVj2Fk8FyaDkg4doZ32xnkNkzKSwHe5";
 const SD_TOKEN_MINT =
   (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
   "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
-const DRAW_PRICE_SD = 10; // whole CYBERIO tokens — MUST match server DRAW_PRICE_CYBERIO
+const DRAW_PRICE_SD = 5000; // whole CYBERIO tokens per draw — MUST match server DRAW_PRICE_CYBERIO
+const DRAW_COUNTS = [1, 5, 10]; // multi-draw options
 const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );
@@ -100,6 +101,8 @@ export default function DrawCard({ embedded = false }) {
   const [drawnCard, setDrawnCard] = useState(null);
   const [imageSrc, setImageSrc] = useState(null);
   const [rarity, setRarity] = useState("");
+  const [drawCount, setDrawCount] = useState(1);   // 1 / 5 / 10 draws per pull
+  const [multiDraws, setMultiDraws] = useState(null); // [{id, image, rarity, name, power}] for a multi-pull
   const [loading, setLoading] = useState(false); // primary CTA disable
   const [message, setMessage] = useState("");
   const [showOverlay, setShowOverlay] = useState(false);
@@ -216,7 +219,7 @@ export default function DrawCard({ embedded = false }) {
           setBusyText("Creating intent…");
           const intentRes = await axios.post(
             `${API_BASE_URL}/api/draw-card/intent`,
-            { walletAddress }
+            { walletAddress, count: drawCount }
           );
 
           if (!intentRes.data.free) {
@@ -261,8 +264,10 @@ export default function DrawCard({ embedded = false }) {
 
             setBusyText("Preparing transaction…");
             const mintInfo = await getMint(connection, mintPk, "confirmed", tokenProgramId);
+            // total the server expects = count × per-draw price (server returns it in the intent)
+            const totalPrice = Number(intentRes.data.priceSD) || DRAW_PRICE_SD * drawCount;
             const amount = Math.trunc(
-              DRAW_PRICE_SD * 10 ** (mintInfo.decimals || 6)
+              totalPrice * 10 ** (mintInfo.decimals || 6)
             );
 
             // ✅ Ensure treasury ATA exists; create it if not
@@ -325,17 +330,33 @@ export default function DrawCard({ embedded = false }) {
               { walletAddress, txSignature: sig, memo }
             );
 
-            setBusyText("Revealing your card…");
-            const cardNumber = finalizeRes.data.drawnCard;
-            const image = nftArt(cardNumber) || monsterImages[String(cardNumber)];
-            if (!image) {
-              setMessage("Card image not found.");
-              setImageSrc(null);
-            } else {
-              setImageSrc(image);
-              setDrawnCard(cardNumber);
-              setRarity(finalizeRes.data.rarity || getRarity(Number(cardNumber)));
+            setBusyText("Revealing your cards…");
+            const cards = finalizeRes.data.drawnCards || [{
+              cardId: finalizeRes.data.drawnCard, name: finalizeRes.data.name,
+              power: finalizeRes.data.power, rarity: finalizeRes.data.rarity,
+            }];
+            if (cards.length > 1) {
+              // multi-pull → reveal the whole batch in a grid
+              setMultiDraws(cards.map((c) => ({
+                id: c.cardId,
+                image: nftArt(c.cardId) || monsterImages[String(c.cardId)],
+                rarity: c.rarity || getRarity(Number(c.cardId)),
+                name: c.name, power: c.power,
+              })));
               setShowOverlay(true);
+            } else {
+              const cardNumber = cards[0].cardId;
+              const image = nftArt(cardNumber) || monsterImages[String(cardNumber)];
+              if (!image) {
+                setMessage("Card image not found.");
+                setImageSrc(null);
+              } else {
+                setMultiDraws(null);
+                setImageSrc(image);
+                setDrawnCard(cardNumber);
+                setRarity(cards[0].rarity || getRarity(Number(cardNumber)));
+                setShowOverlay(true);
+              }
             }
             if (finalizeRes.data.updatedUser) {
               setUserData(finalizeRes.data.updatedUser);
@@ -422,16 +443,30 @@ export default function DrawCard({ embedded = false }) {
           memo,
         }
       );
-      const cardNumber = res.data.drawnCard;
+      const cards = res.data.drawnCards || [{
+        cardId: res.data.drawnCard, name: res.data.name, power: res.data.power, rarity: res.data.rarity,
+      }];
+      if (cards.length > 1) {
+        setMultiDraws(cards.map((c) => ({
+          id: c.cardId,
+          image: nftArt(c.cardId) || monsterImages[String(c.cardId)],
+          rarity: c.rarity || getRarity(Number(c.cardId)),
+          name: c.name, power: c.power,
+        })));
+        setShowOverlay(true);
+      } else {
+      const cardNumber = cards[0].cardId;
       const image = nftArt(cardNumber) || monsterImages[String(cardNumber)];
       if (!image) {
         setMessage("Card image not found.");
         setImageSrc(null);
       } else {
+        setMultiDraws(null);
         setImageSrc(image);
         setDrawnCard(cardNumber);
-        setRarity(res.data.rarity || getRarity(Number(cardNumber)));
+        setRarity(cards[0].rarity || getRarity(Number(cardNumber)));
         setShowOverlay(true);
+      }
       }
       if (res.data.updatedUser) setUserData(res.data.updatedUser);
       setSigInput((m) => ({ ...m, [memo]: "" }));
@@ -475,6 +510,7 @@ export default function DrawCard({ embedded = false }) {
   /** overlay close */
   const closeOverlay = () => {
     setShowOverlay(false);
+    setMultiDraws(null);
     setLiveEffects([]);
     clearInterval(effectIntervalRef.current);
   };
@@ -632,13 +668,33 @@ export default function DrawCard({ embedded = false }) {
               </p>
             </div>
 
-            <div className="hidden md:flex items-center gap-6">
-              <div className="text-right">
-                <div className="text-white/60 text-xs tracking-wider">
-                  PRICE
+            <div className="hidden md:flex items-center gap-5">
+              {!(userData?.newPlayer && userData?.freeCard > 0) && (
+                <div className="flex flex-col items-center gap-1" title="Cards per draw">
+                  <span className="text-[9px] tracking-[.24em] text-white/50 uppercase">Draws</span>
+                  <div className="flex gap-2">
+                    {DRAW_COUNTS.map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => setDrawCount(n)}
+                        disabled={loading || busy}
+                        className={`px-4 py-2.5 rounded-xl text-lg font-black tracking-wider transition border-2
+                          ${drawCount === n
+                            ? "bg-yellow-400 text-black border-yellow-200 scale-110 shadow-[0_0_18px_rgba(255,210,60,0.75)]"
+                            : "bg-white/10 text-white/60 border-white/15 hover:bg-white/20 hover:text-white"}`}
+                      >
+                        {n}×
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              )}
+              <div className="text-right">
+                <div className="text-white/60 text-xs tracking-wider">PRICE</div>
                 <div className="text-yellow-300 text-2xl font-extrabold tracking-widest">
-                  {DRAW_PRICE_SD} $CYBERIO
+                  {userData?.newPlayer && userData?.freeCard > 0
+                    ? "FREE"
+                    : `${(DRAW_PRICE_SD * drawCount).toLocaleString()} $CYBERIO`}
                 </div>
               </div>
               <div className="h-10 w-px bg-white/10" />
@@ -656,7 +712,7 @@ export default function DrawCard({ embedded = false }) {
                   ? "Processing..."
                   : userData?.newPlayer && userData?.freeCard > 0
                     ? `Draw Free (${userData.freeCard} left)`
-                    : `Draw for ${DRAW_PRICE_SD} $CYBERIO`}
+                    : `Draw ${drawCount}× for ${(DRAW_PRICE_SD * drawCount).toLocaleString()}`}
               </button>
             </div>
           </div>
@@ -682,6 +738,26 @@ export default function DrawCard({ embedded = false }) {
 
               {/* Mobile CTA */}
               <div className="md:hidden mt-5">
+                {!(userData?.newPlayer && userData?.freeCard > 0) && (
+                  <>
+                    <div className="text-[9px] tracking-[.24em] text-white/50 uppercase text-center mb-1">Draws</div>
+                    <div className="flex gap-2 mb-3 justify-center">
+                      {DRAW_COUNTS.map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setDrawCount(n)}
+                          disabled={loading || busy}
+                          className={`flex-1 py-2.5 rounded-xl text-lg font-black tracking-wider transition border-2
+                            ${drawCount === n
+                              ? "bg-yellow-400 text-black border-yellow-200 shadow-[0_0_16px_rgba(255,210,60,0.7)]"
+                              : "bg-white/10 text-white/60 border-white/15"}`}
+                        >
+                          {n}×
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <button
                   onClick={drawCard}
                   className={`w-full py-3 rounded-xl font-extrabold tracking-wider shadow-lg transition
@@ -696,7 +772,7 @@ export default function DrawCard({ embedded = false }) {
                     ? "Processing..."
                     : userData?.newPlayer && userData?.freeCard > 0
                       ? `Draw Free (${userData.freeCard} left)`
-                      : `Draw for ${DRAW_PRICE_SD} $CYBERIO`}
+                      : `Draw ${drawCount}× for ${(DRAW_PRICE_SD * drawCount).toLocaleString()}`}
                 </button>
               </div>
 
@@ -889,23 +965,53 @@ export default function DrawCard({ embedded = false }) {
             >
               🎉 CONGRATULATIONS!
             </motion.h3>
-            <p className="text-yellow-300 text-2xl mb-6">
-              You drew a <span className="capitalize">{rarity}</span> card
-            </p>
+            {multiDraws ? (
+              <>
+                <p className="text-yellow-300 text-2xl mb-6">
+                  You drew {multiDraws.length} cards!
+                </p>
+                <div className="relative mb-10 z-40 flex flex-wrap justify-center gap-3 max-w-[780px] max-h-[58vh] overflow-y-auto px-2">
+                  {multiDraws.map((c, i) => (
+                    <motion.div
+                      key={`${c.id}-${i}`}
+                      className="flex flex-col items-center"
+                      initial={{ scale: 0, rotate: -8 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ delay: 0.15 + i * 0.06, duration: 0.4 }}
+                    >
+                      <img
+                        src={c.image}
+                        alt={c.name || "Card"}
+                        className="w-28 h-auto rounded-lg"
+                        style={{ boxShadow: `0 0 16px ${rarityGlow[c.rarity] || "#88aaff"}` }}
+                      />
+                      <span className="text-[10px] uppercase tracking-wider mt-1"
+                        style={{ color: rarityGlow[c.rarity] || "#88aaff" }}>{c.rarity}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-yellow-300 text-2xl mb-6">
+                  You drew a <span className="capitalize">{rarity}</span> card
+                </p>
 
-            <div className="relative mb-10 z-40">
-              {imageSrc && (
-                <motion.img
-                  src={imageSrc}
-                  alt="Drawn Card"
-                  className="w-72 h-auto drop-shadow-2xl animate-flicker rounded-xl"
-                  style={{ boxShadow: `0 0 30px ${rarityGlow[rarity]}` }}
-                  initial={{ scale: 0, rotate: -10 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ delay: 0.25, duration: 0.55 }}
-                />
-              )}
-            </div>
+                <div className="relative mb-10 z-40">
+                  {imageSrc && (
+                    <motion.img
+                      src={imageSrc}
+                      alt="Drawn Card"
+                      className="w-72 h-auto drop-shadow-2xl animate-flicker rounded-xl"
+                      style={{ boxShadow: `0 0 30px ${rarityGlow[rarity]}` }}
+                      initial={{ scale: 0, rotate: -10 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ delay: 0.25, duration: 0.55 }}
+                    />
+                  )}
+                </div>
+              </>
+            )}
 
             <motion.button
               onClick={() => {

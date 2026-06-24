@@ -38,7 +38,7 @@ function passFraction(pass, now) {
   return Math.max(0.02, Math.min(1, (exp - now) / total));
 }
 
-export default function MapStatusPanel({ mapName, playerCount, presenceConnected, variant = "city" }) {
+export default function MapStatusPanel({ mapName, playerCount, presenceConnected, variant = "city", displayName = "" }) {
   const walletContext = useContext(WalletContext) || {};
   const { wallet, cardCount = 0, loadingStats, refreshStats } = walletContext;
   const [pass, setPass] = useState(null);
@@ -106,7 +106,7 @@ export default function MapStatusPanel({ mapName, playerCount, presenceConnected
         </span>
       </div>
 
-      <div className="map-status-wallet">YOU // {shortWallet(wallet)}</div>
+      <div className="map-status-wallet">YOU // {displayName || shortWallet(wallet)}</div>
 
       {/* DIMENSION PASS — loading-bar gauge */}
       <div className="msp-meter">
