@@ -308,6 +308,8 @@ export default function Play({ embedded = false, challengeId = null, mode: chall
     loser: "",
     forfeit: false,
   });
+  // winner-payout status for the result modal: null | { status: "sending"|"paid"|"queued"|"failed"|"none", txid }
+  const [payoutStatus, setPayoutStatus] = useState(null);
   const [resultPct, setResultPct] = useState(100);
   const [resultTicker, setResultTicker] = useState(null);
   // win/lose sound when the arena result modal opens (uses current wallet → no stale closure)
@@ -752,10 +754,16 @@ export default function Play({ embedded = false, challengeId = null, mode: chall
     socket.on("duelResult", ({ winner, loser, forfeit }) => {
       setMatchOver(true);
       setStatus("idle");
+      setPayoutStatus(null); // reset; payoutResult events below populate it
       setResultModal({ open: true, winner, loser, forfeit: !!forfeit });
       animateMatchResult();
       if (typeof onResultRef.current === "function") onResultRef.current({ winner, loser, forfeit: !!forfeit });
     });
+
+    // winner-payout lifecycle: sending → paid (txid) / queued / failed (or none if no pot)
+    socket.on("payoutResult", ({ status, txid }) =>
+      setPayoutStatus({ status, txid: txid || null })
+    );
 
     const onCanceled = () => setStatus("idle");
     socket.on("searchCanceled", onCanceled);
@@ -1536,6 +1544,36 @@ export default function Play({ embedded = false, challengeId = null, mode: chall
                     <div className="text-lg">⛓️ 💔 ⛓️</div>
                   )}
                 </div>
+
+                {/* Winner payout status (only when there's a pot to pay) */}
+                {isYouMatchWinner && payoutStatus && payoutStatus.status !== "none" && (
+                  <div className="mt-1 text-xs font-semibold">
+                    {payoutStatus.status === "sending" && (
+                      <span className="text-cyan-200">💸 Sending your winnings…</span>
+                    )}
+                    {payoutStatus.status === "paid" && (
+                      <span className="text-emerald-300">
+                        ✅ Winnings sent
+                        {payoutStatus.txid && (
+                          <a
+                            className="underline ml-1 hover:text-emerald-200"
+                            href={`https://solscan.io/tx/${payoutStatus.txid}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            view tx ↗
+                          </a>
+                        )}
+                      </span>
+                    )}
+                    {payoutStatus.status === "queued" && (
+                      <span className="text-amber-200">⏳ Winnings queued — they'll arrive shortly.</span>
+                    )}
+                    {payoutStatus.status === "failed" && (
+                      <span className="text-rose-200">⚠️ Payout delayed — we'll keep retrying.</span>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-5">
                   <div className="h-2 w-full bg-white/15 rounded-full overflow-hidden">

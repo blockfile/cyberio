@@ -150,7 +150,7 @@ const SECTIONS = [
         <h3 className="dx-h3">Daily Limit</h3>
         <p className="dx-p">Max <b>30,000 $CYBERIO/day</b> (≈ 20–60 rewarded victories). At the cap, rewards
           pause (you can still practice) and resume after the daily reset at <b>12 AM UTC</b>. A
-          <b> 5‑minute</b> penalty applies on a loss or surrender.</p>
+          <b> 2‑minute</b> penalty applies on a loss or surrender.</p>
         <p className="dx-note">Rewards are paid from the Treasury — no new tokens are minted.</p>
       </>
     ),

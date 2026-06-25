@@ -34,6 +34,7 @@ const { buildDeckFromDb, getCardPowerFromSocket } = require("./util/deck");
 
 const User = require("./model/User");
 const Match = require("./model/Match");
+const Payout = require("./model/Payout");
 
 // inventory routes (NFT card router removed — non-NFT build; see plan.md "v47")
 const inventoryRouter = require("./routes/inventory");
@@ -136,6 +137,11 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(async () => {
     console.log("✅ MongoDB connected");
+
+    // Retry any unpaid PVP winner payouts now (catches anything left pending across a
+    // restart) and keep retrying on an interval so an RPC blip never loses a payout.
+    setTimeout(() => { sweepPendingPayouts(); }, 15000);
+    setInterval(() => { sweepPendingPayouts(); }, 60 * 1000);
 
     // FIX: Drop old unique index { wallet, mint } that causes
     // "dup key: { wallet: null, mint: null }"
@@ -635,42 +641,120 @@ function calcRakeSplit(potAmountRaw) {
   return { rakeAmountRaw, payoutAmountRaw };
 }
 
-/** Send rake (if configured) and winner payout */
-async function distributePotWithRakeTokens({ potAmountRaw, winnerWallet, mint, decimals }) {
-  const { rakeAmountRaw, payoutAmountRaw } = calcRakeSplit(potAmountRaw);
+/** ─ PVP PAYOUTS (tracked + retried; never silently lost) ─ */
+const MAX_PAYOUT_ATTEMPTS = 8;
 
-  if (rakeAmountRaw > 0 && FEE_WALLET === TREASURY_PUBKEY) {
-    console.log(
-      `Rake retained in treasury: ${rakeAmountRaw} raw -> ${shortPk(TREASURY_PUBKEY)}`
-    );
-  } else if (rakeAmountRaw > 0 && FEE_WALLET) {
+// Attempt to settle one winner-payout record on-chain; update it + (optionally) notify the room.
+async function attemptPayout(rec, { room = null } = {}) {
+  if (!rec || rec.status === "paid") return rec;
+  rec.attempts += 1;
+  rec.lastAttemptAt = new Date();
+  try {
+    const txid = await sendTokensFromTreasury({
+      toWallet: rec.winner,
+      amountRaw: Number(rec.amountRaw),
+      mint: rec.mint,
+      decimals: rec.decimals,
+    });
+    rec.status = "paid";
+    rec.txid = txid || null;
+    rec.paidAt = new Date();
+    rec.lastError = null;
+    await rec.save();
+    console.log(`👑 PAYOUT PAID match=${rec.matchId} ${rec.amountRaw} raw -> ${rec.winner} tx=${txid}`);
+    if (room) io.to(room).emit("payoutResult", { status: "paid", txid: txid || null });
+    return rec;
+  } catch (e) {
+    rec.lastError = String(e?.message || e);
+    if (rec.attempts >= MAX_PAYOUT_ATTEMPTS) {
+      rec.status = "failed";
+      console.error(`🛑 PAYOUT FAILED (gave up after ${rec.attempts}) match=${rec.matchId} winner=${rec.winner} amount=${rec.amountRaw} err=${rec.lastError}`);
+    } else {
+      console.error(`⚠️ PAYOUT PENDING match=${rec.matchId} attempt=${rec.attempts}/${MAX_PAYOUT_ATTEMPTS} winner=${rec.winner} err=${rec.lastError}`);
+    }
+    await rec.save();
+    if (room) io.to(room).emit("payoutResult", { status: rec.status === "failed" ? "failed" : "queued" });
+    return rec;
+  }
+}
+
+// Settle a finished match: send the rake (best-effort) and the winner payout (tracked + retried).
+// Safe to always call — a 0 pot (free match) or treasury-retained payout just no-ops / emits "none".
+async function settleMatchPayout({ matchId = null, room = null, winner, potAmountRaw, mint, decimals }) {
+  const pot = Number(potAmountRaw) || 0;
+  if (pot <= 0) return; // free / non-bet match — nothing to pay
+
+  const { rakeAmountRaw, payoutAmountRaw } = calcRakeSplit(pot);
+
+  // Rake (house cut) — best-effort, not retried. Retained when FEE_WALLET is the treasury itself.
+  if (rakeAmountRaw > 0 && FEE_WALLET && FEE_WALLET !== TREASURY_PUBKEY) {
     try {
-      await sendTokensFromTreasury({
-        toWallet: FEE_WALLET,
-        amountRaw: rakeAmountRaw,
-        mint,
-        decimals,
-      });
+      await sendTokensFromTreasury({ toWallet: FEE_WALLET, amountRaw: rakeAmountRaw, mint, decimals });
       console.log(`🏦 Rake sent: ${rakeAmountRaw} raw -> ${FEE_WALLET}`);
     } catch (e) {
-      console.error("❌ Failed sending rake:", e?.message || e);
+      console.error("❌ Failed sending rake (non-blocking):", e?.message || e);
     }
-  } else if (rakeAmountRaw > 0 && !FEE_WALLET) {
-    console.warn("⚠️ Rake configured but FEE_WALLET missing — skipping rake payout.");
+  } else if (rakeAmountRaw > 0) {
+    console.log(`Rake retained in treasury: ${rakeAmountRaw} raw`);
   }
 
-  if (payoutAmountRaw > 0 && winnerWallet === TREASURY_PUBKEY) {
-    console.log(
-      `Winner payout retained in treasury: ${payoutAmountRaw} raw -> ${shortPk(TREASURY_PUBKEY)}`
-    );
-  } else if (payoutAmountRaw > 0 && winnerWallet) {
-    await sendTokensFromTreasury({
-      toWallet: winnerWallet,
-      amountRaw: payoutAmountRaw,
+  // Winner payout — tracked so a failure is retried, never lost.
+  if (payoutAmountRaw <= 0 || !winner || winner === TREASURY_PUBKEY) {
+    if (room) io.to(room).emit("payoutResult", { status: "none" });
+    return;
+  }
+
+  let rec = null;
+  try {
+    rec = await Payout.create({
+      matchId: matchId || null,
+      room: room || null,
+      winner,
+      amountRaw: String(payoutAmountRaw),
       mint,
       decimals,
+      status: "pending",
+      attempts: 0,
     });
-    console.log(`👑 Winner paid: ${payoutAmountRaw} raw -> ${winnerWallet}`);
+  } catch (e) {
+    console.error("⚠️ Could not persist payout record (will still attempt send):", e?.message || e);
+  }
+
+  if (room) io.to(room).emit("payoutResult", { status: "sending" });
+
+  if (rec) {
+    await attemptPayout(rec, { room });
+  } else {
+    // record persistence failed — best-effort one-shot so the winner isn't simply ignored
+    try {
+      const txid = await sendTokensFromTreasury({ toWallet: winner, amountRaw: payoutAmountRaw, mint, decimals });
+      console.log(`👑 Winner paid (unrecorded): ${payoutAmountRaw} raw -> ${winner} tx=${txid}`);
+      if (room) io.to(room).emit("payoutResult", { status: "paid", txid: txid || null });
+    } catch (e) {
+      console.error(`🛑 Winner payout failed AND unrecorded match=${matchId} winner=${winner}:`, e?.message || e);
+      if (room) io.to(room).emit("payoutResult", { status: "queued" });
+    }
+  }
+}
+
+// Periodically retry pending payouts (covers RPC blips + server restarts). Run on boot + interval.
+let _sweepingPayouts = false;
+async function sweepPendingPayouts() {
+  if (_sweepingPayouts) return;
+  _sweepingPayouts = true;
+  try {
+    const pend = await Payout.find({
+      status: "pending",
+      attempts: { $lt: MAX_PAYOUT_ATTEMPTS },
+    }).sort({ createdAt: 1 }).limit(25);
+    if (pend.length) console.log(`💸 Payout sweep: retrying ${pend.length} pending payout(s)…`);
+    for (const rec of pend) {
+      await attemptPayout(rec, { room: rec.room || null });
+    }
+  } catch (e) {
+    console.error("payout sweep error:", e?.message || e);
+  } finally {
+    _sweepingPayouts = false;
   }
 }
 
@@ -817,19 +901,12 @@ io.on("connection", (socket) => {
             });
           }
 
-          if (potAmountRaw > 0) {
-            await distributePotWithRakeTokens({
-              potAmountRaw,
-              winnerWallet: winner,
-              mint,
-              decimals,
-            });
-          }
         } catch (e) {
-          console.error("Failed to finalize manual forfeit:", e?.message || e);
+          console.error("Failed to record manual forfeit:", e?.message || e);
         }
 
         io.to(room).emit("duelResult", { winner, loser, forfeit: true });
+        await settleMatchPayout({ matchId: state.matchId || null, room, winner, potAmountRaw, mint, decimals });
       }
       cleanupRoom(room);
       if (state) clearRoomMembership(room, state);
@@ -1721,6 +1798,14 @@ io.on("connection", (socket) => {
     const winner = aWins > bWins ? sA.wallet : sB.wallet;
     const loser = winner === sA.wallet ? sB.wallet : sA.wallet;
 
+    // ✅ FIX (match stuck at 0:2): announce the result to BOTH clients IMMEDIATELY,
+    // before any DB write or on-chain payout. Previously duelResult was emitted only
+    // AFTER a successful payout inside the try/catch, so any payout/RPC/Mongo error
+    // swallowed the emit and left both players frozen on a phantom round — the winner
+    // never showed and "End Turn" did nothing. The outcome must reach clients regardless;
+    // payout failures are logged and handled separately, not by stranding the match.
+    io.to(roomId).emit("duelResult", { winner, loser });
+
     const mint = state.betMint || WAGER_MINT;
     const decimals = state.betDecimals || WAGER_DECIMALS;
 
@@ -1750,19 +1835,11 @@ io.on("connection", (socket) => {
         });
       }
 
-      if (potAmountRaw > 0) {
-        await distributePotWithRakeTokens({
-          potAmountRaw,
-          winnerWallet: winner,
-          mint,
-          decimals,
-        });
-      }
-
-      io.to(roomId).emit("duelResult", { winner, loser });
     } catch (e) {
-      console.error("Failed to finalize match:", e?.message || e);
+      console.error("Failed to record match (result already sent):", e?.message || e);
     }
+
+    await settleMatchPayout({ matchId: state.matchId || null, room: roomId, winner, potAmountRaw, mint, decimals });
 
     cleanupRoom(roomId);
     rooms.delete(sA.id);
@@ -1784,23 +1861,24 @@ io.on("connection", (socket) => {
 
       if (secLeft <= 0) {
         state.gameOver = true;
+
+        const sA = io.sockets.sockets.get(state.playerAId);
+        const sB = io.sockets.sockets.get(state.playerBId);
+        const winner = survivorSocket.wallet;
+        const loser = sA?.wallet === winner ? sB?.wallet : sA?.wallet;
+
+        // ✅ FIX: announce the forfeit win BEFORE the payout (same as finalizeMatch),
+        // so a payout/RPC error can't leave the survivor stuck waiting for a result.
+        io.to(room).emit("duelResult", { winner, loser, forfeit: true });
+
+        const mint = state.betMint || WAGER_MINT;
+        const decimals = state.betDecimals || WAGER_DECIMALS;
+        const pA = state.payments?.[state.walletA];
+        const pB = state.payments?.[state.walletB];
+        const potAmountRaw = (pA?.amountRaw || 0) + (pB?.amountRaw || 0);
+        const betUnits = Number(state.lockedBetAmountRaw || 0) / Math.pow(10, decimals);
+
         try {
-          const sA = io.sockets.sockets.get(state.playerAId);
-          const sB = io.sockets.sockets.get(state.playerBId);
-
-          const winner = survivorSocket.wallet;
-          const loser = sA?.wallet === winner ? sB?.wallet : sA?.wallet;
-
-          const mint = state.betMint || WAGER_MINT;
-          const decimals = state.betDecimals || WAGER_DECIMALS;
-
-          const pA = state.payments?.[state.walletA];
-          const pB = state.payments?.[state.walletB];
-          const potAmountRaw = (pA?.amountRaw || 0) + (pB?.amountRaw || 0);
-
-          const betUnits =
-            Number(state.lockedBetAmountRaw || 0) / Math.pow(10, decimals);
-
           if (state.matchId) {
             await Match.findByIdAndUpdate(state.matchId, {
               winner,
@@ -1819,20 +1897,12 @@ io.on("connection", (socket) => {
               rounds: state.history,
             });
           }
-
-          if (potAmountRaw > 0) {
-            await distributePotWithRakeTokens({
-              potAmountRaw,
-              winnerWallet: winner,
-              mint,
-              decimals,
-            });
-          }
-
-          io.to(room).emit("duelResult", { winner, loser, forfeit: true });
         } catch (e) {
-          console.error("Failed to save forfeit:", e?.message || e);
+          console.error("Failed to record forfeit (result already sent):", e?.message || e);
         }
+
+        await settleMatchPayout({ matchId: state.matchId || null, room, winner, potAmountRaw, mint, decimals });
+
         clearRoomMembership(room, state);
         cleanupRoom(room);
         return;

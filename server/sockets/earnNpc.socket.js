@@ -59,7 +59,7 @@ const LOW_POWER_MIN_COUNT = Number(process.env.EARN_LOW_POWER_MIN_COUNT || 2);
 // Once in an NPC fight you can't freely exit: losing, surrendering, or abandoning
 // (disconnect without returning inside the grace window) starts a time penalty.
 // penalty = min(BASE * offenseCount, MAX). Resets on a win; decays after a clean stretch.
-const PVE_PENALTY_BASE_MS  = Number(process.env.EARN_PENALTY_BASE_MS  || 5 * 60 * 1000);  // 5 min, +5/offense
+const PVE_PENALTY_BASE_MS  = Number(process.env.EARN_PENALTY_BASE_MS  || 2 * 60 * 1000);  // flat 2 min
 const PVE_PENALTY_MAX_MS   = Number(process.env.EARN_PENALTY_MAX_MS   || 15 * 60 * 1000); // cap 15 min
 const PVE_OFFENSE_DECAY_MS = Number(process.env.EARN_OFFENSE_DECAY_MS || 60 * 60 * 1000); // clean 60 min → back to 0
 const PVE_GRACE_MS         = Number(process.env.EARN_GRACE_MS         || 30 * 1000);      // reconnect window on drop
@@ -99,7 +99,7 @@ async function recordPveOffense(wallet, reason) {
   const now = Date.now();
   const mem = pvePenaltyMem.get(wallet);
   const newCount = effOffense(mem?.offenseCount, mem?.lastOffenseAt, now) + 1; // kept for stats only
-  const durMs = PVE_PENALTY_BASE_MS; // flat 5 min on every loss/surrender/abandon (no escalation)
+  const durMs = PVE_PENALTY_BASE_MS; // flat 2 min on every loss/surrender/abandon (no escalation)
   const untilMs = now + durMs;
   pvePenaltyMem.set(wallet, { penaltyUntil: untilMs, offenseCount: newCount, lastOffenseAt: now }); // sync → race-free gate
   try {

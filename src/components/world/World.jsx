@@ -517,13 +517,14 @@ export default function World() {
   // FX quality: "low" | "med" | "high".
   //   high → full effects;  med → `lite-fx` (drops blur/glow/blend);  low → med + `fx-low`
   //   (also strips ambient motion: hologram, water) for weak / no-GPU machines.
-  // Default MED. Migrates the old binary cyb_lite_fx toggle.
+  // Default LOW (best for weak/no-GPU machines). Respects a saved choice; migrates the
+  // old binary cyb_lite_fx toggle (an explicit "lite off" stays HIGH).
   const [fxLevel, setFxLevel] = useState(() => {
     try {
       const lvl = localStorage.getItem("cyb_fx_level");
       if (lvl === "low" || lvl === "med" || lvl === "high") return lvl;
-      return localStorage.getItem("cyb_lite_fx") === "0" ? "high" : "med";
-    } catch (e) { return "med"; }
+      return localStorage.getItem("cyb_lite_fx") === "0" ? "high" : "low";
+    } catch (e) { return "low"; }
   });
   useEffect(() => {
     document.body.classList.toggle("lite-fx", fxLevel !== "high"); // low + med reduce effects
