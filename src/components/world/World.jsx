@@ -6,6 +6,7 @@ import { WalletContext } from "../../context/WalletConnect";
 import { useBGM } from "../../context/BGMProvider";
 import { playSfx } from "../../audio";
 import { FaTelegram, FaXTwitter } from "react-icons/fa6";
+import { TOKEN_MINT } from "../../config/chain";
 import { io } from "socket.io-client";
 import { SOCKET_URL, API_BASE_URL } from "../../config/endpoints";
 import CityNav from "./CityNav";
@@ -36,8 +37,8 @@ const SOCIALS = {
   tg: "https://t.me/CYBERIO_PORTAL",
   x:  "https://x.com/PlayCyberio",
 };
-// 👇 paste the CYBERIO token contract address here when it's live (leave "" to hide the copy chip)
-const CYBERIO_CA = "";
+// CA = the CYBERIO token mint (from .env via central config). Override with a literal here if different.
+const CYBERIO_CA = TOKEN_MINT;
 
 // which component each shop building opens (by SHOPS[].panel key)
 const PANEL_COMP = {

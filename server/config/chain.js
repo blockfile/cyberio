@@ -19,7 +19,7 @@ const TOKEN_MINT =
   clean(process.env.SD_TOKEN_MINT) ||
   clean(process.env.WAGER_MINT) ||
   clean(process.env.NPC_TOKEN_MINT) ||
-  "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
+  "DZvBQPL6qY1wo3tS4fq2tABg74ydK4gh5zV1WMMypump";
 
 const TOKEN_DECIMALS = parseInt(
   clean(process.env.CYBERIO_DECIMALS) ||
@@ -33,7 +33,7 @@ const TOKEN_DECIMALS = parseInt(
 const DRAW_TREASURY =
   clean(process.env.DRAW_TREASURY) ||
   clean(process.env.TREASURY_PUBKEY) ||
-  "8yUGx6tMGsCxSdVj2Fk8FyaDkg4doZ32xnkNkzKSwHe5";
+  "sFeGzidDKhjruFyS9HdsB5i44MZRPa2uHnW876FvqhS";
 
 // Price of one card draw, in whole CYBERIO tokens.
 const DRAW_PRICE = parseInt(

@@ -17,7 +17,7 @@ export const PUBLIC_RPC = "https://api.mainnet-beta.solana.com";
 // CYBERIO SPL token (used for card draws, market listings, and PVP wagers).
 export const TOKEN_MINT =
   clean(process.env.REACT_APP_TOKEN_MINT) ||
-  "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
+  "DZvBQPL6qY1wo3tS4fq2tABg74ydK4gh5zV1WMMypump";
 
 export const TOKEN_DECIMALS = Number(process.env.REACT_APP_TOKEN_DECIMALS ?? 6);
 
@@ -25,7 +25,7 @@ export const TOKEN_DECIMALS = Number(process.env.REACT_APP_TOKEN_DECIMALS ?? 6);
 // it MUST match the server's DRAW_TREASURY. Public address → safe as a default.
 export const DRAW_TREASURY =
   clean(process.env.REACT_APP_DRAW_TREASURY) ||
-  "8yUGx6tMGsCxSdVj2Fk8FyaDkg4doZ32xnkNkzKSwHe5";
+  "sFeGzidDKhjruFyS9HdsB5i44MZRPa2uHnW876FvqhS";
 
 // PVP wager treasury. The SERVER supplies the real one at runtime
 // (paymentGate.treasuryWallet, derived from TREASURY_PRIVATE_KEY); this is only

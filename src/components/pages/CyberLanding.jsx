@@ -1,9 +1,10 @@
 // Cyberpunk landing / connect screen for CYBERIO (shown before a wallet is connected).
 import React, { useState } from "react";
 import { FaTelegram, FaXTwitter } from "react-icons/fa6";
+import { TOKEN_MINT } from "../../config/chain";
 import "./cyber-landing.css";
 
-const CA = ""; // CYBERIO token mint — paste the contract address here when live
+const CA = TOKEN_MINT; // CA = the CYBERIO token mint (from .env via central config)
 const LINKS = {
   tg: "https://t.me/CYBERIO_PORTAL",
   x: "https://x.com/PlayCyberio",
