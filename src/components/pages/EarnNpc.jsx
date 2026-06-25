@@ -880,7 +880,7 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
                             <div className="earnnpc-modal-body px-5 pb-4 mt-3">
                                 <div className="text-sm opacity-85">
                                     You can't exit a fight once it starts. Surrendering counts as a loss and applies a
-                                    <span className="text-rose-200 font-bold"> 5–15 min cooldown</span> (longer for repeat exits).
+                                    <span className="text-rose-200 font-bold"> 5 min cooldown</span>.
                                 </div>
                                 <div className="mt-4 flex gap-2">
                                     <button

@@ -94,12 +94,12 @@ async function getPenaltyState(wallet) {
   return { active: untilMs > now, penaltyUntil: untilMs > now ? new Date(untilMs) : null, offenseCount: count };
 }
 
-// record a penalized exit; escalates the cooldown and returns it (memory set synchronously, then persisted)
+// record a penalized exit; applies a FLAT cooldown and returns it (memory set synchronously, then persisted)
 async function recordPveOffense(wallet, reason) {
   const now = Date.now();
   const mem = pvePenaltyMem.get(wallet);
-  const newCount = effOffense(mem?.offenseCount, mem?.lastOffenseAt, now) + 1;
-  const durMs = Math.min(PVE_PENALTY_BASE_MS * newCount, PVE_PENALTY_MAX_MS);
+  const newCount = effOffense(mem?.offenseCount, mem?.lastOffenseAt, now) + 1; // kept for stats only
+  const durMs = PVE_PENALTY_BASE_MS; // flat 5 min on every loss/surrender/abandon (no escalation)
   const untilMs = now + durMs;
   pvePenaltyMem.set(wallet, { penaltyUntil: untilMs, offenseCount: newCount, lastOffenseAt: now }); // sync → race-free gate
   try {

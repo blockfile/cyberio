@@ -65,8 +65,11 @@ export default function ArenaMap({ charId = "1", wallet = "", name = "", onExit,
   };
   // Broadcast DUELING declaratively from state — busy whenever a request is pending or a duel
   // is in progress, and cleared the instant the duel ends or you leave. (Fires for BOTH players.)
+  const busyRef = useRef(false); // live "am I in a duel/handshake" (for socket handlers — no stale closure)
   useEffect(() => {
-    emitBusy(!!(pendingInvite || incomingInvite || (activeDuel && !duelOver)));
+    const b = !!(pendingInvite || incomingInvite || (activeDuel && !duelOver));
+    busyRef.current = b;
+    emitBusy(b);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingInvite, incomingInvite, activeDuel, duelOver]);
 
@@ -233,11 +236,16 @@ export default function ArenaMap({ charId = "1", wallet = "", name = "", onExit,
     });
 
     // ── direct PvP challenge handshake (arena) ──
-    socket.on("duel:invited", ({ fromId, challengeId, fromName, mode, bet }) =>
+    socket.on("duel:invited", ({ fromId, challengeId, fromName, mode, bet }) => {
+      if (busyRef.current) { // already dueling/handshaking → auto-decline so the sender isn't left hanging
+        try { socket.emit("duel:inviteDecline", { toId: fromId, challengeId }); } catch (e) { /* ignore */ }
+        return;
+      }
       setIncomingInvite({
         fromId, challengeId, fromName: fromName || "anon",
         mode: mode || "friendly", bet: Number(bet) || 0,
-      }));
+      });
+    });
     socket.on("duel:inviteAccepted", ({ challengeId, mode, bet }) => {
       setPendingInvite(null);
       setDuelOver(false);
@@ -346,9 +354,13 @@ export default function ArenaMap({ charId = "1", wallet = "", name = "", onExit,
             const nm = r.name || (r.wallet ? `${r.wallet.slice(0, 4)}…${r.wallet.slice(-4)}` : "anon");
             const busy = busyIds.has(id);
             return (
-              <div key={id} className={`world-remote clickable${busy ? " is-busy" : ""}`}
+              <div key={id} className={`world-remote ${busy ? "is-busy" : "clickable"}`}
                 ref={(el) => { if (el) remoteNodes.current[id] = el; else delete remoteNodes.current[id]; }}
-                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setDuelTarget({ id, name: nm, wallet: r.wallet || "" }); }}
+                onContextMenu={(e) => {
+                  e.preventDefault(); e.stopPropagation();
+                  if (busy) return; // can't challenge someone who's already in a duel
+                  setDuelTarget({ id, name: nm, wallet: r.wallet || "" });
+                }}
                 title={busy ? `${nm} — in a duel` : `${nm} — right-click to duel`}>
                 <div className="world-walker-sprite remote-sprite" />
                 <div className="remote-name">{nm}</div>
