@@ -1,0 +1,460 @@
+- generic [active]:
+  - generic:
+    - generic [ref=e1]:
+      - banner:
+        - generic: scroll / +− zoom · click to move · E enter · TAB ride
+      - generic [ref=e2]:
+        - link "✈ TG" [ref=e3] [cursor=pointer]:
+          - /url: https://t.me/CYBERIO_PORTAL
+          - generic [ref=e4]: ✈
+          - generic [ref=e5]: TG
+        - link "𝕏 X" [ref=e6] [cursor=pointer]:
+          - /url: https://x.com/PlayCyberio
+          - generic [ref=e7]: 𝕏
+          - generic [ref=e8]: X
+        - link "🌐 SITE" [ref=e9] [cursor=pointer]:
+          - /url: https://cyberio.fun/
+          - generic [ref=e10]: 🌐
+          - generic [ref=e11]: SITE
+        - generic "Contract address coming soon" [ref=e12]:
+          - generic [ref=e13]: CA
+          - generic [ref=e14]: SOON
+      - generic [ref=e15]:
+        - button "+" [ref=e16] [cursor=pointer]
+        - button "−" [ref=e17] [cursor=pointer]
+        - button "⟳" [ref=e18] [cursor=pointer]
+        - button "FX·MED" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - img "park_tree" [ref=e22]
+        - img "neon_tree" [ref=e24]
+        - button "Screen Tower" [ref=e25] [cursor=pointer]:
+          - img "Screen Tower" [ref=e26]
+        - img "street_lamp" [ref=e28]
+        - button "Office Tower" [ref=e29] [cursor=pointer]:
+          - img "Office Tower" [ref=e30]
+        - button "Capsule Hotel" [ref=e31] [cursor=pointer]:
+          - img "Capsule Hotel" [ref=e32]
+        - button "CARD SHOP" [ref=e33] [cursor=pointer]:
+          - img "CARD SHOP" [ref=e34]
+        - img "neon_tree" [ref=e36]
+        - img "muted_tree" [ref=e38]
+        - img "blossom_tree" [ref=e40]
+        - button "Arcade" [ref=e41] [cursor=pointer]:
+          - img "Arcade" [ref=e42]
+        - img "blossom_tree" [ref=e44]
+        - img "cyber_palm" [ref=e46]
+        - img "blossom_tree" [ref=e48]
+        - img "park_tree" [ref=e50]
+        - img "cyber_palm" [ref=e52]
+        - img "neon_tree" [ref=e54]
+        - img "blossom_tree" [ref=e56]
+        - img "bush" [ref=e58]
+        - img "pine_tree" [ref=e60]
+        - button "Industrial Tower" [ref=e61] [cursor=pointer]:
+          - img "Industrial Tower" [ref=e62]
+        - button "Hotel Tower" [ref=e63] [cursor=pointer]:
+          - img "Hotel Tower" [ref=e64]
+        - img "neon_tree" [ref=e66]
+        - img "blossom_tree" [ref=e68]
+        - img "blossom_tree" [ref=e70]
+        - img "pine_tree" [ref=e72]
+        - img "neon_tree" [ref=e74]
+        - img "pine_tree" [ref=e76]
+        - img "stoplight" [ref=e78]
+        - img "cyber_palm" [ref=e80]
+        - img "neon_tree" [ref=e82]
+        - img "neon_tree" [ref=e84]
+        - button "Comms Tower" [ref=e85] [cursor=pointer]:
+          - img "Comms Tower" [ref=e86]
+        - button "Taxi Hub" [ref=e87] [cursor=pointer]:
+          - img "Taxi Hub" [ref=e88]
+        - button "Apartments" [ref=e89] [cursor=pointer]:
+          - img "Apartments" [ref=e90]
+        - button "Market Hall" [ref=e91] [cursor=pointer]:
+          - img "Market Hall" [ref=e92]
+        - img "cyber_palm" [ref=e94]
+        - img "park_tree" [ref=e96]
+        - img "pine_tree" [ref=e98]
+        - img "blossom_tree" [ref=e100]
+        - img "cyber_palm" [ref=e102]
+        - button "Ramen Street" [ref=e103] [cursor=pointer]:
+          - img "Ramen Street" [ref=e104]
+        - button "Bank Tower" [ref=e105] [cursor=pointer]:
+          - img "Bank Tower" [ref=e106]
+        - img "cyber_palm" [ref=e108]
+        - img "blossom_tree" [ref=e110]
+        - img "neon_tree" [ref=e112]
+        - img "neon_tree" [ref=e114]
+        - img "cyber_palm" [ref=e116]
+        - img "blossom_tree" [ref=e118]
+        - button "STORE" [ref=e119] [cursor=pointer]:
+          - img "STORE" [ref=e120]
+        - button "INVENTORY" [ref=e121] [cursor=pointer]:
+          - img "INVENTORY" [ref=e122]
+        - img "flying_taxi" [ref=e124]
+        - img "bench" [ref=e126]
+        - img "pine_tree" [ref=e128]
+        - img "cyber_palm" [ref=e130]
+        - img "bench" [ref=e132]
+        - img "hologram_sign" [ref=e134]
+        - img "neon_tree" [ref=e136]
+        - img "park_tree" [ref=e138]
+        - img "bush" [ref=e140]
+        - img "pine_tree" [ref=e142]
+        - img "stoplight" [ref=e144]
+        - img "vending_machines" [ref=e146]
+        - img "cyber_palm" [ref=e148]
+        - img "bench" [ref=e150]
+        - img "neon_tree" [ref=e152]
+        - button "Spiral Tower" [ref=e153] [cursor=pointer]:
+          - img "Spiral Tower" [ref=e154]
+        - button "Biotech Tower" [ref=e155] [cursor=pointer]:
+          - img "Biotech Tower" [ref=e156]
+        - img "street_lamp" [ref=e158]
+        - img "stairs" [ref=e160]
+        - img "muted_tree" [ref=e162]
+        - img "muted_tree" [ref=e164]
+        - img "bush" [ref=e166]
+        - img "muted_tree" [ref=e168]
+        - img "blossom_tree" [ref=e170]
+        - img "neon_tree" [ref=e172]
+        - img "blossom_tree" [ref=e174]
+        - img "stoplight" [ref=e177]
+        - img "stoplight" [ref=e179]
+        - button "Data Tower" [ref=e180] [cursor=pointer]:
+          - img "Data Tower" [ref=e181]
+        - button "Apartments" [ref=e182] [cursor=pointer]:
+          - img "Apartments" [ref=e183]
+        - button "Office Tower" [ref=e184] [cursor=pointer]:
+          - img "Office Tower" [ref=e185]
+        - button "Cyber Mall" [ref=e186] [cursor=pointer]:
+          - img "Cyber Mall" [ref=e187]
+        - img "muted_tree" [ref=e189]
+        - img "bush" [ref=e191]
+        - button "Hospital" [ref=e192] [cursor=pointer]:
+          - img "Hospital" [ref=e193]
+        - button "Cyber Tower" [ref=e194] [cursor=pointer]:
+          - img "Cyber Tower" [ref=e195]
+        - img "stairs" [ref=e197]
+        - img "park_tree" [ref=e199]
+        - button "Tech Shop" [ref=e200] [cursor=pointer]:
+          - img "Tech Shop" [ref=e201]
+        - button "Hotel" [ref=e202] [cursor=pointer]:
+          - img "Hotel" [ref=e203]
+        - img "street_lamp" [ref=e205]
+        - img "bench" [ref=e207]
+        - img "bench" [ref=e209]
+        - img "neon_tree" [ref=e211]
+        - button "Server Hall" [ref=e212] [cursor=pointer]:
+          - img "Server Hall" [ref=e213]
+        - button "Noodle Bar" [ref=e214] [cursor=pointer]:
+          - img "Noodle Bar" [ref=e215]
+        - img "bench" [ref=e217]
+        - img "bench" [ref=e219]
+        - img "park_tree" [ref=e221]
+        - img "neon_tree" [ref=e223]
+        - img "bench" [ref=e225]
+        - img "bush" [ref=e227]
+        - img "pine_tree" [ref=e229]
+        - img "pine_tree" [ref=e231]
+        - img "stoplight" [ref=e233]
+        - img "stoplight" [ref=e235]
+        - img "park_tree" [ref=e237]
+        - img "pine_tree" [ref=e239]
+        - img "park_tree" [ref=e241]
+        - img "muted_tree" [ref=e243]
+        - img "bench" [ref=e245]
+        - img "muted_tree" [ref=e247]
+        - img "neon_tree" [ref=e249]
+        - img "neon_tree" [ref=e251]
+        - button "Glass Offices" [ref=e252] [cursor=pointer]:
+          - img "Glass Offices" [ref=e253]
+        - button "Biotech Tower" [ref=e254] [cursor=pointer]:
+          - img "Biotech Tower" [ref=e255]
+        - img "bench" [ref=e257]
+        - img "park_tree" [ref=e259]
+        - img "park_tree" [ref=e261]
+        - img "neon_tree" [ref=e263]
+        - img "neon_tree" [ref=e265]
+        - img "pine_tree" [ref=e267]
+        - img "cyber_palm" [ref=e269]
+        - img "neon_tree" [ref=e271]
+        - img "street_lamp" [ref=e273]
+        - img "street_lamp" [ref=e275]
+        - img "stoplight" [ref=e277]
+        - img "neon_tree" [ref=e279]
+        - img "blossom_tree" [ref=e281]
+        - button "Red District" [ref=e282] [cursor=pointer]:
+          - img "Red District" [ref=e283]
+        - button "Neon Club" [ref=e284] [cursor=pointer]:
+          - img "Neon Club" [ref=e285]
+        - button "Neon Tower" [ref=e286] [cursor=pointer]:
+          - img "Neon Tower" [ref=e287]
+        - button "Apartments" [ref=e288] [cursor=pointer]:
+          - img "Apartments" [ref=e289]
+        - img "park_pond" [ref=e291]
+        - img "bush" [ref=e293]
+        - img "cyber_palm" [ref=e295]
+        - button "Night Market" [ref=e296] [cursor=pointer]:
+          - img "Night Market" [ref=e297]
+        - button "Glass Offices" [ref=e298] [cursor=pointer]:
+          - img "Glass Offices" [ref=e299]
+        - img "bench" [ref=e301]
+        - img "subway_entrance" [ref=e303]
+        - img "bench" [ref=e305]
+        - img "park_tree" [ref=e307]
+        - img "cyber_palm" [ref=e309]
+        - img "neon_tree" [ref=e311]
+        - button "Subway Hub" [ref=e312] [cursor=pointer]:
+          - img "Subway Hub" [ref=e313]
+        - button "Subway Hub" [ref=e314] [cursor=pointer]:
+          - img "Subway Hub" [ref=e315]
+        - img "bench" [ref=e317]
+        - img "park_tree" [ref=e319]
+        - img "cyber_palm" [ref=e321]
+        - img "cyber_palm" [ref=e323]
+        - button "Police Station" [ref=e324] [cursor=pointer]:
+          - img "Police Station" [ref=e325]
+        - button "Clinic" [ref=e326] [cursor=pointer]:
+          - img "Clinic" [ref=e327]
+        - img "bench" [ref=e329]
+        - img "neon_tree" [ref=e331]
+        - img "neon_tree" [ref=e333]
+        - img "cyber_palm" [ref=e335]
+        - img "muted_tree" [ref=e337]
+        - img "blossom_tree" [ref=e339]
+        - img "pine_tree" [ref=e341]
+        - img "blossom_tree" [ref=e343]
+        - img "bench" [ref=e345]
+        - img "park_tree" [ref=e347]
+        - img "blossom_tree" [ref=e349]
+        - img "muted_tree" [ref=e351]
+        - img "blossom_tree" [ref=e353]
+        - img "neon_tree" [ref=e355]
+        - img "cyber_palm" [ref=e357]
+        - img "neon_tree" [ref=e359]
+        - img "pine_tree" [ref=e361]
+        - img "neon_tree" [ref=e363]
+        - img "blossom_tree" [ref=e365]
+        - img "park_tree" [ref=e367]
+        - img "blossom_tree" [ref=e369]
+        - button "MARKETPLACE" [ref=e370] [cursor=pointer]:
+          - img "MARKETPLACE" [ref=e371]
+        - img "street_lamp" [ref=e373]
+        - img "neon_tree" [ref=e375]
+        - img "park_tree" [ref=e377]
+        - img "muted_tree" [ref=e379]
+        - img "neon_tree" [ref=e381]
+        - img "cyber_palm" [ref=e383]
+        - img "muted_tree" [ref=e385]
+        - img "blossom_tree" [ref=e387]
+        - img "neon_tree" [ref=e389]
+        - button "Pagoda Tower" [ref=e390] [cursor=pointer]:
+          - img "Pagoda Tower" [ref=e391]
+        - button "Red District" [ref=e392] [cursor=pointer]:
+          - img "Red District" [ref=e393]
+        - img "street_lamp" [ref=e395]
+        - img "street_lamp" [ref=e397]
+        - img "bench" [ref=e399]
+        - img "cyber_palm" [ref=e401]
+        - img "cyber_palm" [ref=e403]
+        - img "cyber_palm" [ref=e405]
+        - img "pine_tree" [ref=e407]
+        - img "park_tree" [ref=e409]
+        - img "blossom_tree" [ref=e411]
+        - img "cyber_palm" [ref=e413]
+        - img "blossom_tree" [ref=e415]
+        - button "Future Tower" [ref=e416] [cursor=pointer]:
+          - img "Future Tower" [ref=e417]
+        - img "street_lamp" [ref=e419]
+        - img "cyber_palm" [ref=e421]
+        - img "muted_tree" [ref=e423]
+        - img "neon_tree" [ref=e425]
+        - img "blossom_tree" [ref=e427]
+        - img "neon_tree" [ref=e429]
+        - img "neon_tree" [ref=e431]
+        - img "cyber_palm" [ref=e433]
+        - img "cyber_palm" [ref=e435]
+        - img "bush" [ref=e437]
+        - img "neon_tree" [ref=e439]
+        - img "neon_tree" [ref=e441]
+        - img "blossom_tree" [ref=e443]
+        - img "park_tree" [ref=e445]
+        - button "Power Station" [ref=e446] [cursor=pointer]:
+          - img "Power Station" [ref=e447]
+        - button "Future Tower" [ref=e448] [cursor=pointer]:
+          - img "Future Tower" [ref=e449]
+        - button "Cyber Cafe" [ref=e450] [cursor=pointer]:
+          - img "Cyber Cafe" [ref=e451]
+        - img "stoplight" [ref=e453]
+        - img "stoplight" [ref=e455]
+        - img "stoplight" [ref=e457]
+        - img "blossom_tree" [ref=e459]
+        - img "blossom_tree" [ref=e461]
+        - img "cyber_palm" [ref=e463]
+        - img "cyber_palm" [ref=e465]
+        - button "Neon Tower" [ref=e466] [cursor=pointer]:
+          - img "Neon Tower" [ref=e467]
+        - button "Industrial Tower" [ref=e468] [cursor=pointer]:
+          - img "Industrial Tower" [ref=e469]
+        - button "Cyber Mall" [ref=e470] [cursor=pointer]:
+          - img "Cyber Mall" [ref=e471]
+        - img "vending_machines" [ref=e473]
+        - img "bush" [ref=e475]
+        - button "Cyber Cafe" [ref=e476] [cursor=pointer]:
+          - img "Cyber Cafe" [ref=e477]
+        - button "Server Hall" [ref=e478] [cursor=pointer]:
+          - img "Server Hall" [ref=e479]
+        - img "blossom_tree" [ref=e481]
+        - img "blossom_tree" [ref=e483]
+        - img "neon_tree" [ref=e485]
+        - img "muted_tree" [ref=e487]
+        - img "blossom_tree" [ref=e489]
+        - button "Power Station" [ref=e490] [cursor=pointer]:
+          - img "Power Station" [ref=e491]
+        - button "Apartments" [ref=e492] [cursor=pointer]:
+          - img "Apartments" [ref=e493]
+        - img "bench" [ref=e495]
+        - img "neon_tree" [ref=e497]
+        - img "park_tree" [ref=e499]
+        - img "pine_tree" [ref=e501]
+        - img "pine_tree" [ref=e503]
+        - button "Taxi Hub" [ref=e504] [cursor=pointer]:
+          - img "Taxi Hub" [ref=e505]
+        - img "vending_machines" [ref=e507]
+        - img "bench" [ref=e509]
+        - img "muted_tree" [ref=e511]
+        - img "blossom_tree" [ref=e513]
+        - img "cyber_palm" [ref=e515]
+        - img "blossom_tree" [ref=e517]
+        - img "vending_machines" [ref=e519]
+        - img "bush" [ref=e521]
+        - img "neon_tree" [ref=e523]
+        - img "muted_tree" [ref=e525]
+        - img "cyber_palm" [ref=e527]
+        - img "bench" [ref=e529]
+        - img "neon_tree" [ref=e531]
+        - img "blossom_tree" [ref=e533]
+        - img "street_lamp" [ref=e535]
+        - img "bush" [ref=e537]
+        - img "bush" [ref=e539]
+        - img "blossom_tree" [ref=e541]
+        - button "Weapon Market" [ref=e542] [cursor=pointer]:
+          - img "Weapon Market" [ref=e543]
+        - img "bush" [ref=e545]
+        - img "blossom_tree" [ref=e547]
+        - img "bush" [ref=e549]
+        - img "park_tree" [ref=e551]
+        - button "Office Tower" [ref=e552] [cursor=pointer]:
+          - img "Office Tower" [ref=e553]
+        - img "ra_monument" [ref=e555]
+        - img "ra_statue2" [ref=e557]
+        - img "stoplight" [ref=e559]
+        - img "cyber_palm" [ref=e561]
+        - img "neon_tree" [ref=e563]
+        - button "Cyber Tower" [ref=e564] [cursor=pointer]:
+          - img "Cyber Tower" [ref=e565]
+        - img "cyber_palm" [ref=e567]
+        - img "cyber_palm" [ref=e569]
+        - img "park_tree" [ref=e571]
+        - button "Market Hall" [ref=e572] [cursor=pointer]:
+          - img "Market Hall" [ref=e573]
+        - img "park_tree" [ref=e575]
+        - button "Clinic" [ref=e576] [cursor=pointer]:
+          - img "Clinic" [ref=e577]
+        - button "Police Station" [ref=e578] [cursor=pointer]:
+          - img "Police Station" [ref=e579]
+        - img "bench" [ref=e581]
+        - img "bench" [ref=e583]
+        - img "cyber_palm" [ref=e585]
+        - img "blossom_tree" [ref=e587]
+        - img "park_tree" [ref=e589]
+        - img "blossom_tree" [ref=e591]
+        - img "muted_tree" [ref=e593]
+        - img "blossom_tree" [ref=e595]
+        - img "park_tree" [ref=e597]
+        - img "blossom_tree" [ref=e599]
+        - img "blossom_tree" [ref=e601]
+        - img "cyber_palm" [ref=e603]
+        - img "dock_crane" [ref=e605]
+        - img "pipes" [ref=e607]
+        - img "neon_tree" [ref=e609]
+        - img "cyber_palm" [ref=e611]
+        - img "blossom_tree" [ref=e613]
+        - img "pine_tree" [ref=e615]
+        - img "bush" [ref=e617]
+        - img "muted_tree" [ref=e619]
+        - img "pine_tree" [ref=e621]
+        - img "stoplight" [ref=e623]
+        - img "stoplight" [ref=e625]
+        - img "stoplight" [ref=e627]
+        - img "bush" [ref=e629]
+        - img "cyber_palm" [ref=e631]
+        - img "bush" [ref=e633]
+        - img "park_tree" [ref=e635]
+        - img "cyber_palm" [ref=e637]
+        - button "Beats Tower" [ref=e638] [cursor=pointer]:
+          - img "Beats Tower" [ref=e639]
+        - button "Apartments" [ref=e640] [cursor=pointer]:
+          - img "Apartments" [ref=e641]
+        - img "cyber_palm" [ref=e643]
+        - button "Ramen Street" [ref=e644] [cursor=pointer]:
+          - img "Ramen Street" [ref=e645]
+        - img "park_tree" [ref=e647]
+        - img "bench" [ref=e649]
+        - img "bench" [ref=e651]
+        - img "blossom_tree" [ref=e653]
+        - img "blossom_tree" [ref=e655]
+        - img "bench" [ref=e657]
+        - img "pine_tree" [ref=e659]
+        - img "pine_tree" [ref=e661]
+        - img "neon_tree" [ref=e663]
+        - img "muted_tree" [ref=e665]
+        - img "blossom_tree" [ref=e667]
+        - img "neon_tree" [ref=e669]
+        - img "pine_tree" [ref=e671]
+        - button "Capsule Hotel" [ref=e672] [cursor=pointer]:
+          - img "Capsule Hotel" [ref=e673]
+        - img "cyber_palm" [ref=e675]
+        - img "ra_statue3" [ref=e677]
+        - img "barricade" [ref=e679]
+        - img "barricade" [ref=e681]
+        - img "barricade" [ref=e683]
+        - img "barricade" [ref=e685]
+        - img "barricade" [ref=e687]
+        - img "barricade" [ref=e689]
+        - img "barricade" [ref=e691]
+        - img "barricade" [ref=e693]
+        - img "barricade" [ref=e695]
+        - img "barricade" [ref=e697]
+        - img "barricade" [ref=e699]
+        - button "ARENA" [ref=e700] [cursor=pointer]:
+          - img "ARENA" [ref=e701]
+        - button "STORE" [ref=e716] [cursor=pointer]
+        - button "INVENTORY" [ref=e717] [cursor=pointer]
+        - button "MARKETPLACE" [ref=e718] [cursor=pointer]
+        - button "CARD SHOP" [ref=e719] [cursor=pointer]
+        - button "ARENA" [ref=e720] [cursor=pointer]
+      - navigation [ref=e721]:
+        - generic [ref=e722]:
+          - generic [ref=e723]: CYBERIO
+          - generic [ref=e724]: NEON CITY ONLINE
+        - generic [ref=e725]:
+          - button "DOCS" [ref=e726] [cursor=pointer]
+          - button "HOW TO PLAY" [ref=e727] [cursor=pointer]
+          - button "⬡ CONNECT WALLET" [ref=e728] [cursor=pointer]:
+            - generic [ref=e729]: ⬡
+            - text: CONNECT WALLET
+    - generic [ref=e731]:
+      - button "Play BGM" [ref=e732] [cursor=pointer]: ▶
+      - button "Mute" [ref=e733] [cursor=pointer]: 🔊
+      - generic:
+        - generic:
+          - generic:
+            - slider "BGM volume": "0.4"
+  - generic [ref=e741]:
+    - generic [ref=e747]: CYBERIO CYBERIO CYBERIO
+    - generic [ref=e748]:
+      - text: LOADING GAME CODE
+      - emphasis [ref=e749]: ...
+    - generic [ref=e766]: "TIP: Right-click a player in the arena to duel"

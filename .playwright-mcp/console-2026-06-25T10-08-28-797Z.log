@@ -1,0 +1,2 @@
+[     588ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/static/js/bundle.js:82745
+[    1339ms] [WARNING] Error while trying to use the following icon from the Manifest: http://localhost:3000/logo192.png (Download error or resource isn't a valid image) @ http://localhost:3000/world:0

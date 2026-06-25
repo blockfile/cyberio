@@ -2,12 +2,11 @@
 import React, { useState } from "react";
 import "./cyber-landing.css";
 
-const CA = ""; // CYBERIO token mint
+const CA = ""; // CYBERIO token mint — paste the contract address here when live
 const LINKS = {
-  docs: "https://cyberio.fun",
-  terms: "https://cyberio.fun/terms",
-  x: "https://x.com/cyberio",
-  discord: "https://discord.gg/cyberio",
+  web: "https://cyberio.fun/",
+  tg: "https://t.me/CYBERIO_PORTAL",
+  x: "https://x.com/PlayCyberio",
 };
 
 export default function CyberLanding({ onConnect, overlay = false }) {
@@ -45,12 +44,11 @@ export default function CyberLanding({ onConnect, overlay = false }) {
         </button>
 
         <div className="cl-links">
-          <a href={LINKS.docs} target="_blank" rel="noreferrer">Docs</a>
+          <a href={LINKS.web} target="_blank" rel="noreferrer">🌐 Website</a>
           <span className="cl-dot">•</span>
-          <a href={LINKS.terms} target="_blank" rel="noreferrer">Terms</a>
+          <a href={LINKS.tg} target="_blank" rel="noreferrer" aria-label="Telegram">✈ Telegram</a>
           <span className="cl-dot">•</span>
-          <a href={LINKS.x} target="_blank" rel="noreferrer" aria-label="X">𝕏</a>
-          <a href={LINKS.discord} target="_blank" rel="noreferrer" aria-label="Discord" className="cl-disc">✦ Discord</a>
+          <a href={LINKS.x} target="_blank" rel="noreferrer" aria-label="X">𝕏 Twitter</a>
         </div>
 
         {CA && (

@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { BGM } from "../audio";
 
 const BGMContext = createContext(null);
-export const useBGM = () => useContext(BGMContext);
-
-// ✅ No require.context. Nothing is bundled, nothing is auto-downloaded.
-const TRACKS = Array.from({ length: 9 }, (_, i) => `/bgm/${i + 1}.mp3`);
+export const useBGM = () => useContext(BGMContext) || {};
 
 export default function BGMProvider({ children }) {
   const audioRef = useRef(null);
+  const autoStartedRef = useRef(false); // auto-start fires once; after that the user owns play/pause
 
   const [muted, setMuted] = useState(() => localStorage.getItem("bgm_muted") === "true");
   const [volume, setVolume] = useState(() => {
@@ -15,51 +14,61 @@ export default function BGMProvider({ children }) {
     return v ? Math.min(1, Math.max(0, parseFloat(v))) : 0.4;
   });
 
-  const [index, setIndex] = useState(() => Math.floor(Math.random() * TRACKS.length));
-  const [ready, setReady] = useState(false);     // audio element created?
-  const [playing, setPlaying] = useState(false); // user intent toggle
+  const [scene, setSceneState] = useState("world"); // world | arena | duel | draw
+  const sceneRef = useRef("world");
+  const [ready, setReady] = useState(false);
+  const [playing, setPlaying] = useState(false);
 
-  // ✅ Create audio ONLY after user turns it on (no network before)
+  // components switch the background loop by scene (e.g. World sets it from the open panel)
+  const setScene = (s) => {
+    if (!BGM[s] || s === sceneRef.current) return;
+    sceneRef.current = s;
+    setSceneState(s);
+  };
+
+  // auto-start BGM ONCE on the first user gesture (browser autoplay policy) — never re-arms,
+  // so pausing actually sticks (mount-only; reads mute/off prefs fresh at fire time)
+  useEffect(() => {
+    const start = () => {
+      if (autoStartedRef.current) return;
+      autoStartedRef.current = true;
+      window.removeEventListener("pointerdown", start);
+      window.removeEventListener("keydown", start);
+      let off = false, m = false;
+      try { off = localStorage.getItem("bgm_off") === "true"; m = localStorage.getItem("bgm_muted") === "true"; } catch (e) {}
+      if (!off && !m) setPlaying(true);
+    };
+    window.addEventListener("pointerdown", start);
+    window.addEventListener("keydown", start);
+    return () => {
+      window.removeEventListener("pointerdown", start);
+      window.removeEventListener("keydown", start);
+    };
+  }, []);
+
+  // create + loop the current scene's track when playing; swap when the scene changes
   useEffect(() => {
     if (!playing) return;
 
-    const src = TRACKS[index];
     const a = new Audio();
     audioRef.current = a;
-
-    a.preload = "none"; // ✅ don’t preload by default
-    a.src = src;        // src assignment begins fetch when play/load happens
-    a.loop = false;
+    a.preload = "auto";
+    a.src = BGM[scene] || BGM.world;
+    a.loop = true;
     a.muted = muted;
     a.volume = muted ? 0 : volume;
-
-    const onEnded = () => {
-      setIndex((prev) => {
-        if (TRACKS.length <= 1) return prev;
-        let next = prev;
-        while (next === prev) next = Math.floor(Math.random() * TRACKS.length);
-        return next;
-      });
-    };
-
-    a.addEventListener("ended", onEnded);
     setReady(true);
-
-    // ✅ attempt to play (user already clicked)
-    a.play().catch(() => {
-      // if browser blocks (rare since user clicked), keep playing=true but it won’t start
-      setReady(true);
-    });
+    a.play().catch(() => setReady(true)); // ignore autoplay rejections
 
     return () => {
       a.pause();
-      a.removeEventListener("ended", onEnded);
       audioRef.current = null;
       setReady(false);
     };
-  }, [playing, index]); // new track only when playing or track changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, scene]);
 
-  // apply mute/volume changes
+  // apply live mute/volume changes
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
@@ -67,25 +76,25 @@ export default function BGMProvider({ children }) {
     a.volume = muted ? 0 : volume;
   }, [muted, volume]);
 
-  // persist settings
   useEffect(() => localStorage.setItem("bgm_muted", String(muted)), [muted]);
   useEffect(() => localStorage.setItem("bgm_volume", String(volume)), [volume]);
 
   const toggleMute = () => setMuted((m) => !m);
-
   const setVol = (v) => {
     const clamped = Math.max(0, Math.min(1, v));
     setVolume(clamped);
     if (clamped > 0 && muted) setMuted(false);
   };
-
-  // ✅ Main toggle: ON creates audio + plays; OFF stops + destroys audio
-  const toggleBGM = () => {
-    setPlaying((p) => !p);
-  };
+  const toggleBGM = () =>
+    setPlaying((p) => {
+      const next = !p;
+      autoStartedRef.current = true;                 // user took control → stop any auto-start
+      try { localStorage.setItem("bgm_off", String(!next)); } catch (e) {} // remember pause across reloads
+      return next;
+    });
 
   return (
-    <BGMContext.Provider value={{ muted, toggleMute, volume, setVolume: setVol, playing, toggleBGM, ready }}>
+    <BGMContext.Provider value={{ muted, toggleMute, volume, setVolume: setVol, playing, toggleBGM, ready, scene, setScene }}>
       {children}
 
       {/* Floating control */}
@@ -103,8 +112,6 @@ export default function BGMProvider({ children }) {
             onClick={toggleMute}
             className="px-2 py-1 rounded hover:bg-white/10"
             aria-label={muted ? "Unmute" : "Mute"}
-            disabled={!playing}
-            style={{ opacity: playing ? 1 : 0.5 }}
           >
             {muted ? "🔇" : "🔊"}
           </button>
@@ -121,11 +128,10 @@ export default function BGMProvider({ children }) {
                   min="0"
                   max="1"
                   step="0.01"
-                  value={(!playing || muted) ? 0 : volume}
+                  value={muted ? 0 : volume}
                   onChange={(e) => setVol(parseFloat(e.target.value))}
                   className="w-28 h-5 rotate-[-90deg] origin-center accent-yellow-300"
                   title="BGM volume"
-                  disabled={!playing}
                 />
               </div>
               {!ready && playing ? (

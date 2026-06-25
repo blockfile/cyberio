@@ -8,6 +8,7 @@ import drawEffect from "../assets/images/drawbg.gif";
 import { WalletContext } from "../../context/WalletConnect";
 import { API_BASE_URL } from "../../config/endpoints";
 import { nftArt } from "./cardArt";
+import { playSfx } from "../../audio";
 
 import {
   PublicKey,
@@ -106,6 +107,7 @@ export default function DrawCard({ embedded = false }) {
   const [loading, setLoading] = useState(false); // primary CTA disable
   const [message, setMessage] = useState("");
   const [showOverlay, setShowOverlay] = useState(false);
+  useEffect(() => { if (showOverlay) playSfx("mint"); }, [showOverlay]); // card-reveal / mint sound
   const [shake, setShake] = useState(false);
   const [liveEffects, setLiveEffects] = useState([]);
   const [userData, setUserData] = useState(null);

@@ -13,6 +13,7 @@ import { WalletContext } from "../../context/WalletConnect";
 import io from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
 import { SOCKET_URL } from "../../config/endpoints";
+import { playSfx } from "../../audio";
 
 import duelfield from "../assets/images/duelfield.jpg";
 import backImage from "../assets/images/back.png";
@@ -154,6 +155,10 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
     useEffect(() => {
         if (lockedUntil && nowTs >= lockedUntil) setLockedUntil(null);
     }, [nowTs, lockedUntil]);
+    // victory fanfare when the win modal appears (layers a beat after the win sting)
+    useEffect(() => {
+        if (resultModal.open && resultModal.win) playSfx("winModal");
+    }, [resultModal.open, resultModal.win]);
 
     useEffect(() => {
         if (wallet) socket.emit("hello", { wallet });
@@ -332,6 +337,7 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
 
         socket.on("earnNpc:duelResult", ({ payout, surrendered }) => {
             const didWin = (payout?.amount || 0) > 0;
+            playSfx(didWin ? "win" : "lose");
             setResultModal({ open: true, win: didWin, payout, surrendered: !!surrendered });
 
             // PVE loss/surrender starts a cooldown — store it for the countdown + start gate
@@ -430,6 +436,7 @@ export default function EarnNpc({ embedded = false, tier = "static", onClose = n
             return openInfo("Wait for Reveal", "NPC is still choosing…");
         }
 
+        playSfx("endturn");
         socket.emit("earnNpc:endTurn", { wallet });
     };
 

@@ -3,6 +3,8 @@ import "./world.css";
 import "./cyber-frame.css";
 import roadCellsList from "./road_cells.json";   // road layout (built by scripts/buildRoads.py)
 import { WalletContext } from "../../context/WalletConnect";
+import { useBGM } from "../../context/BGMProvider";
+import { playSfx } from "../../audio";
 import { io } from "socket.io-client";
 import { SOCKET_URL, API_BASE_URL } from "../../config/endpoints";
 import CityNav from "./CityNav";
@@ -27,6 +29,15 @@ import lsEarn from "../assets/images/bg3.jpg";
 import lsDraw from "../assets/images/bg4.jpg";
 import lsMarket from "../assets/images/market-bg.jpg";
 import lsArena from "../assets/images/duelfield.jpg";
+
+// ── socials shown in the world HUD ──
+const SOCIALS = {
+  tg:  "https://t.me/CYBERIO_PORTAL",
+  x:   "https://x.com/PlayCyberio",
+  web: "https://cyberio.fun/",
+};
+// 👇 paste the CYBERIO token contract address here when it's live (leave "" to hide the copy chip)
+const CYBERIO_CA = "";
 
 // which component each shop building opens (by SHOPS[].panel key)
 const PANEL_COMP = {
@@ -604,11 +615,20 @@ export default function World() {
     setToasts((t) => [...t.slice(-3), { id, text, kind }]); // keep at most 4 on screen
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3400);
   }, []);
+  // contract-address copy chip (socials HUD)
+  const [caCopied, setCaCopied] = useState(false);
+  const copyCA = useCallback(() => {
+    if (!CYBERIO_CA) return;
+    try { navigator.clipboard.writeText(CYBERIO_CA); } catch (e) { /* ignore */ }
+    setCaCopied(true);
+    setTimeout(() => setCaCopied(false), 1400);
+  }, []);
   const sRef = useRef(0.5);       // target zoom — the rAF camera-follow reads this
   const sCurRef = useRef(0.5);    // eased current zoom → smooth wheel zoom
 
   // connected wallet → the player's chosen character becomes a controllable avatar
   const walletCtx = useContext(WalletContext) || {};
+  const { setScene } = useBGM();
   const connected = !!walletCtx.wallet;
   const walletAddr = walletCtx.wallet ? String(walletCtx.wallet) : "";
   const shortAddr = walletAddr ? `${walletAddr.slice(0, 4)}…${walletAddr.slice(-4)}` : "";
@@ -704,6 +724,12 @@ export default function World() {
     try { localStorage.setItem("CYBERIO_CHAR", id); } catch (e) { /* ignore */ }
   };
   useEffect(() => { shopRef.current = shop; }, [shop]);   // live panel state for the rAF loop
+  // scene BGM follows the open panel: arena lobby / PVE duel / card shop / back to the city
+  useEffect(() => {
+    if (!setScene) return;
+    const p = shop && shop.panel;
+    setScene(p === "arena" ? "arena" : p === "earn" ? "duel" : p === "draw" ? "draw" : "world");
+  }, [shop, setScene]);
   const prevPanelRef = useRef(null);
   useEffect(() => {
     // after an earn duel closes, hold off auto-duel briefly so an NPC standing on the
@@ -784,6 +810,7 @@ export default function World() {
             Math.hypot(ptx - fx, pty - fy) <= 1.4) {
           earnSpentRef.current.add(g.idx);
           encounterRef.current = true; // gate immediately (the useEffect would lag a frame and let others trigger)
+          playSfx("match");
           setEncounter({ npcChar: String(g.char || "1"), tier: "walking" }); // Pokémon-style intro → duel
         }
       }
@@ -871,6 +898,7 @@ export default function World() {
         const it = nearestInteractRef.current;
         if (it && !loadingRef.current && !shopRef.current && !encounterRef.current) {
           e.preventDefault();
+          playSfx(it.panel === "arena" ? "portal" : "building");
           transitionTo({ name: it.name, panel: it.panel, color: it.color });
         }
         return;
@@ -980,6 +1008,7 @@ export default function World() {
           if (it.portal) {
             if (d <= it.range && portalArmedRef.current) {
               portalArmedRef.current = false;
+              playSfx("portal");
               transitionTo({ name: it.name, panel: it.panel, color: it.color });
             } else if (d > it.range) portalArmedRef.current = true; // re-arm the moment you step out of the circle
           }
@@ -1231,6 +1260,7 @@ export default function World() {
     const ptx = Math.round((pa + pb) / 2), pty = Math.round((pb - pa) / 2);
     const tiles = findPath(ptx, pty, tx, ty);
     pathRef.current = tiles.map(([ttx, tty]) => { const p = iso(ttx, tty); return { x: p.x, y: p.y + TH }; });
+    if (tiles && tiles.length) playSfx("move"); // click-to-move blip (throttled)
   };
 
   return (
@@ -1242,6 +1272,31 @@ export default function World() {
         <h1>CYBER CITY</h1>
         <span>{active || "scroll / +− zoom · click to move · E enter · TAB ride"}</span>
       </header>
+
+      {/* socials + contract address (bottom-left) */}
+      <div className="world-social">
+        <a className="world-social__link tg" href={SOCIALS.tg} target="_blank" rel="noreferrer" title="Telegram">
+          <span className="world-social__ic">✈</span><span className="world-social__lbl">TG</span>
+        </a>
+        <a className="world-social__link x" href={SOCIALS.x} target="_blank" rel="noreferrer" title="X / Twitter">
+          <span className="world-social__ic">𝕏</span><span className="world-social__lbl">X</span>
+        </a>
+        <a className="world-social__link web" href={SOCIALS.web} target="_blank" rel="noreferrer" title="Website">
+          <span className="world-social__ic">🌐</span><span className="world-social__lbl">SITE</span>
+        </a>
+        {CYBERIO_CA ? (
+          <button className="world-social__ca" onClick={copyCA} title="Copy contract address">
+            <span className="world-social__ca-tag">CA</span>
+            <span className="world-social__ca-addr">{`${CYBERIO_CA.slice(0, 4)}…${CYBERIO_CA.slice(-4)}`}</span>
+            <span className="world-social__ca-copy">{caCopied ? "copied ✓" : "⧉"}</span>
+          </button>
+        ) : (
+          <span className="world-social__ca world-social__ca--soon" title="Contract address coming soon">
+            <span className="world-social__ca-tag">CA</span>
+            <span className="world-social__ca-addr">SOON</span>
+          </span>
+        )}
+      </div>
 
       {connected && riding && <div className="world-ride-pill">🏍 RIDING — TAB to stop</div>}
 
@@ -1349,7 +1404,7 @@ export default function World() {
                 style={common} title={o.label}
                 onClick={guardClick(() => {
                   if (!o.shop) return setActive(o.label);
-                  if (reachable) transitionTo(o.shop);
+                  if (reachable) { playSfx("building"); transitionTo(o.shop); }
                   else setActive(`${o.label} — walk closer to enter`);
                 })}>
                 <img src={asset(o.name)} alt={o.label} width={o.w} draggable={false} />
@@ -1376,6 +1431,7 @@ export default function World() {
                 // one duel at a time — ignore if an encounter/duel/transition is already active
                 if (encounterRef.current || shopRef.current || loadingRef.current || performance.now() <= encounterCdRef.current) return;
                 encounterRef.current = true;
+                playSfx("match");
                 setEncounter({ npcChar: String(p.char || "1"), tier: "static" }); // intro → duel
               } : undefined}
               title={earnable ? "Right-click to duel for earn (lower reward)" : undefined}
@@ -1403,7 +1459,7 @@ export default function World() {
               style={{ left: s.x, top: s.y, zIndex: s.z, "--sign": s.color }}
               onClick={guardClick(() => {
                 if (!it) return;
-                if (reachable) transitionTo({ name: it.name, panel: it.panel, color: it.color });
+                if (reachable) { playSfx(it.panel === "arena" ? "portal" : "building"); transitionTo({ name: it.name, panel: it.panel, color: it.color }); }
                 else setActive(`${it.name} — walk closer to enter`);
               })}>
               {s.text}

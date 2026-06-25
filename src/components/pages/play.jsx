@@ -12,6 +12,7 @@ import {
 } from "@solana/web3.js";
 import { createMemoInstruction } from "@solana/spl-memo";
 import { SOCKET_URL } from "../../config/endpoints";
+import { playSfx } from "../../audio";
 
 // ✅ SPL TOKEN IMPORTS (ADDED + FIXED FOR TOKEN-2022)
 import {
@@ -322,6 +323,11 @@ export default function Play({ embedded = false, challengeId = null, mode: chall
   });
   const [resultPct, setResultPct] = useState(100);
   const [resultTicker, setResultTicker] = useState(null);
+  // win/lose sound when the arena result modal opens (uses current wallet → no stale closure)
+  useEffect(() => {
+    if (resultModal.open) playSfx(resultModal.winner === wallet ? "win" : "lose");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultModal.open]);
 
   // ROUND result modal
   const [roundModal, setRoundModal] = useState({
@@ -566,6 +572,7 @@ export default function Play({ embedded = false, challengeId = null, mode: chall
       setSelfCards(selfCards || []);
       setOpponentCards(opponentCards || []);
       setStatus("dueling");
+      playSfx("arenaEnter");
       setReveal(false);
       setFighting(false);
       setSelfEndedTurn(false);

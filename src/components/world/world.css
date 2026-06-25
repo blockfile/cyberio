@@ -427,6 +427,47 @@ body.lite-fx .world-tile-hover { filter: none; }
   .world-remote, .world-toast { animation: none; }
 }
 
+/* socials + contract-address chips (bottom-left HUD) */
+.world-social {
+  position: fixed; left: 16px; bottom: 16px;
+  z-index: 99996; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  max-width: 60vw;
+  font-family: "Silkscreen", "Press Start 2P", ui-monospace, monospace;
+}
+.world-social__link, .world-social__ca {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px; border-radius: 8px;
+  font-size: 11px; letter-spacing: 0.04em; text-decoration: none; white-space: nowrap;
+  color: #cdefff; background: rgba(11, 14, 26, 0.88);
+  border: 1px solid rgba(120, 200, 255, 0.45);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+  cursor: pointer;
+}
+.world-social__ic { font-size: 13px; line-height: 1; }
+.world-social__link.tg  { border-color: rgba(64, 180, 255, 0.6); }
+.world-social__link.x   { border-color: rgba(220, 230, 255, 0.5); }
+.world-social__link.web { border-color: rgba(120, 255, 200, 0.55); }
+.world-social__link:hover {
+  transform: translateY(-2px);
+  background: rgba(20, 30, 50, 0.94);
+  box-shadow: 0 0 14px rgba(5, 217, 232, 0.55);
+}
+/* CA chip — magenta accent so it stands out as the token address */
+.world-social__ca {
+  color: #ffd6e6; background: rgba(22, 8, 18, 0.9);
+  border-color: rgba(255, 42, 109, 0.6);
+}
+.world-social__ca:hover { box-shadow: 0 0 14px rgba(255, 42, 109, 0.55); transform: translateY(-2px); }
+.world-social__ca-tag { font-weight: 900; color: #ff2a6d; text-shadow: 0 0 6px rgba(255, 42, 109, 0.6); }
+.world-social__ca-addr { font-family: ui-monospace, monospace; opacity: 0.95; }
+.world-social__ca-copy { opacity: 0.85; font-size: 12px; }
+.world-social__ca--soon { cursor: default; opacity: 0.85; }
+@media (max-width: 760px) {
+  .world-social__lbl { display: none; }            /* icons only on small screens */
+  .world-social { gap: 6px; bottom: 12px; left: 12px; }
+}
+
 /* other connected players (multiplayer) — like the local avatar but cyan-tagged, no ring */
 .world-remote {
   position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform;
