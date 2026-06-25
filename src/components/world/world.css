@@ -818,7 +818,9 @@ body.lite-fx .world-tile-hover { filter: none; }
 
 /* translateZ contains any embedded component's position:fixed background within the body */
 .world-panel-body {
-  flex: 1 1 auto; position: relative; z-index: 2; overflow: auto;
+  flex: 1 1 auto; position: relative; z-index: 2; overflow-y: auto; overflow-x: hidden;
+  min-height: 0;                          /* CRITICAL: let the flex item shrink so it actually scrolls
+                                             (without this it grows to fit content & the panel clips it) */
   transform: translateZ(0);
   overscroll-behavior: contain;          /* don't chain scroll out to the map */
   scrollbar-width: thin;

@@ -1,0 +1,24 @@
+- generic [ref=e3]:
+  - generic [ref=e4]: MARKETPLACE
+  - generic [ref=e7]:
+    - button "Refresh" [ref=e9] [cursor=pointer]
+    - heading "Your Cards (tradable)" [level=2] [ref=e10]
+    - generic [ref=e11]:
+      - generic [ref=e12]: "#1001"
+      - generic [ref=e13]: "#1002"
+      - generic [ref=e14]: "#1003"
+      - generic [ref=e15]: "#1004"
+      - generic [ref=e16]: "#1005"
+      - generic [ref=e17]: "#1006"
+      - generic [ref=e18]: "#1007"
+      - generic [ref=e19]: "#1008"
+      - generic [ref=e20]: "#1009"
+      - generic [ref=e21]: "#1010"
+      - generic [ref=e22]: "#1011"
+      - generic [ref=e23]: "#1012"
+      - generic [ref=e24]: "#1013"
+      - generic [ref=e25]: "#1014"
+      - generic [ref=e26]: "#1015"
+      - generic [ref=e27]: "#1016"
+      - generic [ref=e28]: "#1017"
+      - generic [ref=e29]: "#1018"
