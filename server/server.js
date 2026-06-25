@@ -1,10 +1,10 @@
 // server/server.js
 const path = require("path");
 const dotenv = require("dotenv");
-const envName = process.env.NODE_ENV === "production" ? "production" : "development";
-
-dotenv.config({ path: path.resolve(__dirname, `.env.${envName}`) });
-dotenv.config({ path: path.resolve(__dirname, ".env") });
+// Single config file at the PROJECT ROOT — one .env for both frontend & backend.
+// CRA only exposes REACT_APP_* to the public bundle, so backend secrets here stay private.
+dotenv.config({ path: path.resolve(__dirname, "../.env") }); // primary: <root>/.env
+dotenv.config({ path: path.resolve(__dirname, ".env") });    // legacy fallback: server/.env (harmless if absent)
 
 const express = require("express");
 const http = require("http");
