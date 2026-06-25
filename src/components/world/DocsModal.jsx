@@ -187,6 +187,22 @@ const SECTIONS = [
           <li>Dimension Pass sales — 29,999 / 17,999 / 9,999</li>
           <li>PvP wager taxes (5%)</li>
         </ul>
+        <h3 className="dx-h3">Treasury Wallet</h3>
+        <div className="dx-addr">
+          <code className="dx-addr-code">sFeGzidDKhjruFyS9HdsB5i44MZRPa2uHnW876FvqhS</code>
+          <button
+            className="dx-addr-copy"
+            onClick={(e) => {
+              navigator.clipboard?.writeText("sFeGzidDKhjruFyS9HdsB5i44MZRPa2uHnW876FvqhS");
+              const b = e.currentTarget;
+              const t = b.textContent;
+              b.textContent = "Copied!";
+              setTimeout(() => { b.textContent = t; }, 1200);
+            }}
+          >
+            Copy
+          </button>
+        </div>
         <h3 className="dx-h3">$CYBERIO Utility</h3>
         <ul className="dx-ul">
           <li>Premium Card Draws</li><li>Dimension Pass Purchases</li>
