@@ -11,6 +11,7 @@ const {
 
 const DimensionPass = require("../model/DimensionPass");
 const P2EPoolLedger = require("../model/P2EPoolLedger");
+const chainCfg = require("../config/chain");
 
 module.exports = function makeStoreRouter({
   connection,
@@ -20,7 +21,7 @@ module.exports = function makeStoreRouter({
 }) {
   const router = express.Router();
 
-  const MINT = process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT;
+  const MINT = chainCfg.TOKEN_MINT;
   const DECIMALS = Number(process.env.CYBERIO_DECIMALS || process.env.SD_DECIMALS || 6);
 
   const PASS_PRICE_7 = Number(process.env.PASS_PRICE_7 || 5000);

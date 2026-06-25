@@ -22,13 +22,12 @@ const router = express.Router();
 /**
  * CONFIG
  */
-const RPC = process.env.SOLANA_RPC;
-const CYBERIO_MINT = process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT;
-const TREASURY_PUBLIC_KEY = process.env.FEE_WALLET;
+const chainCfg = require("../config/chain");
+const RPC = chainCfg.SOLANA_RPC;
+const CYBERIO_MINT = chainCfg.TOKEN_MINT;
+const TREASURY_PUBLIC_KEY = chainCfg.FEE_WALLET;
 
-if (!RPC) console.warn("⚠️ SOLANA_RPC missing");
-if (!CYBERIO_MINT) console.warn("⚠️ CYBERIO_MINT missing");
-if (!TREASURY_PUBLIC_KEY) console.warn("⚠️ TREASURY_PUBLIC_KEY missing");
+if (!TREASURY_PUBLIC_KEY) console.warn("⚠️ FEE_WALLET (TREASURY_PUBLIC_KEY) missing");
 
 const connection = new Connection(RPC, "confirmed");
 

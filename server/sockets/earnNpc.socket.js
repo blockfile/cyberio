@@ -120,13 +120,12 @@ async function clearPveOffense(wallet) {
   } catch (e) { console.warn("⚠️ EarnPenalty clear failed:", e?.message || e); }
 }
 
-// payouts config (token mint)
-const TOKEN_MINT = process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT || process.env.NPC_TOKEN_MINT;
-const RPC = process.env.SOLANA_RPC;
+// payouts config (token mint) — central config (server/config/chain.js)
+const chainCfg = require("../config/chain");
+const TOKEN_MINT = chainCfg.TOKEN_MINT;
+const RPC = chainCfg.SOLANA_RPC;
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY;
 
-if (!RPC) console.warn("⚠️ SOLANA_RPC is missing");
-if (!TOKEN_MINT) console.warn("⚠️ TOKEN_MINT (CYBERIO_TOKEN_MINT or NPC_TOKEN_MINT) is missing");
 if (!TREASURY_PRIVATE_KEY) console.warn("⚠️ TREASURY_PRIVATE_KEY is missing");
 
 const connection = new Connection(RPC, "confirmed");

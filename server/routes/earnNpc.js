@@ -29,8 +29,9 @@ const router = express.Router();
 /** =========================
  *  CONFIG (ENV)
  *  ========================= */
-const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
-const TOKEN_MINT = process.env.NPC_TOKEN_MINT; // SPL token mint address
+const chainCfg = require("../config/chain");
+const SOLANA_RPC = chainCfg.SOLANA_RPC;
+const TOKEN_MINT = chainCfg.TOKEN_MINT; // SPL token mint (central — includes NPC_TOKEN_MINT alias)
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY; // bs58 secret key
 const NPC_WIN_REWARD = Number(process.env.NPC_WIN_REWARD || "10"); // token units
 const NPC_DECIMALS = Number(process.env.NPC_TOKEN_DECIMALS || "6"); // must match mint decimals

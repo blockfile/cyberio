@@ -18,6 +18,7 @@ const TOKEN_MINT =
   clean(process.env.CYBERIO_TOKEN_MINT) ||
   clean(process.env.SD_TOKEN_MINT) ||
   clean(process.env.WAGER_MINT) ||
+  clean(process.env.NPC_TOKEN_MINT) ||
   "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
 
 const TOKEN_DECIMALS = parseInt(

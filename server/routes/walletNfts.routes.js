@@ -4,8 +4,8 @@ const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require("@sol
 
 const router = express.Router();
 
-const RPC = process.env.SOLANA_RPC;
-if (!RPC) console.warn("⚠️ SOLANA_RPC missing in .env");
+const chainCfg = require("../config/chain");
+const RPC = chainCfg.SOLANA_RPC;
 const connection = new Connection(RPC, "confirmed");
 
 function clean(v) {
