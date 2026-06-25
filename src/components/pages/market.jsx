@@ -3,6 +3,7 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../config/endpoints";
+import { RPC_ENDPOINT, TOKEN_MINT } from "../../config/chain";
 import Navbar from "../navbar/navbar";
 import { WalletContext } from "../../context/WalletConnect";
 import { motion, AnimatePresence } from "framer-motion";
@@ -45,13 +46,8 @@ const monsterImages = importAll(
 );
 const imgSrc = (cid) => nftArt(cid) || monsterImages[String(cid)];
 
-// -------- constants --------
-const RPC_ENDPOINT =
-  (process.env.REACT_APP_SOLANA_RPC || "").trim() ||
-  "https://api.mainnet-beta.solana.com";
-const SD_TOKEN_MINT =
-  (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
-  "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
+// -------- constants (from central config — src/config/chain.js) --------
+const SD_TOKEN_MINT = TOKEN_MINT;
 const MEMO_PROGRAM_ID = new PublicKey(
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 );

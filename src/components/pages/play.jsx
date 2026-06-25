@@ -12,6 +12,13 @@ import {
 } from "@solana/web3.js";
 import { createMemoInstruction } from "@solana/spl-memo";
 import { SOCKET_URL } from "../../config/endpoints";
+import {
+  RPC_FALLBACKS,
+  PVP_TREASURY,
+  TOKEN_MINT,
+  TOKEN_DECIMALS,
+  MAX_BET_TOKENS,
+} from "../../config/chain";
 import { playSfx } from "../../audio";
 
 // ✅ SPL TOKEN IMPORTS (ADDED + FIXED FOR TOKEN-2022)
@@ -136,38 +143,18 @@ function GameCard({ card, className = "" }) {
 }
 
 // =========================
-// ✅ ENV (your .env values)
+// ✅ ENV / on-chain config (central — src/config/chain.js)
 // =========================
-const RPC_ENDPOINT =
-  process.env.REACT_APP_SOLANA_RPC || "https://api.mainnet-beta.solana.com";
-const RPC_ENDPOINTS = Array.from(
-  new Set(
-    [
-      RPC_ENDPOINT,
-      ...(process.env.REACT_APP_SOLANA_RPC_FALLBACKS || "")
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean),
-      RPC_ENDPOINT.includes("devnet") || RPC_ENDPOINT.includes("testnet")
-        ? ""
-        : "https://api.mainnet-beta.solana.com",
-    ].filter(Boolean)
-  )
-);
+// RPC_ENDPOINTS is the primary + REACT_APP_SOLANA_RPC_FALLBACKS list, de-duped (central config).
+const RPC_ENDPOINTS = RPC_FALLBACKS;
 
-// NOTE: your existing constant name was TREASURY; kept.
-// For SPL betting, treat this as TREASURY OWNER (not ATA).
-const TREASURY =
-  process.env.REACT_APP_TREASURY_ADDRESS ||
-  "FtjTzPvSRVCaaM3u5BXKMKjkM8TACsyyuHPgv5YSQLGN";
+// TREASURY = the PVP wager owner. The SERVER supplies the real one at runtime
+// (paymentGate.treasuryWallet); this is only a defensive fallback (empty by default).
+const TREASURY = PVP_TREASURY;
 
-// ✅ SPL WAGER CONFIG (FROM .env)
-// (no placeholder strings; require env to be set)
-const WAGER_MINT = process.env.REACT_APP_TOKEN_MINT || "";
-const WAGER_DECIMALS = Number(process.env.REACT_APP_TOKEN_DECIMALS ?? 6);
-
-// ✅ UI/LOGIC CAP (default 100k; CRA env must be REACT_APP_*)
-const MAX_BET_TOKENS = Number(process.env.REACT_APP_MAX_BET_TOKENS ?? 100000);
+// SPL wager config — same CYBERIO token as cards/market.
+const WAGER_MINT = TOKEN_MINT;
+const WAGER_DECIMALS = TOKEN_DECIMALS;
 
 // =========================
 // ✅ socket / chain

@@ -66,23 +66,10 @@ const io = socketio(server, {
 const { attachEarnNpcSocket } = require("../server/sockets/earnNpc.socket");
 const { attachWorldSocket } = require("../server/sockets/world.socket");
 
-/** ─ SOLANA / TREASURY & ENV ─ */
-const SOLANA_RPC = process.env.SOLANA_RPC;
-const SOLANA_RPC_URLS = Array.from(
-  new Set(
-    [
-      SOLANA_RPC,
-      process.env.QUICKNODE_RPC_URL,
-      ...(process.env.SOLANA_RPC_FALLBACKS || process.env.RPC_FALLBACKS || "")
-        .split(",")
-        .map((value) => value.trim())
-        .filter(Boolean),
-      SOLANA_RPC && !/devnet|testnet/i.test(SOLANA_RPC)
-        ? "https://api.mainnet-beta.solana.com"
-        : "",
-    ].filter(Boolean)
-  )
-);
+/** ─ SOLANA / TREASURY & ENV (central config — server/config/chain.js) ─ */
+const chainCfg = require("./config/chain");
+const SOLANA_RPC = chainCfg.SOLANA_RPC;
+const SOLANA_RPC_URLS = chainCfg.RPC_URLS;
 const connection = new Connection(SOLANA_RPC, "confirmed");
 const rpcConnections = SOLANA_RPC_URLS.map((url) => new Connection(url, "confirmed"));
 
@@ -92,13 +79,13 @@ const TREASURY_PUBKEY = treasuryKeypair.publicKey.toBase58();
 
 const MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
-/** ✅ SPL WAGER CONFIG (SERVER) */
-const WAGER_MINT = process.env.WAGER_MINT || process.env.CYBERIO_TOKEN_MINT || "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump"; // same mint client uses
-const WAGER_DECIMALS = parseInt(process.env.WAGER_DECIMALS || "6", 10);
+/** ✅ SPL WAGER CONFIG (SERVER) — same CYBERIO token as cards/market */
+const WAGER_MINT = chainCfg.TOKEN_MINT;
+const WAGER_DECIMALS = chainCfg.TOKEN_DECIMALS;
 
 /** ─ RAKE SETTINGS ─ */
-const RAKE_BPS = parseInt(process.env.RAKE_BPS || "0", 10);
-const FEE_WALLET = process.env.FEE_WALLET || null; // fee wallet owner pubkey (not ATA)
+const RAKE_BPS = chainCfg.RAKE_BPS;
+const FEE_WALLET = chainCfg.FEE_WALLET; // fee wallet owner pubkey (not ATA)
 
 function isRecoverableNetworkError(err) {
   const msg = String(err?.message || err || "");

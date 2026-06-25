@@ -11,17 +11,9 @@ import {
   SolanaSignTransaction,
 } from "@solana/wallet-standard-features";
 import { API_BASE_URL } from "../config/endpoints";
+import { RPC_ENDPOINT, TOKEN_MINT } from "../config/chain";
 
 export const WalletContext = createContext();
-
-// ========= ENV =========
-const RPC_ENDPOINT =
-  (process.env.REACT_APP_SOLANA_RPC || "").trim() ||
-  "https://soft-long-tree.solana-mainnet.quiknode.pro/883d10d4159f4b31b41d6033458772076fedb5d4/";
-
-const TOKEN_MINT =
-  (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
-  "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
 
 const LS_KEY = "CYBERIO_SELECTED_WALLET";
 

@@ -7,6 +7,7 @@ import backCard from "../assets/images/back.png";
 import drawEffect from "../assets/images/drawbg.gif";
 import { WalletContext } from "../../context/WalletConnect";
 import { API_BASE_URL } from "../../config/endpoints";
+import { RPC_ENDPOINT, TOKEN_MINT, DRAW_TREASURY } from "../../config/chain";
 import { nftArt } from "./cardArt";
 import { playSfx } from "../../audio";
 
@@ -52,14 +53,9 @@ const rarityGlow = {
   Legendary: "#8a2be2",
 };
 
-/** --------- constants (keep in sync with server) --------- */
-const RPC_ENDPOINT =
-  (process.env.REACT_APP_SOLANA_RPC || "").trim() ||
-  "https://api.mainnet-beta.solana.com";
-const TREASURY_ADDRESS = "8yUGx6tMGsCxSdVj2Fk8FyaDkg4doZ32xnkNkzKSwHe5";
-const SD_TOKEN_MINT =
-  (process.env.REACT_APP_TOKEN_MINT || "").trim() ||
-  "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump";
+/** --------- constants (from central config — src/config/chain.js) --------- */
+const TREASURY_ADDRESS = DRAW_TREASURY; // card-draw recipient; must match server DRAW_TREASURY
+const SD_TOKEN_MINT = TOKEN_MINT;
 const DRAW_PRICE_SD = 5000; // whole CYBERIO tokens per draw — MUST match server DRAW_PRICE_CYBERIO
 const DRAW_COUNTS = [1, 5, 10]; // multi-draw options
 const MEMO_PROGRAM_ID = new PublicKey(

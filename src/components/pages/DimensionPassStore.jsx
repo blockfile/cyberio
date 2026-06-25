@@ -2,6 +2,7 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import { WalletContext } from "../../context/WalletConnect";
 import { API_BASE_URL } from "../../config/endpoints";
+import { RPC_ENDPOINT } from "../../config/chain";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import {
     getAssociatedTokenAddress,
@@ -21,11 +22,8 @@ import TIER3 from "../assets/images/dimentsionalpass/TIER3.png";
 
 const API_BASE = API_BASE_URL;
 
-// RPC for wallet recentBlockhash
-const SOLANA_RPC =
-    (process.env.REACT_APP_SOLANA_RPC || "").trim() ||
-    (process.env.REACT_APP_QUICKNODE_RPC_URL || "").trim() ||
-    "https://api.mainnet-beta.solana.com";
+// RPC for wallet recentBlockhash (from central config — src/config/chain.js)
+const SOLANA_RPC = RPC_ENDPOINT;
 
 /**
  * OFF-CHAIN STORE ITEMS (UI CARDS)

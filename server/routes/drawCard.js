@@ -9,16 +9,13 @@ const { getAssociatedTokenAddress } = require("@solana/spl-token");
 const User = require("../model/User");
 const DrawIntent = require("../model/DrawIntent");
 
-/** ─ CONFIG ─ */
-const RPC_URL = process.env.SOLANA_RPC || "https://api.mainnet-beta.solana.com";
-const TREASURY_PUBKEY = new PublicKey(
-  process.env.TREASURY_PUBKEY || "8yUGx6tMGsCxSdVj2Fk8FyaDkg4doZ32xnkNkzKSwHe5"
-);
-const SD_TOKEN_MINT = new PublicKey(
-  process.env.CYBERIO_TOKEN_MINT || process.env.SD_TOKEN_MINT || "DttktP1JiM63zGLSALiKs788mMYCunzRoZfCiwRFpump"
-);
-// price in whole CYBERIO tokens (e.g. 10)
-const DRAW_PRICE_SD = parseInt(process.env.DRAW_PRICE_CYBERIO || process.env.DRAW_PRICE_SD || "5000", 10);
+/** ─ CONFIG (central — server/config/chain.js) ─ */
+const chainCfg = require("../config/chain");
+const RPC_URL = chainCfg.SOLANA_RPC;
+const TREASURY_PUBKEY = new PublicKey(chainCfg.DRAW_TREASURY); // draw recipient; must match client REACT_APP_DRAW_TREASURY
+const SD_TOKEN_MINT = new PublicKey(chainCfg.TOKEN_MINT);
+// price in whole CYBERIO tokens
+const DRAW_PRICE_SD = chainCfg.DRAW_PRICE;
 const DRAW_COUNTS = [1, 5, 10]; // allowed multi-draw sizes
 
 const TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
