@@ -1,10 +1,10 @@
 // Cyberpunk landing / connect screen for CYBERIO (shown before a wallet is connected).
 import React, { useState } from "react";
+import { FaTelegram, FaXTwitter } from "react-icons/fa6";
 import "./cyber-landing.css";
 
 const CA = ""; // CYBERIO token mint — paste the contract address here when live
 const LINKS = {
-  web: "https://cyberio.fun/",
   tg: "https://t.me/CYBERIO_PORTAL",
   x: "https://x.com/PlayCyberio",
 };
@@ -44,11 +44,9 @@ export default function CyberLanding({ onConnect, overlay = false }) {
         </button>
 
         <div className="cl-links">
-          <a href={LINKS.web} target="_blank" rel="noreferrer">🌐 Website</a>
+          <a href={LINKS.tg} target="_blank" rel="noreferrer" aria-label="Telegram"><FaTelegram /> Telegram</a>
           <span className="cl-dot">•</span>
-          <a href={LINKS.tg} target="_blank" rel="noreferrer" aria-label="Telegram">✈ Telegram</a>
-          <span className="cl-dot">•</span>
-          <a href={LINKS.x} target="_blank" rel="noreferrer" aria-label="X">𝕏 Twitter</a>
+          <a href={LINKS.x} target="_blank" rel="noreferrer" aria-label="X"><FaXTwitter /> Twitter</a>
         </div>
 
         {CA && (

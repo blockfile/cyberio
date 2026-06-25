@@ -5,6 +5,7 @@ import roadCellsList from "./road_cells.json";   // road layout (built by script
 import { WalletContext } from "../../context/WalletConnect";
 import { useBGM } from "../../context/BGMProvider";
 import { playSfx } from "../../audio";
+import { FaTelegram, FaXTwitter } from "react-icons/fa6";
 import { io } from "socket.io-client";
 import { SOCKET_URL, API_BASE_URL } from "../../config/endpoints";
 import CityNav from "./CityNav";
@@ -32,9 +33,8 @@ import lsArena from "../assets/images/duelfield.jpg";
 
 // ── socials shown in the world HUD ──
 const SOCIALS = {
-  tg:  "https://t.me/CYBERIO_PORTAL",
-  x:   "https://x.com/PlayCyberio",
-  web: "https://cyberio.fun/",
+  tg: "https://t.me/CYBERIO_PORTAL",
+  x:  "https://x.com/PlayCyberio",
 };
 // 👇 paste the CYBERIO token contract address here when it's live (leave "" to hide the copy chip)
 const CYBERIO_CA = "";
@@ -1276,13 +1276,10 @@ export default function World() {
       {/* socials + contract address (bottom-left) */}
       <div className="world-social">
         <a className="world-social__link tg" href={SOCIALS.tg} target="_blank" rel="noreferrer" title="Telegram">
-          <span className="world-social__ic">✈</span><span className="world-social__lbl">TG</span>
+          <FaTelegram className="world-social__ic" /><span className="world-social__lbl">TG</span>
         </a>
         <a className="world-social__link x" href={SOCIALS.x} target="_blank" rel="noreferrer" title="X / Twitter">
-          <span className="world-social__ic">𝕏</span><span className="world-social__lbl">X</span>
-        </a>
-        <a className="world-social__link web" href={SOCIALS.web} target="_blank" rel="noreferrer" title="Website">
-          <span className="world-social__ic">🌐</span><span className="world-social__lbl">SITE</span>
+          <FaXTwitter className="world-social__ic" /><span className="world-social__lbl">X</span>
         </a>
         {CYBERIO_CA ? (
           <button className="world-social__ca" onClick={copyCA} title="Copy contract address">

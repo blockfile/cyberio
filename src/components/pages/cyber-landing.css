@@ -141,7 +141,7 @@
   display: flex; align-items: center; justify-content: center; gap: 12px;
   margin: 20px 0 18px; font-size: 10px;
 }
-.cl-links a { color: #9fd6ff; text-decoration: none; text-shadow: 0 0 6px rgba(40,180,255,0.5); transition: color 0.12s ease; }
+.cl-links a { display: inline-flex; align-items: center; gap: 5px; color: #9fd6ff; text-decoration: none; text-shadow: 0 0 6px rgba(40,180,255,0.5); transition: color 0.12s ease; }
 .cl-links a:hover { color: #fff; }
 .cl-dot { color: #4a6a8a; }
 .cl-disc { color: #b69cff !important; }
