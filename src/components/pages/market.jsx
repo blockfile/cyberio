@@ -950,14 +950,14 @@ export default function Market({ embedded = false }) {
       <AnimatePresence>
         {showListModal && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setShowListModal(false)}
           >
             <motion.div
-              className="max-w-6xl w-[94vw] max-h-[88vh] overflow-y-auto rounded-xl border border-white/10 bg-zinc-900/90 p-5"
+              className="max-w-6xl w-[94vw] max-h-full overflow-y-auto rounded-xl border border-white/10 bg-zinc-900/90 p-5"
               initial={{ scale: 0.96 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.96 }}

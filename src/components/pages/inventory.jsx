@@ -255,10 +255,10 @@ export default function Inventory({ embedded = false }) {
                                text-[rgba(255,105,210,.98)]
                                drop-shadow-[0_0_18px_rgba(255,43,214,.22)]"
                   >
-                    NFT Inventory
+                    Inventory
                   </h1>
                   <div className="mt-2 text-xs md:text-sm text-white/70 tracking-[.14em] uppercase">
-                    Total NFTs Owned:{" "}
+                    Total Cards Owned:{" "}
                     <span className="text-white/95 font-black tracking-[.20em]">{totalCardCount}</span>
                   </div>
                 </div>
@@ -453,7 +453,7 @@ export default function Inventory({ embedded = false }) {
                       </span>
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-1 text-[8px] tracking-[.14em] uppercase text-white/55">
-                      <span className="truncate">{name || `NFT #${cardId}`}</span>
+                      <span className="truncate">{name || `Card #${cardId}`}</span>
                       {power != null && (
                         <span className="shrink-0 ml-1 px-1.5 py-[1px] rounded-md bg-amber-400/25 border border-amber-300/60 text-amber-200 font-black text-[10px] shadow-[0_0_8px_rgba(255,200,60,0.45)]">
                           ⚡{power}
@@ -557,7 +557,7 @@ export default function Inventory({ embedded = false }) {
                 <div className="rounded-2xl border border-white/10 bg-black/35 p-3 md:p-4 flex items-center justify-center">
                   <img
                     src={modalImage}
-                    alt="Enlarged NFT"
+                    alt="Enlarged card"
                     className="w-[min(420px,82vw)] h-auto max-h-[42vh] object-contain
                                drop-shadow-[0_18px_44px_rgba(0,0,0,0.70)]"
                   />
